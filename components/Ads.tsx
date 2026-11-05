@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useCan } from '@/lib/profile-context'
 import ProfilePicker from './ProfilePicker'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState } from './TableState'
-import InlinePersonPicker from './InlinePersonPicker'
+import InlinePersonPicker, { type ProfileOption } from './InlinePersonPicker'
 
 function IconPlus() {
   return (
@@ -32,6 +32,8 @@ function NumInput({ value, onChange }: { value: string; onChange: (v: string) =>
 export default function Ads() {
   const [ads, setAds]           = useState<any[]>([])
   const [products, setProducts] = useState<any[]>([])
+  // Profiles fetched once in parallel with ads — shared with form + all row pickers.
+  const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([])
   const [loading, setLoading]   = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving]     = useState(false)
@@ -50,12 +52,19 @@ export default function Ads() {
   const supabase = createClient()
 
   async function load() {
-    const [a, p] = await Promise.all([
-      supabase.from('ads').select('*').order('product_id'),
+    // Select only columns rendered — avoids fetching budget_adjustment, next_action, etc.
+    // Profiles fetched in parallel with ads + products (no waterfall).
+    const [a, p, pr] = await Promise.all([
+      supabase
+        .from('ads')
+        .select('id, product_id, month, campaign_name, channel, managed_by, managed_by_id, budget_allocated, budget_spent, budget_total, budget_remaining, reach, clicks, leads, cpl, roas, sales_amount, result_notes')
+        .order('product_id'),
       supabase.from('products').select('product_id, name'),
+      supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
     ])
     setAds(a.data || [])
     setProducts(p.data || [])
+    setProfileOptions(pr.data || [])
     setLoading(false)
   }
 
@@ -135,28 +144,29 @@ export default function Ads() {
     await load()
   }
 
-  // Summary totals run over ALL ads (search filters the table only).
-  // Use generated budget_total so the headline matches the Ads page.
-  const totalBudget = ads.reduce((s, r) => s + Number(r.budget_total ?? 0), 0)
-  const totalSpent  = ads.reduce((s, r) => s + Number(r.budget_spent), 0)
-  const totalLeads   = ads.reduce((s, r) => s + Number(r.leads), 0)
-  const totalReach   = ads.reduce((s, r) => s + Number(r.reach), 0)
+  // Summary totals — memoized so they only recompute when ads data changes.
+  const totalBudget = useMemo(() => ads.reduce((s, r) => s + Number(r.budget_total ?? 0), 0), [ads])
+  const totalSpent  = useMemo(() => ads.reduce((s, r) => s + Number(r.budget_spent), 0), [ads])
+  const totalLeads  = useMemo(() => ads.reduce((s, r) => s + Number(r.leads), 0), [ads])
+  const totalReach  = useMemo(() => ads.reduce((s, r) => s + Number(r.reach), 0), [ads])
   const spentPct    = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0
 
-  const summaryCards = [
+  const summaryCards = useMemo(() => [
     { label: 'งบทั้งหมด',   value: `฿${totalBudget.toLocaleString()}`, meta: `${ads.length} campaigns` },
     { label: 'ใช้จ่ายแล้ว', value: `฿${totalSpent.toLocaleString()}`,  meta: `${spentPct}% ของงบ` },
     { label: 'Reach รวม',   value: totalReach.toLocaleString(),         meta: 'impressions' },
     { label: 'Leads รวม',   value: totalLeads.toLocaleString(),         meta: 'leads' },
-  ]
+  ], [totalBudget, totalSpent, spentPct, totalReach, totalLeads, ads.length])
 
-  const filtered = ads.filter(a => {
-    if (!search) return true
+  const filtered = useMemo(() => {
+    if (!search) return ads
     const q = search.toLowerCase()
-    return (a.product_id || '').toLowerCase().includes(q)
+    return ads.filter(a =>
+      (a.product_id || '').toLowerCase().includes(q)
       || (a.campaign_name || '').toLowerCase().includes(q)
-      || (a.channel || '').toLowerCase().includes(q)
-  })
+      || (a.channel || '').toLowerCase().includes(q),
+    )
+  }, [ads, search])
 
   const headers = ['Product', 'Campaign', 'ช่องทาง', 'ผู้ดูแล', 'งบจัดสรร', 'ใช้จริง', 'คงเหลือ', 'Reach', 'Clicks', 'Leads', 'CPL', 'ROAS', 'ยอดขาย', 'ผล', '']
 
@@ -226,8 +236,10 @@ export default function Ads() {
               onChange={e => setForm({ ...form, content_ref: e.target.value })}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
             />
+            {/* ProfilePicker receives profiles as a prop — no internal fetch */}
             <ProfilePicker
               value={form.managed_by_id}
+              profiles={profileOptions}
               onChange={(id, name) => setForm({ ...form, managed_by_id: id, managed_by: name })}
               placeholder="ผู้ดูแล"
             />
@@ -311,17 +323,17 @@ export default function Ads() {
                     <td className="px-4 py-3 font-mono text-xs text-gray-400">{a.product_id}</td>
                     <td className="px-4 py-3 font-medium text-gray-900 max-w-[140px] truncate">{a.campaign_name}</td>
                     <td className="px-4 py-3 text-sm text-gray-500">{a.channel}</td>
-                    {/* managed_by — inline person picker */}
+                    {/* managed_by — inline person picker, profiles passed as prop */}
                     <td className="px-4 py-3">
                       <InlinePersonPicker
                         value={a.managed_by_id || ''}
                         display={a.managed_by || ''}
+                        profiles={profileOptions}
                         disabled={!canUpdate}
                         onChange={(id, name) => updateManager(a.id, id, name)}
                       />
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 tabular-nums">฿{allocated.toLocaleString()}</td>
-                    {/* budget_spent — inline editable, with overspend warning */}
                     <td className={`px-4 py-3 tabular-nums ${over && !isEditing ? 'bg-red-50' : ''}`}>
                       {isEditing ? (
                         <NumInput value={editVal.budget_spent} onChange={v => setEditVal({ ...editVal, budget_spent: v })} />
@@ -333,21 +345,18 @@ export default function Ads() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm text-green-600 tabular-nums">฿{Number(a.budget_remaining).toLocaleString()}</td>
-                    {/* reach — inline editable */}
                     <td className="px-4 py-3 tabular-nums">
                       {isEditing
                         ? <NumInput value={editVal.reach} onChange={v => setEditVal({ ...editVal, reach: v })} />
                         : <span className="text-sm text-gray-500">{Number(a.reach).toLocaleString()}</span>
                       }
                     </td>
-                    {/* clicks — inline editable */}
                     <td className="px-4 py-3 tabular-nums">
                       {isEditing
                         ? <NumInput value={editVal.clicks} onChange={v => setEditVal({ ...editVal, clicks: v })} />
                         : <span className="text-sm text-gray-500">{Number(a.clicks).toLocaleString()}</span>
                       }
                     </td>
-                    {/* leads — inline editable */}
                     <td className="px-4 py-3 tabular-nums">
                       {isEditing
                         ? <NumInput value={editVal.leads} onChange={v => setEditVal({ ...editVal, leads: v })} />
@@ -355,11 +364,9 @@ export default function Ads() {
                       }
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500 tabular-nums">฿{Number(a.cpl).toLocaleString()}</td>
-                    {/* ROAS — read-only, color-coded */}
                     <td className={`px-4 py-3 text-sm tabular-nums ${roasColor}`}>
                       {roas > 0 ? `${roas.toFixed(2)}×` : '—'}
                     </td>
-                    {/* sales_amount — inline editable */}
                     <td className="px-4 py-3 tabular-nums">
                       {isEditing
                         ? <NumInput value={editVal.sales_amount} onChange={v => setEditVal({ ...editVal, sales_amount: v })} />
@@ -367,7 +374,6 @@ export default function Ads() {
                       }
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-400 max-w-[100px] truncate">{a.result_notes}</td>
-                    {/* action: edit / save */}
                     <td className="px-4 py-3 whitespace-nowrap">
                       {isEditing ? (
                         <div className="flex gap-1">

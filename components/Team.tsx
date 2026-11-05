@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useProfile } from '@/lib/profile-context'
 import StatusSelect from './StatusSelect'
@@ -67,9 +67,10 @@ export default function Team() {
   const me = useProfile()
 
   async function load() {
+    // Select only columns displayed in the table — skips brand_access, approved_by, updated_at.
     const { data } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, name, email, role, approval_status, approved_at, created_at')
       .order('created_at', { ascending: false })
     setProfiles(data || [])
     setLoading(false)
@@ -117,18 +118,18 @@ export default function Team() {
     }
   }
 
-  const pendingCount  = profiles.filter(p => p.approval_status === 'pending').length
-  const approvedCount = profiles.filter(p => p.approval_status === 'approved').length
-  const rejectedCount = profiles.filter(p => p.approval_status === 'rejected').length
+  const pendingCount  = useMemo(() => profiles.filter(p => p.approval_status === 'pending').length, [profiles])
+  const approvedCount = useMemo(() => profiles.filter(p => p.approval_status === 'approved').length, [profiles])
+  const rejectedCount = useMemo(() => profiles.filter(p => p.approval_status === 'rejected').length, [profiles])
 
-  const filtered = profiles.filter(p => {
+  const filtered = useMemo(() => profiles.filter(p => {
     const matchFilter = filter === 'all' || p.approval_status === filter
     const matchSearch = !search || (() => {
       const q = search.toLowerCase()
       return (p.name || '').toLowerCase().includes(q) || (p.email || '').toLowerCase().includes(q)
     })()
     return matchFilter && matchSearch
-  })
+  }), [profiles, filter, search])
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-5">

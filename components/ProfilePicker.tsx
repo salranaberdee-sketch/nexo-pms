@@ -1,37 +1,26 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase'
-
-type ProfileOption = { id: string; name: string }
+export type ProfileOption = { id: string; name: string }
 
 // Reusable dropdown that lists all approved profiles.
+// Accepts profiles as a prop — fetch once in the parent and pass down,
+// instead of fetching independently in every form instance.
 // Stores both id (for FK) and name (for display/fallback) via onChange.
 export default function ProfilePicker({
   value,
+  profiles,
   onChange,
   placeholder = 'เลือกผู้รับผิดชอบ',
   allowEmpty = true,
   className = '',
 }: {
   value: string
+  profiles: ProfileOption[]
   onChange: (id: string, name: string) => void
   placeholder?: string
   allowEmpty?: boolean
   className?: string
 }) {
-  const [profiles, setProfiles] = useState<ProfileOption[]>([])
-  const supabase = createClient()
-
-  useEffect(() => {
-    supabase
-      .from('profiles')
-      .select('id, name')
-      .eq('approval_status', 'approved')
-      .order('name')
-      .then(({ data }) => setProfiles(data || []))
-  }, [supabase])
-
   return (
     <select
       value={value}

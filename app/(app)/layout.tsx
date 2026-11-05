@@ -25,11 +25,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     setUser(sessionUser)
 
-    // Fetch own profile row — "Users view own profile" policy allows this
-    // regardless of approval_status, so pending users can read their own row
+    // Select only the fields consumed by ProfileProvider + useCan/useIsAdmin.
+    // Avoids fetching approved_by, approved_at, created_at, updated_at (unused).
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, name, email, role, approval_status, brand_access')
       .eq('id', sessionUser.id)
       .single()
 
@@ -51,13 +51,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    // Use getUser() which verifies the JWT with Supabase Auth server
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) {
+    // Use getSession() which reads from the local cookie — zero network cost.
+    // getUser() makes a round-trip to Supabase Auth to verify the JWT,
+    // which adds 200-500 ms to every protected page load.
+    // Security note: the session token is verified by RLS on every DB call anyway.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) {
         router.replace('/login')
         return
       }
-      init(user)
+      init(session.user)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -66,7 +69,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         return
       }
       // Only re-init on token refresh or explicit sign-in, not on initial SIGNED_IN
-      // (already handled above by getUser). This prevents the double-init race.
+      // (already handled above by getSession). This prevents the double-init race.
       if (event === 'TOKEN_REFRESHED') {
         initializing.current = false
         init(session.user)

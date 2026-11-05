@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useCan } from '@/lib/profile-context'
 import ProfilePicker from './ProfilePicker'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState } from './TableState'
 import StatusSelect from './StatusSelect'
-import InlinePersonPicker from './InlinePersonPicker'
+import InlinePersonPicker, { type ProfileOption } from './InlinePersonPicker'
 
 const STATUS_OPTIONS = ['กำลังพัฒนา', 'เตรียมเปิดตัว', 'เปิดขาย', 'หยุดขาย']
 
@@ -35,26 +35,38 @@ function IconPlus() {
 }
 
 export default function Products() {
-  const [products, setProducts]   = useState<any[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [showForm, setShowForm]   = useState(false)
-  const [saving, setSaving]       = useState(false)
-  const [error, setError]         = useState('')
-  const [search, setSearch]       = useState('')
-  // Edit mode reuses the add form (editingId set => update instead of insert).
-  const [editingId, setEditingId] = useState<number | null>(null)
-  // Inline two-step delete confirm (no native confirm dialog per code style).
+  const [products, setProducts]           = useState<any[]>([])
+  // Profiles fetched once in parallel with products — shared with form + all row pickers.
+  const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([])
+  const [loading, setLoading]             = useState(true)
+  const [showForm, setShowForm]           = useState(false)
+  const [saving, setSaving]               = useState(false)
+  const [error, setError]                 = useState('')
+  const [search, setSearch]               = useState('')
+  const [editingId, setEditingId]         = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
-  const [deleting, setDeleting]   = useState(false)
-  const [form, setForm] = useState({ ...EMPTY_FORM })
+  const [deleting, setDeleting]           = useState(false)
+  const [form, setForm]                   = useState({ ...EMPTY_FORM })
   const canInsert = useCan('insert', 'products')
   const canUpdate = useCan('update', 'products')
   const canDelete = useCan('delete', 'products')
   const supabase = createClient()
 
   async function load() {
-    const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false })
-    setProducts(data || [])
+    // Fetch products + profiles in parallel — select only displayed columns.
+    const [p, pr] = await Promise.all([
+      supabase
+        .from('products')
+        .select('id, product_id, name, business_type, product_type, brand, owner, owner_id, status, notes')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('profiles')
+        .select('id, name, role')
+        .eq('approval_status', 'approved')
+        .order('name'),
+    ])
+    setProducts(p.data || [])
+    setProfileOptions(pr.data || [])
     setLoading(false)
   }
 
@@ -86,7 +98,6 @@ export default function Products() {
   async function save() {
     setSaving(true)
     setError('')
-    // product_id format validation on INSERT only (it's locked when editing).
     if (!editingId && !PID_RE.test(form.product_id)) {
       setError('Product ID ต้องเป็นรูปแบบ XXX-YYY-NNN เช่น MED-PSY-002')
       setSaving(false)
@@ -136,7 +147,8 @@ export default function Products() {
       return
     }
     setConfirmDelete(null)
-    await load()
+    // Optimistic: remove from local state instead of full reload
+    setProducts(prev => prev.filter(p => p.id !== id))
   }
 
   // Inline status change — optimistic update, revert on error.
@@ -156,6 +168,7 @@ export default function Products() {
     const { error: updErr } = await supabase.from('products').update({ owner_id: owner_id || null, owner }).eq('id', id)
     if (updErr) {
       setError(updErr.message)
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, owner_id, owner } : p))
       await load()
     }
   }
@@ -168,17 +181,18 @@ export default function Products() {
     ['brand',         'แบรนด์'],
   ]
 
-  // product_id invalid hint (live) — only relevant in insert mode.
   const pidInvalid = !editingId && form.product_id !== '' && !PID_RE.test(form.product_id)
 
-  const filtered = products.filter(p => {
-    if (!search) return true
+  const filtered = useMemo(() => {
+    if (!search) return products
     const q = search.toLowerCase()
-    return (p.product_id || '').toLowerCase().includes(q)
+    return products.filter(p =>
+      (p.product_id || '').toLowerCase().includes(q)
       || (p.name || '').toLowerCase().includes(q)
       || (p.brand || '').toLowerCase().includes(q)
-      || (p.owner || '').toLowerCase().includes(q)
-  })
+      || (p.owner || '').toLowerCase().includes(q),
+    )
+  }, [products, search])
 
   const headers = ['Product ID', 'ชื่อสินค้า', 'ประเภท', 'แบรนด์', 'ผู้รับผิดชอบ', 'สถานะ', 'หมายเหตุ', '']
 
@@ -227,8 +241,10 @@ export default function Products() {
                 )}
               </div>
             ))}
+            {/* ProfilePicker receives profiles as a prop — no internal fetch */}
             <ProfilePicker
               value={form.owner_id}
+              profiles={profileOptions}
               onChange={(id, name) => setForm({ ...form, owner_id: id, owner: name })}
               placeholder="ผู้รับผิดชอบ"
             />
@@ -294,9 +310,11 @@ export default function Products() {
                   <td className="px-4 py-3 text-sm text-gray-500">{p.product_type}</td>
                   <td className="px-4 py-3 text-sm text-gray-500">{p.brand}</td>
                   <td className="px-4 py-3 text-sm text-gray-500">
+                    {/* profiles prop — single array shared by all rows, no per-row DB call */}
                     <InlinePersonPicker
                       value={p.owner_id || ''}
                       display={p.owner || ''}
+                      profiles={profileOptions}
                       disabled={!canUpdate}
                       onChange={(id, name) => updateOwner(p.id, id, name)}
                     />
@@ -311,7 +329,6 @@ export default function Products() {
                     />
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-400 max-w-[160px] truncate">{p.notes}</td>
-                  {/* actions: edit (admin/manager) + delete (admin only, two-step confirm) */}
                   <td className="px-4 py-3 whitespace-nowrap text-right">
                     <div className="flex items-center justify-end gap-2">
                       {canUpdate && (
@@ -359,7 +376,6 @@ export default function Products() {
         </div>
       </div>
 
-      {/* Helper note about cascade delete — shown to admins */}
       {canDelete && confirmDelete !== null && (
         <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
           การลบ Product จะลบ Content, Ads, Sales และ Product Brief ที่เกี่ยวข้องทั้งหมดด้วย

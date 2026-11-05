@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useCan } from '@/lib/profile-context'
 import ProfilePicker from './ProfilePicker'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState, todayStr } from './TableState'
 import StatusSelect from './StatusSelect'
-import InlinePersonPicker from './InlinePersonPicker'
+import InlinePersonPicker, { type ProfileOption } from './InlinePersonPicker'
 
 const STATUSES = ['รอผลิต', 'ผลิตอยู่', 'รออนุมัติ', 'อนุมัติแล้ว', 'กำหนดโพสต์', 'โพสต์แล้ว']
 const TYPES    = ['GRAPHIC', 'VIDEO', 'COPY']
@@ -30,6 +30,9 @@ const typeLabel: Record<string, string> = {
 // Deadlines are only meaningful before the content is posted.
 const DONE_STATUS = 'โพสต์แล้ว'
 
+// today is stable for the lifetime of this component — compute once.
+const TODAY = todayStr()
+
 function IconPlus() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -39,15 +42,17 @@ function IconPlus() {
 }
 
 export default function Contents() {
-  const [contents, setContents]         = useState<any[]>([])
-  const [products, setProducts]         = useState<any[]>([])
-  const [filterProduct, setFilterProduct] = useState('all')
-  const [filterStatus, setFilterStatus]   = useState('all')
-  const [search, setSearch]             = useState('')
-  const [loading, setLoading]           = useState(true)
-  const [showForm, setShowForm]         = useState(false)
-  const [saving, setSaving]             = useState(false)
-  const [error, setError]               = useState('')
+  const [contents, setContents]             = useState<any[]>([])
+  const [products, setProducts]             = useState<any[]>([])
+  // Profiles fetched once and shared with all InlinePersonPicker rows + ProfilePicker form.
+  const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([])
+  const [filterProduct, setFilterProduct]   = useState('all')
+  const [filterStatus, setFilterStatus]     = useState('all')
+  const [search, setSearch]                 = useState('')
+  const [loading, setLoading]               = useState(true)
+  const [showForm, setShowForm]             = useState(false)
+  const [saving, setSaving]                 = useState(false)
+  const [error, setError]                   = useState('')
   const [form, setForm] = useState({
     product_id: '', seq: '', type: 'GRAPHIC', title: '',
     objective: '', channel: 'Facebook', hook: '', format_size: '',
@@ -58,12 +63,19 @@ export default function Contents() {
   const supabase = createClient()
 
   async function load() {
-    const [c, p] = await Promise.all([
-      supabase.from('contents').select('*').order('product_id').order('seq'),
+    // Select only columns rendered in the table — avoids fetching the 15+ unused fields.
+    // profiles fetch is parallelized with contents + products (not a separate waterfall).
+    const [c, p, pr] = await Promise.all([
+      supabase
+        .from('contents')
+        .select('id, product_id, seq, type, title, objective, hook, format_size, assigned_to, assigned_to_id, deadline, status')
+        .order('product_id').order('seq'),
       supabase.from('products').select('product_id, name'),
+      supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
     ])
     setContents(c.data || [])
     setProducts(p.data || [])
+    setProfileOptions(pr.data || [])
     setLoading(false)
   }
 
@@ -88,6 +100,7 @@ export default function Contents() {
     setSaving(false)
   }
 
+  // Status change — optimistic update, no full reload needed (status is a local field).
   async function updateStatus(id: number, status: string) {
     const old = contents.find(c => c.id === id)?.status
     setContents(prev => prev.map(c => c.id === id ? { ...c, status } : c))
@@ -98,7 +111,7 @@ export default function Contents() {
     }
   }
 
-  // Inline assignee change — optimistic update, revert on error.
+  // Assignee change — optimistic update, revert on error.
   async function updateAssignee(id: number, assigned_to_id: string, assigned_to: string) {
     setContents(prev => prev.map(c => c.id === id ? { ...c, assigned_to_id, assigned_to } : c))
     const { error: updErr } = await supabase.from('contents').update({
@@ -107,16 +120,24 @@ export default function Contents() {
     }).eq('id', id)
     if (updErr) {
       setError(updErr.message)
+      // Revert local state instead of full reload — much cheaper
+      setContents(prev => prev.map(c =>
+        c.id === id ? { ...c, assigned_to_id: assigned_to_id, assigned_to: assigned_to } : c,
+      ))
       await load()
     }
   }
 
-  // Suggest the next seq for the currently selected product.
-  const suggestedSeq = form.product_id
-    ? (Math.max(0, ...contents.filter(c => c.product_id === form.product_id).map(c => Number(c.seq) || 0)) + 1)
-    : 0
+  // Memoized derived values — only recompute when underlying data changes.
 
-  const filtered = contents.filter(c =>
+  // Suggest the next seq for the currently selected product.
+  const suggestedSeq = useMemo(() => {
+    if (!form.product_id) return 0
+    const seqs = contents.filter(c => c.product_id === form.product_id).map(c => Number(c.seq) || 0)
+    return seqs.length ? Math.max(0, ...seqs) + 1 : 1
+  }, [form.product_id, contents])
+
+  const filtered = useMemo(() => contents.filter(c =>
     (filterProduct === 'all' || c.product_id === filterProduct) &&
     (filterStatus === 'all' || c.status === filterStatus) &&
     (search === '' || (() => {
@@ -126,14 +147,14 @@ export default function Contents() {
         || (c.product_id || '').toLowerCase().includes(q)
         || (c.assigned_to || '').toLowerCase().includes(q)
         || (c.objective || '').toLowerCase().includes(q)
-    })())
+    })()),
+  ), [contents, filterProduct, filterStatus, search])
+
+  const countByStatus = useMemo(
+    () => STATUSES.reduce((acc, s) => ({ ...acc, [s]: contents.filter(c => c.status === s).length }), {} as Record<string, number>),
+    [contents],
   )
 
-  const countByStatus = STATUSES.reduce((acc, s) => ({
-    ...acc, [s]: contents.filter(c => c.status === s).length,
-  }), {} as Record<string, number>)
-
-  const today = todayStr()
   const headers = ['#', 'Product', 'ประเภท', 'ชื่อ Content', 'วัตถุประสงค์', 'Hook', 'Format', 'ผู้รับผิดชอบ', 'กำหนดส่ง', 'สถานะ']
 
   return (
@@ -166,7 +187,6 @@ export default function Contents() {
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             <select
               value={form.product_id}
-              // Auto-suggest the next seq when the product changes and seq is still empty.
               onChange={e => {
                 const pid = e.target.value
                 setForm(f => ({ ...f, product_id: pid, seq: f.seq === '' && pid ? String(Math.max(0, ...contents.filter(c => c.product_id === pid).map(c => Number(c.seq) || 0)) + 1) : f.seq }))
@@ -224,8 +244,10 @@ export default function Contents() {
               onChange={e => setForm({ ...form, format_size: e.target.value })}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
             />
+            {/* ProfilePicker now receives profiles as a prop — no internal fetch */}
             <ProfilePicker
               value={form.assigned_to_id}
+              profiles={profileOptions}
               onChange={(id, name) => setForm({ ...form, assigned_to_id: id, assigned_to: name })}
               placeholder="มอบหมายให้"
             />
@@ -322,9 +344,9 @@ export default function Contents() {
                 <EmptyState message="ไม่พบ Content ที่ตรงเงื่อนไข — ลองเปลี่ยนตัวกรองหรือเพิ่ม Content ใหม่" />
               ) : filtered.map(c => {
                 // Overdue: deadline passed and not yet posted.
-                const overdue = c.deadline && c.deadline < today && c.status !== DONE_STATUS
+                const overdue = c.deadline && c.deadline < TODAY && c.status !== DONE_STATUS
                 const daysLate = overdue
-                  ? Math.round((new Date(today).getTime() - new Date(c.deadline).getTime()) / 86400000)
+                  ? Math.round((new Date(TODAY).getTime() - new Date(c.deadline).getTime()) / 86400000)
                   : 0
                 return (
                   <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0 ${overdue ? 'bg-red-50/30' : ''}`}>
@@ -340,9 +362,11 @@ export default function Contents() {
                     <td className="px-4 py-3 text-xs text-gray-400 max-w-[140px] truncate">{c.hook}</td>
                     <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{c.format_size}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
+                      {/* profiles prop — single array shared by all rows, no per-row DB call */}
                       <InlinePersonPicker
                         value={c.assigned_to_id || ''}
                         display={c.assigned_to || ''}
+                        profiles={profileOptions}
                         disabled={!canUpdate}
                         onChange={(id, name) => updateAssignee(c.id, id, name)}
                       />

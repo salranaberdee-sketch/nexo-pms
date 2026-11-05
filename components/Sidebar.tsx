@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
@@ -107,7 +107,10 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
     { path: '/team',      label: 'ทีม',        Icon: IconUsers, adminOnly: true },
   ]
 
-  const visibleNav = nav.filter(item => !item.adminOnly || isAdmin)
+  const visibleNav = useMemo(
+    () => nav.filter(item => !item.adminOnly || isAdmin),
+    [isAdmin], // eslint-disable-line react-hooks/exhaustive-deps
+  )
 
   return (
     <aside className="w-52 bg-white border-r border-gray-100 flex flex-col h-screen shrink-0">

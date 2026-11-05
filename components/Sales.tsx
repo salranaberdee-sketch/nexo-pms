@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useCan } from '@/lib/profile-context'
 import SearchInput from './SearchInput'
@@ -9,12 +9,27 @@ import StatusSelect from './StatusSelect'
 
 const SALES_STATUS_OPTIONS = ['ยังไม่เปิดขาย', 'ยังไม่เริ่ม', 'กำลังขาย', 'ปิดเป้า']
 
-// Complete color mapping for all 4 sales statuses (previously only 2 were styled).
 const salesStatusStyle: Record<string, string> = {
   'ยังไม่เปิดขาย': 'bg-gray-100 text-gray-400',
   'ยังไม่เริ่ม':   'bg-blue-50 text-blue-700',
   'กำลังขาย':     'bg-amber-50 text-amber-700',
   'ปิดเป้า':       'bg-green-50 text-green-700',
+}
+
+// TODAY is stable for the component lifetime — compute once, not on every render.
+const TODAY = todayStr()
+const TODAY_MS = new Date(TODAY).getTime()
+
+// Module-level inline input — avoids remounting on each keystroke (same pattern as Ads.tsx NumInput).
+function InlineNumInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <input
+      type="number"
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      className="w-28 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+    />
+  )
 }
 
 function IconPlus() {
@@ -45,8 +60,12 @@ export default function Sales() {
   const supabase = createClient()
 
   async function load() {
+    // Select only columns displayed — skips created_at, updated_at, etc.
     const [s, p] = await Promise.all([
-      supabase.from('sales').select('*').order('product_id'),
+      supabase
+        .from('sales')
+        .select('id, product_id, period_start, period_end, sales_target_amount, actual_sales, actual_received, status')
+        .order('product_id'),
       supabase.from('products').select('product_id, name, status'),
     ])
     setSales(s.data || [])
@@ -56,12 +75,9 @@ export default function Sales() {
 
   useEffect(() => { load() }, [])
 
-  // Insert a new sales target row.
-  // UNIQUE(product_id, period_start) — duplicate will fail with a constraint error.
   async function save() {
     setSaving(true)
     setError('')
-    // Period validation: end must be after start.
     if (form.period_start && form.period_end && form.period_end <= form.period_start) {
       setError('วันสิ้นสุดต้องหลังวันเริ่มต้น')
       setSaving(false)
@@ -100,9 +116,15 @@ export default function Sales() {
       setError(updErr.message)
       return
     }
+    // Update local state from editVal — avoids full table reload for numeric-only update.
+    setSales(prev => prev.map(s => s.id === id ? {
+      ...s,
+      sales_target_amount: Number(editVal.sales_target_amount),
+      actual_sales:        Number(editVal.actual_sales),
+      actual_received:     Number(editVal.actual_received),
+    } : s))
     setEditing(null)
     setError('')
-    await load()
   }
 
   // Inline status change — optimistic update, revert on error.
@@ -116,30 +138,40 @@ export default function Sales() {
     }
   }
 
-  // Period end reference for the summary card:
-  // the soonest FUTURE period_end across rows; if all periods are over, the latest one.
-  const today = todayStr()
-  const todayMs = new Date(today).getTime()
-  const ends = sales.map(r => r.period_end).filter(Boolean).sort()
-  const futureEnds = ends.filter(e => e >= today)
-  const periodEndStr = futureEnds.length ? futureEnds[0] : (ends.length ? ends[ends.length - 1] : today)
-  const periodEnd = new Date(periodEndStr)
-  const daysLeft = Math.max(0, Math.round((periodEnd.getTime() - todayMs) / 86400000))
+  // O(1) product name lookup — avoids O(N) linear scan inside each render row.
+  const productMap = useMemo(
+    () => new Map(products.map(p => [p.product_id, p])),
+    [products],
+  )
 
-  // Summary totals run over ALL sales (search filters the table, not the headline KPIs).
-  const totalTarget = sales.reduce((s, r) => s + Number(r.sales_target_amount), 0)
-  const totalActual = sales.reduce((s, r) => s + Number(r.actual_sales), 0)
+  // Summary period logic — memoized.
+  const { daysLeft, periodEnd } = useMemo(() => {
+    const ends = sales.map(r => r.period_end).filter(Boolean).sort()
+    const futureEnds = ends.filter(e => e >= TODAY)
+    const periodEndStr = futureEnds.length ? futureEnds[0] : (ends.length ? ends[ends.length - 1] : TODAY)
+    const pe = new Date(periodEndStr)
+    return {
+      daysLeft: Math.max(0, Math.round((pe.getTime() - TODAY_MS) / 86400000)),
+      periodEnd: pe,
+    }
+  }, [sales])
+
+  // KPI summary totals — memoized.
+  const totalTarget = useMemo(() => sales.reduce((s, r) => s + Number(r.sales_target_amount), 0), [sales])
+  const totalActual = useMemo(() => sales.reduce((s, r) => s + Number(r.actual_sales), 0), [sales])
   const overallPct  = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0
   const gap         = Math.max(0, totalTarget - totalActual)
   const perDay      = daysLeft > 0 && gap > 0 ? Math.round(gap / daysLeft) : 0
 
-  // Client-side text search across product id + product name.
-  const filtered = sales.filter(s => {
-    if (!search) return true
+  // Client-side text search — memoized.
+  const filtered = useMemo(() => {
+    if (!search) return sales
     const q = search.toLowerCase()
-    const product = products.find(p => p.product_id === s.product_id)
-    return s.product_id.toLowerCase().includes(q) || (product?.name || '').toLowerCase().includes(q)
-  })
+    return sales.filter(s => {
+      const product = productMap.get(s.product_id)
+      return s.product_id.toLowerCase().includes(q) || (product?.name || '').toLowerCase().includes(q)
+    })
+  }, [sales, search, productMap])
 
   const headers = ['Product ID', 'ชื่อสินค้า', 'เป้ายอดขาย', 'ยอดจริง', 'รับเงินจริง', 'ยังขาด', '% สำเร็จ', 'ต้องขาย/วัน', 'สถานะ', '']
 
@@ -280,16 +312,15 @@ export default function Sales() {
               ) : filtered.length === 0 ? (
                 <EmptyState message="ยังไม่มีเป้ายอดขาย กด &quot;เพิ่มเป้ายอดขาย&quot; เพื่อเริ่ม" />
               ) : filtered.map(s => {
-                const product = products.find(p => p.product_id === s.product_id)
+                // O(1) lookup via productMap
+                const product = productMap.get(s.product_id)
                 const target  = Number(s.sales_target_amount)
                 const actual  = Number(s.actual_sales)
                 const received = Number(s.actual_received)
                 const rowGap  = Math.max(0, target - actual)
                 const pct     = target > 0 ? Math.round((actual / target) * 100) : 0
-                // Collection rate: cash collected vs sales booked.
                 const colPct  = actual > 0 ? Math.round((received / actual) * 100) : 0
-                // Per-row days left uses this row's OWN period_end (fixes the global-daysLeft bug).
-                const rowDaysLeft = Math.max(0, Math.round((new Date(s.period_end).getTime() - todayMs) / 86400000))
+                const rowDaysLeft = Math.max(0, Math.round((new Date(s.period_end).getTime() - TODAY_MS) / 86400000))
                 const perDayRow = rowDaysLeft > 0 && rowGap > 0 ? Math.round(rowGap / rowDaysLeft) : 0
                 return (
                   <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
@@ -297,38 +328,19 @@ export default function Sales() {
                     <td className="px-4 py-3 font-medium text-gray-900 max-w-[160px] truncate">{product?.name}</td>
                     <td className="px-4 py-3 text-sm text-gray-500 tabular-nums">
                       {editing === s.id
-                        ? <input
-                            type="number"
-                            value={editVal.sales_target_amount}
-                            onChange={e => setEditVal({ ...editVal, sales_target_amount: e.target.value })}
-                            className="w-28 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                          />
+                        ? <InlineNumInput value={editVal.sales_target_amount} onChange={v => setEditVal({ ...editVal, sales_target_amount: v })} />
                         : <span>฿{target.toLocaleString()}</span>
                       }
                     </td>
-
-                    {/* Inline edit: actual_sales */}
                     <td className="px-4 py-3 tabular-nums">
                       {editing === s.id
-                        ? <input
-                            type="number"
-                            value={editVal.actual_sales}
-                            onChange={e => setEditVal({ ...editVal, actual_sales: e.target.value })}
-                            className="w-28 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                          />
+                        ? <InlineNumInput value={editVal.actual_sales} onChange={v => setEditVal({ ...editVal, actual_sales: v })} />
                         : <span className="text-sm font-medium text-gray-900">฿{actual.toLocaleString()}</span>
                       }
                     </td>
-
-                    {/* Inline edit: actual_received + collection-rate indicator */}
                     <td className="px-4 py-3 tabular-nums">
                       {editing === s.id
-                        ? <input
-                            type="number"
-                            value={editVal.actual_received}
-                            onChange={e => setEditVal({ ...editVal, actual_received: e.target.value })}
-                            className="w-28 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                          />
+                        ? <InlineNumInput value={editVal.actual_received} onChange={v => setEditVal({ ...editVal, actual_received: v })} />
                         : (
                           <div className="flex flex-col">
                             <span className="text-sm text-gray-600">฿{received.toLocaleString()}</span>
@@ -341,10 +353,7 @@ export default function Sales() {
                         )
                       }
                     </td>
-
                     <td className="px-4 py-3 text-sm text-red-500 tabular-nums">฿{rowGap.toLocaleString()}</td>
-
-                    {/* Progress bar */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-12 h-1 bg-gray-100 rounded-full overflow-hidden">
@@ -356,11 +365,9 @@ export default function Sales() {
                         <span className="text-xs text-gray-500 tabular-nums">{pct}%</span>
                       </div>
                     </td>
-
                     <td className="px-4 py-3 text-xs font-medium text-amber-600 tabular-nums">
                       {perDayRow > 0 ? `฿${perDayRow.toLocaleString()}` : '—'}
                     </td>
-
                     <td className="px-4 py-3">
                       <StatusSelect
                         value={s.status}
@@ -370,7 +377,6 @@ export default function Sales() {
                         onChange={v => updateStatus(s.id, v)}
                       />
                     </td>
-
                     <td className="px-4 py-3 whitespace-nowrap">
                       {editing === s.id
                         ? <div className="flex gap-1">

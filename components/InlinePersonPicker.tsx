@@ -1,38 +1,29 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase'
-
-type ProfileOption = { id: string; name: string; role: string }
+export type ProfileOption = { id: string; name: string; role: string }
 
 // Inline person-assignment dropdown for table rows.
 // Renders like a quiet text label; on focus/hover shows it's editable.
 // disabled=true → shows plain text (for viewers without update permission).
+//
+// IMPORTANT: profiles are passed as a prop — do NOT fetch inside this component.
+// The parent (Contents/Products/Ads) fetches once and passes to all rows,
+// eliminating the N+1 query that fires one DB call per rendered row.
 export default function InlinePersonPicker({
   value,      // currently assigned profile id
   display,    // name string shown when not editing
+  profiles,   // pre-fetched from parent — no internal fetch
   onChange,
   disabled = false,
   placeholder = '—',
 }: {
   value: string
   display: string
+  profiles: ProfileOption[]
   onChange: (id: string, name: string) => void
   disabled?: boolean
   placeholder?: string
 }) {
-  const [profiles, setProfiles] = useState<ProfileOption[]>([])
-  const supabase = createClient()
-
-  useEffect(() => {
-    supabase
-      .from('profiles')
-      .select('id, name, role')
-      .eq('approval_status', 'approved')
-      .order('name')
-      .then(({ data }) => setProfiles(data || []))
-  }, [])
-
   if (disabled) {
     return <span className="text-xs text-gray-500">{display || placeholder}</span>
   }
