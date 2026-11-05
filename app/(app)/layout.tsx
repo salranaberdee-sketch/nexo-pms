@@ -55,26 +55,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // getUser() makes a round-trip to Supabase Auth to verify the JWT,
     // which adds 200-500 ms to every protected page load.
     // Security note: the session token is verified by RLS on every DB call anyway.
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    async function bootstrap() {
+      const { data } = await supabase.auth.getSession()
+      const session: Session | null = data.session
       if (!session?.user) {
         router.replace('/login')
         return
       }
-      init(session.user)
-    })
+      await init(session.user)
+    }
+    bootstrap()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
-      if (event === 'SIGNED_OUT' || !session?.user) {
-        router.replace('/login')
-        return
-      }
-      // Only re-init on token refresh or explicit sign-in, not on initial SIGNED_IN
-      // (already handled above by getSession). This prevents the double-init race.
-      if (event === 'TOKEN_REFRESHED') {
-        initializing.current = false
-        init(session.user)
-      }
-    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event: AuthChangeEvent, session: Session | null) => {
+        if (event === 'SIGNED_OUT' || !session?.user) {
+          router.replace('/login')
+          return
+        }
+        // Only re-init on token refresh — bootstrap() already handles the initial load.
+        if (event === 'TOKEN_REFRESHED') {
+          initializing.current = false
+          init(session.user)
+        }
+      },
+    )
 
     return () => subscription.unsubscribe()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps

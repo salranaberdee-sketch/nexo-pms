@@ -94,7 +94,7 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
       .from('profiles')
       .select('id', { count: 'exact', head: true })
       .eq('approval_status', 'pending')
-      .then(({ count }) => setPendingCount(count ?? 0))
+      .then(({ count }: { count: number | null }) => setPendingCount(count ?? 0))
   }, [supabase, isAdmin])
 
   // Base nav items — visible to all approved users
