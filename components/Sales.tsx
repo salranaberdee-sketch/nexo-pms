@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useCan } from '@/lib/profile-context'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState, todayStr } from './TableState'
+import StatusSelect from './StatusSelect'
 
 const SALES_STATUS_OPTIONS = ['ยังไม่เปิดขาย', 'ยังไม่เริ่ม', 'กำลังขาย', 'ปิดเป้า']
 
@@ -30,7 +31,7 @@ export default function Sales() {
   const [loading, setLoading]   = useState(true)
   const [editing, setEditing]   = useState<number | null>(null)
   const [savingRow, setSavingRow] = useState(false)
-  const [editVal, setEditVal]   = useState({ actual_sales: '', actual_received: '' })
+  const [editVal, setEditVal]   = useState({ sales_target_amount: '', actual_sales: '', actual_received: '' })
   const [search, setSearch]     = useState('')
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving]     = useState(false)
@@ -90,8 +91,9 @@ export default function Sales() {
   async function saveEdit(id: number) {
     setSavingRow(true)
     const { error: updErr } = await supabase.from('sales').update({
-      actual_sales:     Number(editVal.actual_sales),
-      actual_received:  Number(editVal.actual_received),
+      sales_target_amount: Number(editVal.sales_target_amount),
+      actual_sales:        Number(editVal.actual_sales),
+      actual_received:     Number(editVal.actual_received),
     }).eq('id', id)
     setSavingRow(false)
     if (updErr) {
@@ -101,6 +103,17 @@ export default function Sales() {
     setEditing(null)
     setError('')
     await load()
+  }
+
+  // Inline status change — optimistic update, revert on error.
+  async function updateStatus(id: number, status: string) {
+    const old = sales.find(s => s.id === id)?.status
+    setSales(prev => prev.map(s => s.id === id ? { ...s, status } : s))
+    const { error: updErr } = await supabase.from('sales').update({ status }).eq('id', id)
+    if (updErr) {
+      setError(updErr.message)
+      setSales(prev => prev.map(s => s.id === id ? { ...s, status: old } : s))
+    }
   }
 
   // Period end reference for the summary card:
@@ -282,7 +295,17 @@ export default function Sales() {
                   <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
                     <td className="px-4 py-3 font-mono text-xs text-gray-400">{s.product_id}</td>
                     <td className="px-4 py-3 font-medium text-gray-900 max-w-[160px] truncate">{product?.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 tabular-nums">฿{target.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 tabular-nums">
+                      {editing === s.id
+                        ? <input
+                            type="number"
+                            value={editVal.sales_target_amount}
+                            onChange={e => setEditVal({ ...editVal, sales_target_amount: e.target.value })}
+                            className="w-28 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                          />
+                        : <span>฿{target.toLocaleString()}</span>
+                      }
+                    </td>
 
                     {/* Inline edit: actual_sales */}
                     <td className="px-4 py-3 tabular-nums">
@@ -339,9 +362,13 @@ export default function Sales() {
                     </td>
 
                     <td className="px-4 py-3">
-                      <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${salesStatusStyle[s.status] || 'bg-amber-50 text-amber-700'}`}>
-                        {s.status}
-                      </span>
+                      <StatusSelect
+                        value={s.status}
+                        options={SALES_STATUS_OPTIONS}
+                        styleMap={salesStatusStyle}
+                        disabled={!canUpdate}
+                        onChange={v => updateStatus(s.id, v)}
+                      />
                     </td>
 
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -364,7 +391,11 @@ export default function Sales() {
                         : canUpdate ? <button
                             onClick={() => {
                               setEditing(s.id)
-                              setEditVal({ actual_sales: String(s.actual_sales), actual_received: String(s.actual_received) })
+                              setEditVal({
+                                sales_target_amount: String(s.sales_target_amount),
+                                actual_sales:        String(s.actual_sales),
+                                actual_received:     String(s.actual_received),
+                              })
                             }}
                             className="text-xs text-gray-400 hover:text-gray-900 transition-colors"
                           >

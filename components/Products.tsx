@@ -6,6 +6,8 @@ import { useCan } from '@/lib/profile-context'
 import ProfilePicker from './ProfilePicker'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState } from './TableState'
+import StatusSelect from './StatusSelect'
+import InlinePersonPicker from './InlinePersonPicker'
 
 const STATUS_OPTIONS = ['กำลังพัฒนา', 'เตรียมเปิดตัว', 'เปิดขาย', 'หยุดขาย']
 
@@ -135,6 +137,27 @@ export default function Products() {
     }
     setConfirmDelete(null)
     await load()
+  }
+
+  // Inline status change — optimistic update, revert on error.
+  async function updateStatus(id: number, status: string) {
+    const old = products.find(p => p.id === id)?.status
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, status } : p))
+    const { error: updErr } = await supabase.from('products').update({ status }).eq('id', id)
+    if (updErr) {
+      setError(updErr.message)
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, status: old } : p))
+    }
+  }
+
+  // Inline owner assignment — optimistic update, revert on error.
+  async function updateOwner(id: number, owner_id: string, owner: string) {
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, owner_id, owner } : p))
+    const { error: updErr } = await supabase.from('products').update({ owner_id: owner_id || null, owner }).eq('id', id)
+    if (updErr) {
+      setError(updErr.message)
+      await load()
+    }
   }
 
   const fields: [keyof typeof form, string][] = [
@@ -270,11 +293,22 @@ export default function Products() {
                   <td className="px-4 py-3 font-medium text-gray-900 max-w-[180px] truncate">{p.name}</td>
                   <td className="px-4 py-3 text-sm text-gray-500">{p.product_type}</td>
                   <td className="px-4 py-3 text-sm text-gray-500">{p.brand}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{p.owner || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500">
+                    <InlinePersonPicker
+                      value={p.owner_id || ''}
+                      display={p.owner || ''}
+                      disabled={!canUpdate}
+                      onChange={(id, name) => updateOwner(p.id, id, name)}
+                    />
+                  </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${statusStyle[p.status] || 'bg-gray-100 text-gray-400'}`}>
-                      {p.status}
-                    </span>
+                    <StatusSelect
+                      value={p.status}
+                      options={STATUS_OPTIONS}
+                      styleMap={statusStyle}
+                      disabled={!canUpdate}
+                      onChange={v => updateStatus(p.id, v)}
+                    />
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-400 max-w-[160px] truncate">{p.notes}</td>
                   {/* actions: edit (admin/manager) + delete (admin only, two-step confirm) */}

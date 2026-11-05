@@ -6,6 +6,8 @@ import { useCan } from '@/lib/profile-context'
 import ProfilePicker from './ProfilePicker'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState, todayStr } from './TableState'
+import StatusSelect from './StatusSelect'
+import InlinePersonPicker from './InlinePersonPicker'
 
 const STATUSES = ['รอผลิต', 'ผลิตอยู่', 'รออนุมัติ', 'อนุมัติแล้ว', 'กำหนดโพสต์', 'โพสต์แล้ว']
 const TYPES    = ['GRAPHIC', 'VIDEO', 'COPY']
@@ -87,9 +89,26 @@ export default function Contents() {
   }
 
   async function updateStatus(id: number, status: string) {
-    const { error: updErr } = await supabase.from('contents').update({ status }).eq('id', id)
-    if (updErr) return
+    const old = contents.find(c => c.id === id)?.status
     setContents(prev => prev.map(c => c.id === id ? { ...c, status } : c))
+    const { error: updErr } = await supabase.from('contents').update({ status }).eq('id', id)
+    if (updErr) {
+      setError(updErr.message)
+      setContents(prev => prev.map(c => c.id === id ? { ...c, status: old } : c))
+    }
+  }
+
+  // Inline assignee change — optimistic update, revert on error.
+  async function updateAssignee(id: number, assigned_to_id: string, assigned_to: string) {
+    setContents(prev => prev.map(c => c.id === id ? { ...c, assigned_to_id, assigned_to } : c))
+    const { error: updErr } = await supabase.from('contents').update({
+      assigned_to_id: assigned_to_id || null,
+      assigned_to,
+    }).eq('id', id)
+    if (updErr) {
+      setError(updErr.message)
+      await load()
+    }
   }
 
   // Suggest the next seq for the currently selected product.
@@ -115,7 +134,7 @@ export default function Contents() {
   }), {} as Record<string, number>)
 
   const today = todayStr()
-  const headers = ['#', 'Product', 'ประเภท', 'ชื่อ Content', 'วัตถุประสงค์', 'Hook', 'Format', 'ผู้รับผิดชอบ', 'กำหนดส่ง', 'สถานะ', 'อัปเดต']
+  const headers = ['#', 'Product', 'ประเภท', 'ชื่อ Content', 'วัตถุประสงค์', 'Hook', 'Format', 'ผู้รับผิดชอบ', 'กำหนดส่ง', 'สถานะ']
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-5">
@@ -135,6 +154,10 @@ export default function Contents() {
           </button>
         )}
       </div>
+
+      {error && !showForm && (
+        <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-lg px-3.5 py-2.5">{error}</p>
+      )}
 
       {/* Add content form */}
       {showForm && (
@@ -316,7 +339,14 @@ export default function Contents() {
                     <td className="px-4 py-3 text-xs text-gray-400 max-w-[100px] truncate">{c.objective}</td>
                     <td className="px-4 py-3 text-xs text-gray-400 max-w-[140px] truncate">{c.hook}</td>
                     <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{c.format_size}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.assigned_to || '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <InlinePersonPicker
+                        value={c.assigned_to_id || ''}
+                        display={c.assigned_to || ''}
+                        disabled={!canUpdate}
+                        onChange={(id, name) => updateAssignee(c.id, id, name)}
+                      />
+                    </td>
                     {/* Deadline column with overdue indicator */}
                     <td className="px-4 py-3 whitespace-nowrap">
                       {c.deadline ? (
@@ -333,22 +363,13 @@ export default function Contents() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium whitespace-nowrap ${statusStyle[c.status]}`}>
-                        {c.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {canUpdate ? (
-                        <select
-                          value={c.status}
-                          onChange={e => updateStatus(c.id, e.target.value)}
-                          className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900 bg-white text-gray-700"
-                        >
-                          {STATUSES.map(s => <option key={s}>{s}</option>)}
-                        </select>
-                      ) : (
-                        <span className="text-xs text-gray-300">—</span>
-                      )}
+                      <StatusSelect
+                        value={c.status}
+                        options={STATUSES}
+                        styleMap={statusStyle}
+                        disabled={!canUpdate}
+                        onChange={v => updateStatus(c.id, v)}
+                      />
                     </td>
                   </tr>
                 )

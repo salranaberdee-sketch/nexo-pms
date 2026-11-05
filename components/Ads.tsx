@@ -6,6 +6,7 @@ import { useCan } from '@/lib/profile-context'
 import ProfilePicker from './ProfilePicker'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState } from './TableState'
+import InlinePersonPicker from './InlinePersonPicker'
 
 function IconPlus() {
   return (
@@ -100,6 +101,19 @@ export default function Ads() {
     setError('')
   }
 
+  // Inline manager assignment — optimistic update, revert on error.
+  async function updateManager(id: number, managed_by_id: string, managed_by: string) {
+    setAds(prev => prev.map(a => a.id === id ? { ...a, managed_by_id, managed_by } : a))
+    const { error: updErr } = await supabase.from('ads').update({
+      managed_by_id: managed_by_id || null,
+      managed_by,
+    }).eq('id', id)
+    if (updErr) {
+      setError(updErr.message)
+      await load()
+    }
+  }
+
   // Inline-edit performance metrics. Generated columns (budget_remaining, cpl, roas)
   // recompute in the DB automatically, so we reload to refresh them.
   async function saveEdit(id: number) {
@@ -144,7 +158,7 @@ export default function Ads() {
       || (a.channel || '').toLowerCase().includes(q)
   })
 
-  const headers = ['Product', 'Campaign', 'ช่องทาง', 'งบจัดสรร', 'ใช้จริง', 'คงเหลือ', 'Reach', 'Clicks', 'Leads', 'CPL', 'ROAS', 'ยอดขาย', 'ผล', '']
+  const headers = ['Product', 'Campaign', 'ช่องทาง', 'ผู้ดูแล', 'งบจัดสรร', 'ใช้จริง', 'คงเหลือ', 'Reach', 'Clicks', 'Leads', 'CPL', 'ROAS', 'ยอดขาย', 'ผล', '']
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-5">
@@ -297,6 +311,15 @@ export default function Ads() {
                     <td className="px-4 py-3 font-mono text-xs text-gray-400">{a.product_id}</td>
                     <td className="px-4 py-3 font-medium text-gray-900 max-w-[140px] truncate">{a.campaign_name}</td>
                     <td className="px-4 py-3 text-sm text-gray-500">{a.channel}</td>
+                    {/* managed_by — inline person picker */}
+                    <td className="px-4 py-3">
+                      <InlinePersonPicker
+                        value={a.managed_by_id || ''}
+                        display={a.managed_by || ''}
+                        disabled={!canUpdate}
+                        onChange={(id, name) => updateManager(a.id, id, name)}
+                      />
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-600 tabular-nums">฿{allocated.toLocaleString()}</td>
                     {/* budget_spent — inline editable, with overspend warning */}
                     <td className={`px-4 py-3 tabular-nums ${over && !isEditing ? 'bg-red-50' : ''}`}>
