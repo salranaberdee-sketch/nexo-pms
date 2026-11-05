@@ -6,6 +6,7 @@ import { useCan } from '@/lib/profile-context'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState, todayStr } from './TableState'
 import StatusSelect from './StatusSelect'
+import { showToast } from './Toast'
 
 const SALES_STATUS_OPTIONS = ['ยังไม่เปิดขาย', 'ยังไม่เริ่ม', 'กำลังขาย', 'ปิดเป้า']
 
@@ -44,6 +45,7 @@ export default function Sales() {
   const [sales, setSales]       = useState<any[]>([])
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading]   = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [editing, setEditing]   = useState<number | null>(null)
   const [savingRow, setSavingRow] = useState(false)
   const [editVal, setEditVal]   = useState({ sales_target_amount: '', actual_sales: '', actual_received: '' })
@@ -60,14 +62,12 @@ export default function Sales() {
   const supabase = createClient()
 
   async function load() {
-    // Select only columns displayed — skips created_at, updated_at, etc.
+    setLoadError('')
     const [s, p] = await Promise.all([
-      supabase
-        .from('sales')
-        .select('id, product_id, period_start, period_end, sales_target_amount, actual_sales, actual_received, status')
-        .order('product_id'),
+      supabase.from('sales').select('id, product_id, period_start, period_end, sales_target_amount, actual_sales, actual_received, status').order('product_id'),
       supabase.from('products').select('product_id, name, status'),
     ])
+    if (s.error) { setLoadError(s.error.message); setLoading(false); return }
     setSales(s.data || [])
     setProducts(p.data || [])
     setLoading(false)
@@ -102,6 +102,7 @@ export default function Sales() {
     setForm({ product_id: '', period_start: '', period_end: '', sales_target_amount: '', sales_target_count: '', status: 'ยังไม่เปิดขาย' })
     await load()
     setSaving(false)
+    showToast('เพิ่มเป้ายอดขายแล้ว')
   }
 
   async function saveEdit(id: number) {
@@ -125,6 +126,7 @@ export default function Sales() {
     } : s))
     setEditing(null)
     setError('')
+    showToast('บันทึกยอดขายแล้ว')
   }
 
   // Inline status change — optimistic update, revert on error.
@@ -194,6 +196,12 @@ export default function Sales() {
         )}
       </div>
 
+      {loadError && (
+        <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-sm text-red-600">
+          โหลดข้อมูลไม่สำเร็จ: {loadError}
+          <button onClick={load} className="ml-3 underline text-red-500 hover:text-red-700">ลองใหม่</button>
+        </div>
+      )}
       {error && !showForm && (
         <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-lg px-3.5 py-2.5">{error}</p>
       )}

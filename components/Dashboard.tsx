@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useProfile } from '@/lib/profile-context'
 import { EmptyState } from './TableState'
+import { showToast } from './Toast'
 
 export default function Dashboard() {
   const [products, setProducts] = useState<any[]>([])
@@ -13,20 +14,28 @@ export default function Dashboard() {
   const [ads, setAds] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const profile = useProfile()
-  const router = useRouter()
   const supabase = createClient()
 
-  async function load() {
-    setRefreshing(true)
-    // Select only the columns actually used by Dashboard — reduces payload 30-60%.
+  async function load(silent = false) {
+    if (!silent) setRefreshing(true)
+    setLoadError('')
     const [p, s, c, a] = await Promise.all([
       supabase.from('products').select('id, product_id, name, brand, status, owner_id'),
       supabase.from('sales').select('product_id, sales_target_amount, actual_sales'),
       supabase.from('contents').select('product_id, status, assigned_to_id'),
       supabase.from('ads').select('budget_total, budget_spent, leads, managed_by_id'),
     ])
+    // Surface first error encountered
+    const err = p.error || s.error || c.error || a.error
+    if (err) {
+      setLoadError(err.message)
+      setRefreshing(false)
+      setLoading(false)
+      return
+    }
     setProducts(p.data || [])
     setSales(s.data || [])
     setContents(c.data || [])
@@ -34,11 +43,12 @@ export default function Dashboard() {
     setLastUpdated(new Date())
     setLoading(false)
     setRefreshing(false)
+    if (!silent) showToast('อัปเดตข้อมูลแล้ว', 'info')
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(true) }, [])
 
-  // Build O(1) lookup maps — avoids O(N×M) linear scans inside the render loop.
+  // O(1) lookup maps
   const salesByProduct = useMemo(
     () => new Map(sales.map(s => [s.product_id, s])),
     [sales],
@@ -53,7 +63,7 @@ export default function Dashboard() {
     [contents],
   )
 
-  // KPI aggregations — memoized so they only recompute when data changes.
+  // KPI aggregations
   const totalBudget  = useMemo(() => ads.reduce((s, r) => s + Number(r.budget_total ?? 0), 0), [ads])
   const totalSpent   = useMemo(() => ads.reduce((s, r) => s + Number(r.budget_spent), 0), [ads])
   const totalTarget  = useMemo(() => sales.reduce((s, r) => s + Number(r.sales_target_amount), 0), [sales])
@@ -63,7 +73,7 @@ export default function Dashboard() {
   const contentWait  = useMemo(() => contents.filter(c => c.status === 'รอผลิต').length, [contents])
   const pct = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0
 
-  // "งานของฉัน" — memoized, avoids 4 full-array scans on every unrelated state change.
+  // "งานของฉัน"
   const myTasks = useMemo(() => {
     const myContents = contents.filter(c => c.assigned_to_id === profile.id)
     const myAds = ads.filter(a => a.managed_by_id === profile.id)
@@ -95,7 +105,7 @@ export default function Dashboard() {
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-6">
 
-      {/* Page header with refresh */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-gray-900">Dashboard</h1>
@@ -104,15 +114,13 @@ export default function Dashboard() {
           </p>
         </div>
         <button
-          onClick={load}
+          onClick={() => load(false)}
           disabled={refreshing}
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-40"
         >
-          <svg
-            width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            className={refreshing ? 'animate-spin' : ''}
-          >
+            className={refreshing ? 'animate-spin' : ''}>
             <polyline points="23 4 23 10 17 10" />
             <polyline points="1 20 1 14 7 14" />
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
@@ -121,33 +129,23 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* KPI row — clickable to drill down into the relevant page */}
+      {loadError && (
+        <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-sm text-red-600">
+          โหลดข้อมูลไม่สำเร็จ: {loadError}
+          <button onClick={() => load(false)} className="ml-3 underline text-red-500 hover:text-red-700">ลองใหม่</button>
+        </div>
+      )}
+
+      {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard
-          label="ยอดขายจริง"
-          value={`฿${totalActual.toLocaleString()}`}
-          sub={`เป้า ฿${totalTarget.toLocaleString()}`}
-          pct={pct}
-          onClick={() => router.push('/sales')}
-        />
-        <KPICard
-          label="งบ Ads คงเหลือ"
-          value={`฿${(totalBudget - totalSpent).toLocaleString()}`}
-          sub={`ใช้ไป ฿${totalSpent.toLocaleString()}`}
-          onClick={() => router.push('/ads')}
-        />
-        <KPICard
-          label="Leads รวม"
-          value={totalLeads.toLocaleString()}
-          sub={`${ads.length} campaigns`}
-          onClick={() => router.push('/ads')}
-        />
-        <KPICard
-          label="Content โพสต์แล้ว"
-          value={`${contentDone} / ${contents.length}`}
-          sub={`รอผลิตอีก ${contentWait} ชิ้น`}
-          onClick={() => router.push('/contents')}
-        />
+        <KPICard label="ยอดขายจริง" value={`฿${totalActual.toLocaleString()}`}
+          sub={`เป้า ฿${totalTarget.toLocaleString()}`} pct={pct} href="/sales" />
+        <KPICard label="งบ Ads คงเหลือ" value={`฿${(totalBudget - totalSpent).toLocaleString()}`}
+          sub={`ใช้ไป ฿${totalSpent.toLocaleString()}`} href="/ads" />
+        <KPICard label="Leads รวม" value={totalLeads.toLocaleString()}
+          sub={`${ads.length} campaigns`} href="/ads" />
+        <KPICard label="Content โพสต์แล้ว" value={`${contentDone} / ${contents.length}`}
+          sub={`รอผลิตอีก ${contentWait} ชิ้น`} href="/contents" />
       </div>
 
       {/* Products summary table */}
@@ -174,16 +172,17 @@ export default function Dashboard() {
               {products.length === 0 ? (
                 <EmptyState message="ยังไม่มี Product ในระบบ" />
               ) : products.map(p => {
-                // O(1) lookup — no linear scan per row
                 const s = salesByProduct.get(p.product_id)
                 const c = contentsByProduct.get(p.product_id) || []
                 const target = Number(s?.sales_target_amount || 0)
                 const actual = Number(s?.actual_sales || 0)
                 const rowPct = target > 0 ? Math.round((actual / target) * 100) : 0
+                const barColor = rowPct >= 80 ? 'bg-green-500' : rowPct >= 40 ? 'bg-amber-400' : 'bg-blue-500'
                 return (
                   <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
                     <td className="px-5 py-3 font-mono text-xs text-gray-400">{p.product_id}</td>
-                    <td className="px-4 py-3 font-medium text-gray-900 max-w-[200px] truncate">{p.name}</td>
+                    {/* title tooltip on truncated name */}
+                    <td className="px-4 py-3 font-medium text-gray-900 max-w-[200px] truncate" title={p.name}>{p.name}</td>
                     <td className="px-4 py-3 text-sm text-gray-500">{p.brand}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${statusStyle[p.status] || 'bg-gray-100 text-gray-400'}`}>
@@ -195,16 +194,18 @@ export default function Dashboard() {
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <div className="w-14 h-1 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${rowPct >= 80 ? 'bg-green-500' : rowPct >= 40 ? 'bg-amber-400' : 'bg-blue-500'}`}
-                            style={{ width: `${Math.min(rowPct, 100)}%` }}
-                          />
+                          <div className={`h-full rounded-full ${barColor}`}
+                            style={{ width: `${Math.min(rowPct, 100)}%` }} />
                         </div>
-                        <span className="text-xs text-gray-500 w-8 text-right">{rowPct}%</span>
+                        <span className="text-xs text-gray-500 w-10 text-right tabular-nums">{rowPct}%</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-right text-xs text-gray-400">
-                      {c.filter((x: any) => x.status === 'โพสต์แล้ว').length}/{c.length}
+                    {/* Click content count → Contents filtered by product */}
+                    <td className="px-5 py-3 text-right">
+                      <Link href={`/contents?product=${p.product_id}`}
+                        className="text-xs text-gray-400 hover:text-blue-600 hover:underline transition-colors">
+                        {c.filter((x: any) => x.status === 'โพสต์แล้ว').length}/{c.length}
+                      </Link>
                     </td>
                   </tr>
                 )
@@ -214,14 +215,15 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* My Tasks — work assigned to the current user */}
+      {/* My Tasks */}
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900">งานของฉัน</h2>
-          <span className="text-xs text-gray-400">{myTasks.totalTasks} งาน</span>
+          <span className="text-xs text-gray-400">{myTasks.totalTasks} รายการ</span>
         </div>
         <div className="grid grid-cols-3 gap-0 divide-x divide-gray-100">
-          <div className="p-5">
+          {/* Content cell — drill-down to Contents filtered by me */}
+          <Link href="/contents" className="p-5 hover:bg-gray-50 transition-colors block">
             <p className="text-xs text-gray-400 mb-2">Content ที่รับผิดชอบ</p>
             <p className="text-2xl font-semibold text-gray-900 leading-none">{myTasks.myContents.length}</p>
             <div className="flex gap-3 mt-3 flex-wrap">
@@ -229,61 +231,52 @@ export default function Dashboard() {
               <span className="text-xs text-blue-500">กำลังทำ {myTasks.myInProgress}</span>
               <span className="text-xs text-gray-400">รอผลิต {myTasks.myWaiting}</span>
             </div>
-          </div>
-          <div className="p-5">
+          </Link>
+          {/* Ads cell */}
+          <Link href="/ads" className="p-5 hover:bg-gray-50 transition-colors block">
             <p className="text-xs text-gray-400 mb-2">แคมเปญ Ads ที่ดูแล</p>
             <p className="text-2xl font-semibold text-gray-900 leading-none">{myTasks.myAds.length}</p>
             <p className="text-xs text-gray-400 mt-3">campaigns</p>
-          </div>
-          <div className="p-5">
+          </Link>
+          {/* Products cell */}
+          <Link href="/products" className="p-5 hover:bg-gray-50 transition-colors block">
             <p className="text-xs text-gray-400 mb-2">Product ที่ดูแล</p>
             <p className="text-2xl font-semibold text-gray-900 leading-none">{myTasks.myProducts.length}</p>
             <p className="text-xs text-gray-400 mt-3">products</p>
-          </div>
+          </Link>
         </div>
       </div>
     </div>
   )
 }
 
-function KPICard({ label, value, sub, pct, onClick }: {
-  label: string
-  value: string
-  sub: string
-  pct?: number
-  onClick?: () => void
+function KPICard({ label, value, sub, pct, href }: {
+  label: string; value: string; sub: string; pct?: number; href: string
 }) {
-  const interactive = !!onClick
+  const barColor = pct !== undefined
+    ? pct >= 80 ? 'bg-green-500' : pct >= 40 ? 'bg-amber-400' : 'bg-blue-500'
+    : 'bg-gray-900'
   return (
-    <div
-      onClick={onClick}
-      role={interactive ? 'button' : undefined}
-      tabIndex={interactive ? 0 : undefined}
-      onKeyDown={interactive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick!() } } : undefined}
-      className={`bg-white rounded-xl border border-gray-100 p-5 ${interactive ? 'hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer' : ''}`}
-    >
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-400 mb-3">{label}</p>
-        {interactive && (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300">
-            <line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" />
-          </svg>
-        )}
+    <Link href={href}
+      className="bg-white rounded-xl border border-gray-100 p-5 hover:border-gray-300 hover:shadow-sm transition-all block">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs text-gray-400">{label}</p>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300">
+          <line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" />
+        </svg>
       </div>
       <p className="text-2xl font-semibold text-gray-900 leading-none">{value}</p>
       <p className="text-xs text-gray-400 mt-2">{sub}</p>
       {pct !== undefined && (
         <div className="mt-3">
           <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gray-900 transition-all"
-              style={{ width: `${Math.min(pct, 100)}%` }}
-            />
+            <div className={`h-full rounded-full ${barColor} transition-all`}
+              style={{ width: `${Math.min(pct, 100)}%` }} />
           </div>
           <p className="text-xs text-gray-400 mt-1.5">{pct}% ของเป้า</p>
         </div>
       )}
-    </div>
+    </Link>
   )
 }
 
@@ -296,6 +289,7 @@ function Loading() {
         ))}
       </div>
       <div className="bg-white rounded-xl h-64 animate-pulse border border-gray-100" />
+      <div className="bg-white rounded-xl h-28 animate-pulse border border-gray-100" />
     </div>
   )
 }

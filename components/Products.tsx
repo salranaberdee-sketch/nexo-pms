@@ -8,6 +8,7 @@ import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState } from './TableState'
 import StatusSelect from './StatusSelect'
 import InlinePersonPicker, { type ProfileOption } from './InlinePersonPicker'
+import { showToast } from './Toast'
 
 const STATUS_OPTIONS = ['กำลังพัฒนา', 'เตรียมเปิดตัว', 'เปิดขาย', 'หยุดขาย']
 
@@ -18,7 +19,6 @@ const statusStyle: Record<string, string> = {
   'หยุดขาย':       'bg-gray-100 text-gray-400',
 }
 
-// Product ID format: XXX-YYY-NNN (e.g. MED-PSY-002).
 const PID_RE = /^[A-Z]+-[A-Z]+-\d+$/
 
 const EMPTY_FORM = {
@@ -33,38 +33,43 @@ function IconPlus() {
     </svg>
   )
 }
+function IconCopy() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+    </svg>
+  )
+}
 
 export default function Products() {
-  const [products, setProducts]           = useState<any[]>([])
-  // Profiles fetched once in parallel with products — shared with form + all row pickers.
+  const [products, setProducts]             = useState<any[]>([])
   const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([])
-  const [loading, setLoading]             = useState(true)
-  const [showForm, setShowForm]           = useState(false)
-  const [saving, setSaving]               = useState(false)
-  const [error, setError]                 = useState('')
-  const [search, setSearch]               = useState('')
-  const [editingId, setEditingId]         = useState<number | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
-  const [deleting, setDeleting]           = useState(false)
-  const [form, setForm]                   = useState({ ...EMPTY_FORM })
+  const [loading, setLoading]               = useState(true)
+  const [loadError, setLoadError]           = useState('')
+  const [showForm, setShowForm]             = useState(false)
+  const [saving, setSaving]                 = useState(false)
+  const [error, setError]                   = useState('')
+  const [search, setSearch]                 = useState('')
+  const [filterStatus, setFilterStatus]     = useState('all')
+  const [editingId, setEditingId]           = useState<number | null>(null)
+  const [confirmDelete, setConfirmDelete]   = useState<number | null>(null)
+  const [deleting, setDeleting]             = useState(false)
+  const [form, setForm]                     = useState({ ...EMPTY_FORM })
   const canInsert = useCan('insert', 'products')
   const canUpdate = useCan('update', 'products')
   const canDelete = useCan('delete', 'products')
   const supabase = createClient()
 
   async function load() {
-    // Fetch products + profiles in parallel — select only displayed columns.
+    setLoadError('')
     const [p, pr] = await Promise.all([
       supabase
         .from('products')
         .select('id, product_id, name, business_type, product_type, brand, owner, owner_id, status, notes')
         .order('created_at', { ascending: false }),
-      supabase
-        .from('profiles')
-        .select('id, name, role')
-        .eq('approval_status', 'approved')
-        .order('name'),
+      supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
     ])
+    if (p.error) { setLoadError(p.error.message); setLoading(false); return }
     setProducts(p.data || [])
     setProfileOptions(pr.data || [])
     setLoading(false)
@@ -72,127 +77,93 @@ export default function Products() {
 
   useEffect(() => { load() }, [])
 
-  function resetForm() {
-    setForm({ ...EMPTY_FORM })
-    setEditingId(null)
-    setError('')
-  }
+  function resetForm() { setForm({ ...EMPTY_FORM }); setEditingId(null); setError('') }
 
   function startEdit(p: any) {
     setEditingId(p.id)
-    setForm({
-      product_id:    p.product_id || '',
-      name:          p.name || '',
-      business_type: p.business_type || '',
-      product_type:  p.product_type || '',
-      brand:         p.brand || '',
-      owner:         p.owner || '',
-      owner_id:      p.owner_id || '',
-      status:        p.status || 'กำลังพัฒนา',
-      notes:         p.notes || '',
-    })
+    setForm({ product_id: p.product_id || '', name: p.name || '', business_type: p.business_type || '',
+      product_type: p.product_type || '', brand: p.brand || '', owner: p.owner || '',
+      owner_id: p.owner_id || '', status: p.status || 'กำลังพัฒนา', notes: p.notes || '' })
     setShowForm(true)
     setError('')
   }
 
   async function save() {
-    setSaving(true)
-    setError('')
+    setSaving(true); setError('')
     if (!editingId && !PID_RE.test(form.product_id)) {
       setError('Product ID ต้องเป็นรูปแบบ XXX-YYY-NNN เช่น MED-PSY-002')
-      setSaving(false)
-      return
+      setSaving(false); return
     }
     if (editingId) {
-      // product_id is NOT updated — it is the FK referenced by contents/ads/sales.
       const { error: updErr } = await supabase.from('products').update({
-        name:          form.name,
-        business_type: form.business_type,
-        product_type:  form.product_type,
-        brand:         form.brand,
-        owner:         form.owner,
-        owner_id:      form.owner_id || null,
-        status:        form.status,
-        notes:         form.notes,
+        name: form.name, business_type: form.business_type, product_type: form.product_type,
+        brand: form.brand, owner: form.owner, owner_id: form.owner_id || null,
+        status: form.status, notes: form.notes,
       }).eq('id', editingId)
-      if (updErr) {
-        setError(updErr.message)
-        setSaving(false)
-        return
-      }
+      if (updErr) { setError(updErr.message); setSaving(false); return }
+      showToast('บันทึกการแก้ไขแล้ว')
     } else {
-      const { error: insErr } = await supabase.from('products').insert([{
-        ...form,
-        owner_id: form.owner_id || null,
-      }])
-      if (insErr) {
-        setError(insErr.message)
-        setSaving(false)
-        return
-      }
+      const { error: insErr } = await supabase.from('products').insert([{ ...form, owner_id: form.owner_id || null }])
+      if (insErr) { setError(insErr.message); setSaving(false); return }
+      showToast('เพิ่มสินค้าแล้ว')
     }
-    setShowForm(false)
-    resetForm()
-    await load()
-    setSaving(false)
+    setShowForm(false); resetForm(); await load(); setSaving(false)
   }
 
-  // Deleting a product CASCADE-deletes its contents, ads, sales and product_briefs.
   async function deleteRow(id: number) {
     setDeleting(true)
     const { error: delErr } = await supabase.from('products').delete().eq('id', id)
     setDeleting(false)
-    if (delErr) {
-      setError(delErr.message)
-      return
-    }
+    if (delErr) { setError(delErr.message); showToast(delErr.message, 'error'); return }
     setConfirmDelete(null)
-    // Optimistic: remove from local state instead of full reload
     setProducts(prev => prev.filter(p => p.id !== id))
+    showToast('ลบสินค้าแล้ว')
   }
 
-  // Inline status change — optimistic update, revert on error.
   async function updateStatus(id: number, status: string) {
     const old = products.find(p => p.id === id)?.status
     setProducts(prev => prev.map(p => p.id === id ? { ...p, status } : p))
     const { error: updErr } = await supabase.from('products').update({ status }).eq('id', id)
     if (updErr) {
-      setError(updErr.message)
+      showToast(updErr.message, 'error')
       setProducts(prev => prev.map(p => p.id === id ? { ...p, status: old } : p))
     }
   }
 
-  // Inline owner assignment — optimistic update, revert on error.
   async function updateOwner(id: number, owner_id: string, owner: string) {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, owner_id, owner } : p))
     const { error: updErr } = await supabase.from('products').update({ owner_id: owner_id || null, owner }).eq('id', id)
     if (updErr) {
-      setError(updErr.message)
-      setProducts(prev => prev.map(p => p.id === id ? { ...p, owner_id, owner } : p))
+      showToast(updErr.message, 'error')
       await load()
     }
   }
 
-  const fields: [keyof typeof form, string][] = [
-    ['product_id',    'Product ID (เช่น MED-PSY-002)'],
-    ['name',          'ชื่อสินค้า'],
-    ['business_type', 'ประเภทธุรกิจ'],
-    ['product_type',  'ประเภทสินค้า'],
-    ['brand',         'แบรนด์'],
-  ]
+  function copyId(pid: string) {
+    navigator.clipboard.writeText(pid).then(() => showToast(`คัดลอก ${pid} แล้ว`))
+  }
 
+  const fields: [keyof typeof form, string][] = [
+    ['product_id', 'Product ID (เช่น MED-PSY-002)'], ['name', 'ชื่อสินค้า *'],
+    ['business_type', 'ประเภทธุรกิจ'], ['product_type', 'ประเภทสินค้า'], ['brand', 'แบรนด์'],
+  ]
   const pidInvalid = !editingId && form.product_id !== '' && !PID_RE.test(form.product_id)
 
+  // Count per status for filter pills
+  const countByStatus = useMemo(
+    () => STATUS_OPTIONS.reduce((acc, s) => ({ ...acc, [s]: products.filter(p => p.status === s).length }), {} as Record<string, number>),
+    [products],
+  )
+
   const filtered = useMemo(() => {
-    if (!search) return products
+    let list = filterStatus === 'all' ? products : products.filter(p => p.status === filterStatus)
+    if (!search) return list
     const q = search.toLowerCase()
-    return products.filter(p =>
-      (p.product_id || '').toLowerCase().includes(q)
-      || (p.name || '').toLowerCase().includes(q)
-      || (p.brand || '').toLowerCase().includes(q)
-      || (p.owner || '').toLowerCase().includes(q),
+    return list.filter(p =>
+      (p.product_id || '').toLowerCase().includes(q) || (p.name || '').toLowerCase().includes(q)
+      || (p.brand || '').toLowerCase().includes(q) || (p.owner || '').toLowerCase().includes(q),
     )
-  }, [products, search])
+  }, [products, search, filterStatus])
 
   const headers = ['Product ID', 'ชื่อสินค้า', 'ประเภท', 'แบรนด์', 'ผู้รับผิดชอบ', 'สถานะ', 'หมายเหตุ', '']
 
@@ -205,89 +176,88 @@ export default function Products() {
           <p className="text-sm text-gray-400 mt-0.5">จัดการ Product ID และข้อมูลสินค้า</p>
         </div>
         {canInsert && (
-          <button
-            onClick={() => { if (editingId) resetForm(); setShowForm(v => !v) }}
-            className="flex items-center gap-1.5 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
-          >
-            <IconPlus />
-            {editingId ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'}
+          <button onClick={() => { if (editingId) resetForm(); setShowForm(v => !v) }}
+            className="flex items-center gap-1.5 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
+            <IconPlus />{editingId ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'}
           </button>
         )}
       </div>
 
+      {loadError && (
+        <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-sm text-red-600">
+          โหลดข้อมูลไม่สำเร็จ: {loadError}
+          <button onClick={load} className="ml-3 underline text-red-500 hover:text-red-700">ลองใหม่</button>
+        </div>
+      )}
       {error && !showForm && (
         <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-lg px-3.5 py-2.5">{error}</p>
       )}
 
-      {/* Add / edit product form */}
+      {/* Add / edit form */}
       {showForm && (
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <h3 className="text-sm font-semibold text-gray-900 mb-4">{editingId ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}</h3>
           <div className="grid grid-cols-2 gap-3">
             {fields.map(([key, placeholder]) => (
               <div key={key} className={key === 'product_id' ? 'relative' : ''}>
-                <input
-                  placeholder={placeholder}
-                  value={form[key]}
+                <input placeholder={placeholder} value={form[key]}
                   disabled={key === 'product_id' && !!editingId}
                   onChange={e => setForm({ ...form, [key]: e.target.value })}
-                  className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400 ${key === 'product_id' && editingId ? 'bg-gray-50 text-gray-400' : ''} ${key === 'product_id' && pidInvalid ? 'border-red-300 focus:ring-red-400' : ''}`}
-                />
+                  className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400
+                    ${key === 'product_id' && editingId ? 'bg-gray-50 text-gray-400' : ''}
+                    ${key === 'product_id' && pidInvalid ? 'border-red-300 focus:ring-red-400' : ''}`} />
                 {key === 'product_id' && pidInvalid && (
                   <p className="absolute -bottom-4 left-0 text-[10px] text-red-500">รูปแบบควรเป็น XXX-YYY-NNN</p>
                 )}
                 {key === 'product_id' && editingId && (
-                  <p className="absolute -bottom-4 left-0 text-[10px] text-gray-400">เปลี่ยน Product ID ไม่ได้ (มีข้อมูลอ้างอิงอยู่)</p>
+                  <p className="absolute -bottom-4 left-0 text-[10px] text-gray-400">เปลี่ยน Product ID ไม่ได้</p>
                 )}
               </div>
             ))}
-            {/* ProfilePicker receives profiles as a prop — no internal fetch */}
-            <ProfilePicker
-              value={form.owner_id}
-              profiles={profileOptions}
-              onChange={(id, name) => setForm({ ...form, owner_id: id, owner: name })}
-              placeholder="ผู้รับผิดชอบ"
-            />
-            <select
-              value={form.status}
-              onChange={e => setForm({ ...form, status: e.target.value })}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
-            >
+            <ProfilePicker value={form.owner_id} profiles={profileOptions}
+              onChange={(id, name) => setForm({ ...form, owner_id: id, owner: name })} placeholder="ผู้รับผิดชอบ" />
+            <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white">
               {STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
             </select>
-            <input
-              placeholder="หมายเหตุ"
-              value={form.notes}
+            <input placeholder="หมายเหตุ" value={form.notes}
               onChange={e => setForm({ ...form, notes: e.target.value })}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
-            />
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400" />
           </div>
-          {error && (
-            <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-lg px-3.5 py-2.5 mt-3">{error}</p>
-          )}
+          {error && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-lg px-3.5 py-2.5 mt-3">{error}</p>}
           <div className="flex gap-2 mt-4">
-            <button
-              onClick={save}
+            <button onClick={save}
               disabled={saving || (!editingId && (!form.product_id || !form.name)) || (!!editingId && !form.name)}
-              className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-40 hover:bg-gray-700 transition-colors"
-            >
+              className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-40 hover:bg-gray-700 transition-colors">
               {saving ? 'กำลังบันทึก...' : editingId ? 'บันทึกการแก้ไข' : 'บันทึก'}
             </button>
-            <button
-              onClick={() => { setShowForm(false); resetForm() }}
-              className="text-sm text-gray-400 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              ยกเลิก
-            </button>
+            <button onClick={() => { setShowForm(false); resetForm() }}
+              className="text-sm text-gray-400 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">ยกเลิก</button>
           </div>
         </div>
       )}
+
+      {/* Status filter pills */}
+      <div className="flex gap-2 flex-wrap">
+        <button onClick={() => setFilterStatus('all')}
+          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border
+            ${filterStatus === 'all' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+          ทั้งหมด <span className="ml-1 opacity-60">{products.length}</span>
+        </button>
+        {STATUS_OPTIONS.map(s => (
+          <button key={s} onClick={() => setFilterStatus(filterStatus === s ? 'all' : s)}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border
+              ${filterStatus === s ? statusStyle[s] + ' border-current/20' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+            {s} <span className="ml-1 tabular-nums opacity-60">{countByStatus[s] || 0}</span>
+          </button>
+        ))}
+      </div>
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
           <SearchInput value={search} onChange={setSearch} placeholder="ค้นหา Product ID, ชื่อ, แบรนด์, ผู้รับผิดชอบ..." />
-          <span className="text-xs text-gray-400 whitespace-nowrap">{filtered.length} รายการ</span>
+          <span className="text-xs text-gray-400 whitespace-nowrap">{filtered.length} / {products.length} รายการ</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -302,68 +272,52 @@ export default function Products() {
               {loading ? (
                 <TableSkeleton cols={headers.length} />
               ) : filtered.length === 0 ? (
-                <EmptyState message="ยังไม่มี Product ในระบบ กด &quot;เพิ่มสินค้า&quot; เพื่อเริ่ม" />
+                <EmptyState message="ยังไม่มี Product ที่ตรงเงื่อนไข" />
               ) : filtered.map(p => (
-                <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
-                  <td className="px-4 py-3 font-mono text-xs text-gray-400">{p.product_id}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900 max-w-[180px] truncate">{p.name}</td>
+                <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0 group">
+                  {/* Product ID + copy button */}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-xs text-gray-400">{p.product_id}</span>
+                      <button onClick={() => copyId(p.product_id)} title="คัดลอก Product ID"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-gray-600 p-0.5 rounded">
+                        <IconCopy />
+                      </button>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 font-medium text-gray-900 max-w-[180px] truncate" title={p.name}>{p.name}</td>
                   <td className="px-4 py-3 text-sm text-gray-500">{p.product_type}</td>
                   <td className="px-4 py-3 text-sm text-gray-500">{p.brand}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">
-                    {/* profiles prop — single array shared by all rows, no per-row DB call */}
-                    <InlinePersonPicker
-                      value={p.owner_id || ''}
-                      display={p.owner || ''}
-                      profiles={profileOptions}
-                      disabled={!canUpdate}
-                      onChange={(id, name) => updateOwner(p.id, id, name)}
-                    />
+                  <td className="px-4 py-3">
+                    <InlinePersonPicker value={p.owner_id || ''} display={p.owner || ''}
+                      profiles={profileOptions} disabled={!canUpdate}
+                      onChange={(id, name) => updateOwner(p.id, id, name)} />
                   </td>
                   <td className="px-4 py-3">
-                    <StatusSelect
-                      value={p.status}
-                      options={STATUS_OPTIONS}
-                      styleMap={statusStyle}
-                      disabled={!canUpdate}
-                      onChange={v => updateStatus(p.id, v)}
-                    />
+                    <StatusSelect value={p.status} options={STATUS_OPTIONS} styleMap={statusStyle}
+                      disabled={!canUpdate} onChange={v => updateStatus(p.id, v)} />
                   </td>
-                  <td className="px-4 py-3 text-xs text-gray-400 max-w-[160px] truncate">{p.notes}</td>
+                  <td className="px-4 py-3 text-xs text-gray-400 max-w-[160px] truncate" title={p.notes || ''}>{p.notes}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-right">
                     <div className="flex items-center justify-end gap-2">
                       {canUpdate && (
-                        <button
-                          onClick={() => { startEdit(p); setShowForm(true) }}
-                          className="text-xs text-gray-400 hover:text-gray-900 transition-colors"
-                        >
-                          แก้ไข
-                        </button>
+                        <button onClick={() => { startEdit(p); setShowForm(true) }}
+                          className="text-xs text-gray-400 hover:text-gray-900 transition-colors">แก้ไข</button>
                       )}
                       {canDelete && (
                         confirmDelete === p.id ? (
                           <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-red-500">ลบ?</span>
-                            <button
-                              onClick={() => deleteRow(p.id)}
-                              disabled={deleting}
-                              className="text-[11px] bg-red-500 text-white px-2 py-0.5 rounded hover:bg-red-600 transition-colors disabled:opacity-40"
-                            >
+                            <span className="text-[10px] text-red-500">ลบ + cascade?</span>
+                            <button onClick={() => deleteRow(p.id)} disabled={deleting}
+                              className="text-[11px] bg-red-500 text-white px-2 py-0.5 rounded hover:bg-red-600 disabled:opacity-40 transition-colors">
                               {deleting ? '...' : 'ยืนยัน'}
                             </button>
-                            <button
-                              onClick={() => setConfirmDelete(null)}
-                              className="text-[11px] text-gray-400 px-1.5 py-0.5 rounded hover:bg-gray-100 transition-colors"
-                            >
-                              ยกเลิก
-                            </button>
+                            <button onClick={() => setConfirmDelete(null)}
+                              className="text-[11px] text-gray-400 px-1.5 py-0.5 rounded hover:bg-gray-100 transition-colors">ยกเลิก</button>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => setConfirmDelete(p.id)}
-                            className="text-xs text-gray-400 hover:text-red-500 transition-colors"
-                          >
-                            ลบ
-                          </button>
+                          <button onClick={() => setConfirmDelete(p.id)}
+                            className="text-xs text-gray-400 hover:text-red-500 transition-colors">ลบ</button>
                         )
                       )}
                       {!canUpdate && !canDelete && <span className="text-xs text-gray-300">—</span>}
@@ -375,12 +329,6 @@ export default function Products() {
           </table>
         </div>
       </div>
-
-      {canDelete && confirmDelete !== null && (
-        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-          การลบ Product จะลบ Content, Ads, Sales และ Product Brief ที่เกี่ยวข้องทั้งหมดด้วย
-        </p>
-      )}
     </div>
   )
 }

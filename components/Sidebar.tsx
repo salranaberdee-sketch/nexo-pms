@@ -86,6 +86,7 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
   const supabase = createClient()
   const isAdmin = useIsAdmin()
   const [pendingCount, setPendingCount] = useState(0)
+  const [confirmLogout, setConfirmLogout] = useState(false)
 
   // Fetch pending user count for admin badge
   useEffect(() => {
@@ -115,9 +116,9 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
   return (
     <aside className="w-52 bg-white border-r border-gray-100 flex flex-col h-screen shrink-0">
 
-      {/* Logo */}
+      {/* Logo → Dashboard */}
       <div className="px-5 py-5 border-b border-gray-100">
-        <div className="flex items-center gap-2.5">
+        <Link href="/dashboard" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
           <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-sm tracking-tight">N</span>
           </div>
@@ -125,7 +126,7 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
             <p className="font-semibold text-gray-900 text-sm leading-none">Nexo PMS</p>
             <p className="text-[11px] text-gray-400 mt-0.5">v1.0</p>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Nav */}
@@ -169,13 +170,31 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
             )}
           </div>
         </div>
-        <button
-          onClick={() => supabase.auth.signOut()}
-          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-        >
-          <IconLogOut />
-          ออกจากระบบ
-        </button>
+        {confirmLogout ? (
+          <div className="flex items-center gap-1.5 px-3 py-2">
+            <span className="text-[11px] text-red-500 flex-1">ออกจากระบบ?</span>
+            <button
+              onClick={() => supabase.auth.signOut()}
+              className="text-[11px] bg-red-500 text-white px-2 py-0.5 rounded-md hover:bg-red-600 transition-colors font-medium"
+            >
+              ยืนยัน
+            </button>
+            <button
+              onClick={() => setConfirmLogout(false)}
+              className="text-[11px] text-gray-400 px-2 py-0.5 rounded-md hover:bg-gray-100 transition-colors"
+            >
+              ยกเลิก
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmLogout(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+          >
+            <IconLogOut />
+            ออกจากระบบ
+          </button>
+        )}
       </div>
     </aside>
   )

@@ -6,6 +6,7 @@ import { useProfile } from '@/lib/profile-context'
 import StatusSelect from './StatusSelect'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState } from './TableState'
+import { showToast } from './Toast'
 
 const ROLES = ['admin', 'manager', 'editor', 'viewer']
 
@@ -94,7 +95,6 @@ export default function Team() {
 
   async function applyApproval(id: string, newStatus: string) {
     setError('')
-    // Optimistic update
     setProfiles(prev => prev.map(p => p.id === id ? { ...p, approval_status: newStatus } : p))
     const { error: updErr } = await supabase.from('profiles').update({
       approval_status: newStatus,
@@ -103,7 +103,9 @@ export default function Team() {
     }).eq('id', id)
     if (updErr) {
       setError(updErr.message)
-      await load() // revert by reloading
+      await load()
+    } else {
+      showToast(newStatus === 'approved' ? 'อนุมัติแล้ว' : newStatus === 'rejected' ? 'ปฏิเสธแล้ว' : 'อัปเดตสถานะแล้ว')
     }
     setConfirmSuspend(null)
   }
@@ -115,6 +117,8 @@ export default function Team() {
     if (updErr) {
       setError(updErr.message)
       await load()
+    } else {
+      showToast('เปลี่ยน role แล้ว')
     }
   }
 

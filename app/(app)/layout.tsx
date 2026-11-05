@@ -6,6 +6,7 @@ import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 import { ProfileProvider, type Profile } from '@/lib/profile-context'
+import { ToastContainer } from '@/components/Toast'
 
 // Shared layout for authenticated app pages.
 // Guards auth + approval status, then provides profile to all children via context.
@@ -100,6 +101,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <ToastContainer />
     </ProfileProvider>
   )
 }

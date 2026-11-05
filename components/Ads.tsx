@@ -7,6 +7,7 @@ import ProfilePicker from './ProfilePicker'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState } from './TableState'
 import InlinePersonPicker, { type ProfileOption } from './InlinePersonPicker'
+import { showToast } from './Toast'
 
 function IconPlus() {
   return (
@@ -35,10 +36,12 @@ export default function Ads() {
   // Profiles fetched once in parallel with ads — shared with form + all row pickers.
   const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([])
   const [loading, setLoading]   = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
   const [search, setSearch]     = useState('')
+  const [filterMonth, setFilterMonth] = useState('all')
   const [editing, setEditing]   = useState<number | null>(null)
   const [savingRow, setSavingRow] = useState(false)
   const [editVal, setEditVal]   = useState({ reach: '', clicks: '', leads: '', budget_spent: '', sales_amount: '' })
@@ -52,16 +55,16 @@ export default function Ads() {
   const supabase = createClient()
 
   async function load() {
-    // Select only columns rendered — avoids fetching budget_adjustment, next_action, etc.
-    // Profiles fetched in parallel with ads + products (no waterfall).
+    setLoadError('')
     const [a, p, pr] = await Promise.all([
       supabase
         .from('ads')
         .select('id, product_id, month, campaign_name, channel, managed_by, managed_by_id, budget_allocated, budget_spent, budget_total, budget_remaining, reach, clicks, leads, cpl, roas, sales_amount, result_notes')
-        .order('product_id'),
+        .order('month', { ascending: false }).order('product_id'),
       supabase.from('products').select('product_id, name'),
       supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
     ])
+    if (a.error) { setLoadError(a.error.message); setLoading(false); return }
     setAds(a.data || [])
     setProducts(p.data || [])
     setProfileOptions(pr.data || [])
@@ -96,6 +99,7 @@ export default function Ads() {
     setForm({ product_id: '', month: '', campaign_name: '', channel: 'Facebook', budget_approved: '', budget_allocated: '', content_ref: '', managed_by: '', managed_by_id: '', start_date: '', end_date: '', result_notes: '' })
     await load()
     setSaving(false)
+    showToast('เพิ่มแคมเปญแล้ว')
   }
 
   function startEdit(a: any) {
@@ -142,9 +146,13 @@ export default function Ads() {
     setEditing(null)
     setError('')
     await load()
+    showToast('บันทึกผลแล้ว')
   }
 
   // Summary totals — memoized so they only recompute when ads data changes.
+  // Unique sorted months for filter dropdown
+  const months = useMemo(() => Array.from(new Set(ads.map(a => a.month).filter(Boolean))).sort().reverse(), [ads])
+
   const totalBudget = useMemo(() => ads.reduce((s, r) => s + Number(r.budget_total ?? 0), 0), [ads])
   const totalSpent  = useMemo(() => ads.reduce((s, r) => s + Number(r.budget_spent), 0), [ads])
   const totalLeads  = useMemo(() => ads.reduce((s, r) => s + Number(r.leads), 0), [ads])
@@ -159,16 +167,17 @@ export default function Ads() {
   ], [totalBudget, totalSpent, spentPct, totalReach, totalLeads, ads.length])
 
   const filtered = useMemo(() => {
-    if (!search) return ads
+    let list = filterMonth === 'all' ? ads : ads.filter(a => a.month === filterMonth)
+    if (!search) return list
     const q = search.toLowerCase()
-    return ads.filter(a =>
+    return list.filter(a =>
       (a.product_id || '').toLowerCase().includes(q)
       || (a.campaign_name || '').toLowerCase().includes(q)
       || (a.channel || '').toLowerCase().includes(q),
     )
-  }, [ads, search])
+  }, [ads, search, filterMonth])
 
-  const headers = ['Product', 'Campaign', 'ช่องทาง', 'ผู้ดูแล', 'งบจัดสรร', 'ใช้จริง', 'คงเหลือ', 'Reach', 'Clicks', 'Leads', 'CPL', 'ROAS', 'ยอดขาย', 'ผล', '']
+  const headers = ['Product', 'เดือน', 'Campaign', 'ช่องทาง', 'ผู้ดูแล', 'งบจัดสรร', 'ใช้จริง', 'คงเหลือ', 'Reach', 'Clicks', 'Leads', 'CPL', 'ROAS', 'ยอดขาย', 'บันทึก', '']
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-5">
@@ -189,6 +198,12 @@ export default function Ads() {
         )}
       </div>
 
+      {loadError && (
+        <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-sm text-red-600">
+          โหลดข้อมูลไม่สำเร็จ: {loadError}
+          <button onClick={load} className="ml-3 underline text-red-500 hover:text-red-700">ลองใหม่</button>
+        </div>
+      )}
       {error && !showForm && (
         <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-lg px-3.5 py-2.5">{error}</p>
       )}
@@ -294,7 +309,16 @@ export default function Ads() {
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
-          <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาแคมเปญ, Product, ช่องทาง..." />
+          <div className="flex items-center gap-2 flex-1">
+            <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาแคมเปญ, Product, ช่องทาง..." />
+            {months.length > 0 && (
+              <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white text-gray-700 shrink-0">
+                <option value="all">ทุกเดือน</option>
+                {months.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            )}
+          </div>
           <span className="text-xs text-gray-400 whitespace-nowrap">{filtered.length} รายการ</span>
         </div>
         <div className="overflow-x-auto">
@@ -321,6 +345,7 @@ export default function Ads() {
                 return (
                   <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
                     <td className="px-4 py-3 font-mono text-xs text-gray-400">{a.product_id}</td>
+                    <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{a.month}</td>
                     <td className="px-4 py-3 font-medium text-gray-900 max-w-[140px] truncate">{a.campaign_name}</td>
                     <td className="px-4 py-3 text-sm text-gray-500">{a.channel}</td>
                     {/* managed_by — inline person picker, profiles passed as prop */}
