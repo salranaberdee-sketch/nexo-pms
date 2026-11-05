@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import type { Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
 
 // Feature list for login branding panel
@@ -26,7 +27,7 @@ export default function LoginPage() {
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
       if (session?.user) router.replace('/dashboard')
       else setChecking(false)
     })

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import type { User } from '@supabase/supabase-js'
+import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 import { ProfileProvider, type Profile } from '@/lib/profile-context'
@@ -63,7 +63,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       init(session.user)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       if (event === 'SIGNED_OUT' || !session?.user) {
         router.replace('/login')
         return
