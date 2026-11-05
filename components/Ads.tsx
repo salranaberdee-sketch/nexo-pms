@@ -4,12 +4,27 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useCan } from '@/lib/profile-context'
 import ProfilePicker from './ProfilePicker'
+import SearchInput from './SearchInput'
+import { TableSkeleton, EmptyState } from './TableState'
 
 function IconPlus() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
       <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
     </svg>
+  )
+}
+
+// Module-level numeric input — must NOT be defined inside the component render,
+// otherwise React remounts it on each keystroke and the field loses focus.
+function NumInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <input
+      type="number"
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      className="w-24 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+    />
   )
 }
 
@@ -20,12 +35,17 @@ export default function Ads() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
+  const [search, setSearch]     = useState('')
+  const [editing, setEditing]   = useState<number | null>(null)
+  const [savingRow, setSavingRow] = useState(false)
+  const [editVal, setEditVal]   = useState({ reach: '', clicks: '', leads: '', budget_spent: '', sales_amount: '' })
   const [form, setForm] = useState({
     product_id: '', month: '', campaign_name: '', channel: 'Facebook',
     budget_approved: '', budget_allocated: '', content_ref: '',
     managed_by: '', managed_by_id: '', start_date: '', end_date: '', result_notes: '',
   })
   const canInsert = useCan('insert', 'ads')
+  const canUpdate = useCan('update', 'ads')
   const supabase = createClient()
 
   async function load() {
@@ -68,10 +88,45 @@ export default function Ads() {
     setSaving(false)
   }
 
-  const totalBudget = ads.reduce((s, r) => s + Number(r.budget_approved), 0)
+  function startEdit(a: any) {
+    setEditing(a.id)
+    setEditVal({
+      reach:        String(a.reach ?? 0),
+      clicks:       String(a.clicks ?? 0),
+      leads:        String(a.leads ?? 0),
+      budget_spent: String(a.budget_spent ?? 0),
+      sales_amount: String(a.sales_amount ?? 0),
+    })
+    setError('')
+  }
+
+  // Inline-edit performance metrics. Generated columns (budget_remaining, cpl, roas)
+  // recompute in the DB automatically, so we reload to refresh them.
+  async function saveEdit(id: number) {
+    setSavingRow(true)
+    const { error: updErr } = await supabase.from('ads').update({
+      reach:        Number(editVal.reach) || 0,
+      clicks:       Number(editVal.clicks) || 0,
+      leads:        Number(editVal.leads) || 0,
+      budget_spent: Number(editVal.budget_spent) || 0,
+      sales_amount: Number(editVal.sales_amount) || 0,
+    }).eq('id', id)
+    setSavingRow(false)
+    if (updErr) {
+      setError(updErr.message)
+      return
+    }
+    setEditing(null)
+    setError('')
+    await load()
+  }
+
+  // Summary totals run over ALL ads (search filters the table only).
+  // Use generated budget_total so the headline matches the Ads page.
+  const totalBudget = ads.reduce((s, r) => s + Number(r.budget_total ?? 0), 0)
   const totalSpent  = ads.reduce((s, r) => s + Number(r.budget_spent), 0)
-  const totalLeads  = ads.reduce((s, r) => s + Number(r.leads), 0)
-  const totalReach  = ads.reduce((s, r) => s + Number(r.reach), 0)
+  const totalLeads   = ads.reduce((s, r) => s + Number(r.leads), 0)
+  const totalReach   = ads.reduce((s, r) => s + Number(r.reach), 0)
   const spentPct    = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0
 
   const summaryCards = [
@@ -81,7 +136,15 @@ export default function Ads() {
     { label: 'Leads รวม',   value: totalLeads.toLocaleString(),         meta: 'leads' },
   ]
 
-  const headers = ['Product', 'Campaign', 'ช่องทาง', 'งบจัดสรร', 'ใช้จริง', 'คงเหลือ', 'Reach', 'Clicks', 'Leads', 'CPL', 'ผล']
+  const filtered = ads.filter(a => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    return (a.product_id || '').toLowerCase().includes(q)
+      || (a.campaign_name || '').toLowerCase().includes(q)
+      || (a.channel || '').toLowerCase().includes(q)
+  })
+
+  const headers = ['Product', 'Campaign', 'ช่องทาง', 'งบจัดสรร', 'ใช้จริง', 'คงเหลือ', 'Reach', 'Clicks', 'Leads', 'CPL', 'ROAS', 'ยอดขาย', 'ผล', '']
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-5">
@@ -101,6 +164,10 @@ export default function Ads() {
           </button>
         )}
       </div>
+
+      {error && !showForm && (
+        <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-lg px-3.5 py-2.5">{error}</p>
+      )}
 
       {/* Add ad form */}
       {showForm && (
@@ -200,6 +267,10 @@ export default function Ads() {
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+          <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาแคมเปญ, Product, ช่องทาง..." />
+          <span className="text-xs text-gray-400 whitespace-nowrap">{filtered.length} รายการ</span>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -211,24 +282,100 @@ export default function Ads() {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={11} className="px-4 py-10 text-center text-sm text-gray-400">กำลังโหลด...</td>
-                </tr>
-              ) : ads.map(a => (
-                <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
-                  <td className="px-4 py-3 font-mono text-xs text-gray-400">{a.product_id}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900 max-w-[140px] truncate">{a.campaign_name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{a.channel}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600 tabular-nums">฿{Number(a.budget_allocated).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-sm text-red-500 tabular-nums">฿{Number(a.budget_spent).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-sm text-green-600 tabular-nums">฿{Number(a.budget_remaining).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500 tabular-nums">{Number(a.reach).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500 tabular-nums">{Number(a.clicks).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900 tabular-nums">{a.leads}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500 tabular-nums">฿{Number(a.cpl).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400 max-w-[100px] truncate">{a.result_notes}</td>
-                </tr>
-              ))}
+                <TableSkeleton cols={headers.length} />
+              ) : filtered.length === 0 ? (
+                <EmptyState message="ยังไม่มีแคมเปญ กด &quot;เพิ่มแคมเปญ&quot; เพื่อเริ่ม" />
+              ) : filtered.map(a => {
+                const allocated = Number(a.budget_allocated || 0)
+                const spent = Number(a.budget_spent || 0)
+                const over = spent > allocated
+                const roas = Number(a.roas || 0)
+                const roasColor = roas >= 2 ? 'text-green-600' : roas >= 1 ? 'text-gray-900' : roas > 0 ? 'text-red-500' : 'text-gray-300'
+                const isEditing = editing === a.id
+                return (
+                  <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
+                    <td className="px-4 py-3 font-mono text-xs text-gray-400">{a.product_id}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900 max-w-[140px] truncate">{a.campaign_name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{a.channel}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 tabular-nums">฿{allocated.toLocaleString()}</td>
+                    {/* budget_spent — inline editable, with overspend warning */}
+                    <td className={`px-4 py-3 tabular-nums ${over && !isEditing ? 'bg-red-50' : ''}`}>
+                      {isEditing ? (
+                        <NumInput value={editVal.budget_spent} onChange={v => setEditVal({ ...editVal, budget_spent: v })} />
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <span className={`text-sm tabular-nums ${over ? 'text-red-600 font-medium' : 'text-red-500'}`}>฿{spent.toLocaleString()}</span>
+                          {over && <span className="text-[10px] bg-red-100 text-red-600 px-1 py-0.5 rounded whitespace-nowrap">เกินงบ</span>}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-green-600 tabular-nums">฿{Number(a.budget_remaining).toLocaleString()}</td>
+                    {/* reach — inline editable */}
+                    <td className="px-4 py-3 tabular-nums">
+                      {isEditing
+                        ? <NumInput value={editVal.reach} onChange={v => setEditVal({ ...editVal, reach: v })} />
+                        : <span className="text-sm text-gray-500">{Number(a.reach).toLocaleString()}</span>
+                      }
+                    </td>
+                    {/* clicks — inline editable */}
+                    <td className="px-4 py-3 tabular-nums">
+                      {isEditing
+                        ? <NumInput value={editVal.clicks} onChange={v => setEditVal({ ...editVal, clicks: v })} />
+                        : <span className="text-sm text-gray-500">{Number(a.clicks).toLocaleString()}</span>
+                      }
+                    </td>
+                    {/* leads — inline editable */}
+                    <td className="px-4 py-3 tabular-nums">
+                      {isEditing
+                        ? <NumInput value={editVal.leads} onChange={v => setEditVal({ ...editVal, leads: v })} />
+                        : <span className="text-sm font-medium text-gray-900">{Number(a.leads).toLocaleString()}</span>
+                      }
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-500 tabular-nums">฿{Number(a.cpl).toLocaleString()}</td>
+                    {/* ROAS — read-only, color-coded */}
+                    <td className={`px-4 py-3 text-sm tabular-nums ${roasColor}`}>
+                      {roas > 0 ? `${roas.toFixed(2)}×` : '—'}
+                    </td>
+                    {/* sales_amount — inline editable */}
+                    <td className="px-4 py-3 tabular-nums">
+                      {isEditing
+                        ? <NumInput value={editVal.sales_amount} onChange={v => setEditVal({ ...editVal, sales_amount: v })} />
+                        : <span className="text-sm text-gray-500">฿{Number(a.sales_amount).toLocaleString()}</span>
+                      }
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-400 max-w-[100px] truncate">{a.result_notes}</td>
+                    {/* action: edit / save */}
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {isEditing ? (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => saveEdit(a.id)}
+                            disabled={savingRow}
+                            className="text-xs bg-gray-900 text-white px-2.5 py-1 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-40"
+                          >
+                            {savingRow ? '...' : 'บันทึก'}
+                          </button>
+                          <button
+                            onClick={() => { setEditing(null); setError('') }}
+                            className="text-xs text-gray-400 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
+                          >
+                            ยกเลิก
+                          </button>
+                        </div>
+                      ) : canUpdate ? (
+                        <button
+                          onClick={() => startEdit(a)}
+                          className="text-xs text-gray-400 hover:text-gray-900 transition-colors"
+                        >
+                          แก้ไข
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

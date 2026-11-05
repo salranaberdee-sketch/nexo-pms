@@ -3,12 +3,17 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useCan } from '@/lib/profile-context'
+import SearchInput from './SearchInput'
+import { TableSkeleton, EmptyState, todayStr } from './TableState'
 
 const SALES_STATUS_OPTIONS = ['ยังไม่เปิดขาย', 'ยังไม่เริ่ม', 'กำลังขาย', 'ปิดเป้า']
 
+// Complete color mapping for all 4 sales statuses (previously only 2 were styled).
 const salesStatusStyle: Record<string, string> = {
   'ยังไม่เปิดขาย': 'bg-gray-100 text-gray-400',
-  'ปิดเป้า':        'bg-green-50 text-green-700',
+  'ยังไม่เริ่ม':   'bg-blue-50 text-blue-700',
+  'กำลังขาย':     'bg-amber-50 text-amber-700',
+  'ปิดเป้า':       'bg-green-50 text-green-700',
 }
 
 function IconPlus() {
@@ -24,7 +29,9 @@ export default function Sales() {
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading]   = useState(true)
   const [editing, setEditing]   = useState<number | null>(null)
+  const [savingRow, setSavingRow] = useState(false)
   const [editVal, setEditVal]   = useState({ actual_sales: '', actual_received: '' })
+  const [search, setSearch]     = useState('')
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving]     = useState(false)
   const [form, setForm] = useState({
@@ -53,6 +60,12 @@ export default function Sales() {
   async function save() {
     setSaving(true)
     setError('')
+    // Period validation: end must be after start.
+    if (form.period_start && form.period_end && form.period_end <= form.period_start) {
+      setError('วันสิ้นสุดต้องหลังวันเริ่มต้น')
+      setSaving(false)
+      return
+    }
     const { error: insErr } = await supabase.from('sales').insert([{
       product_id:          form.product_id,
       period_start:        form.period_start,
@@ -75,23 +88,45 @@ export default function Sales() {
   }
 
   async function saveEdit(id: number) {
-    await supabase.from('sales').update({
+    setSavingRow(true)
+    const { error: updErr } = await supabase.from('sales').update({
       actual_sales:     Number(editVal.actual_sales),
       actual_received:  Number(editVal.actual_received),
     }).eq('id', id)
+    setSavingRow(false)
+    if (updErr) {
+      setError(updErr.message)
+      return
+    }
     setEditing(null)
+    setError('')
     await load()
   }
 
-  const today     = new Date()
-  const periodEnd = new Date('2026-11-30')
-  const daysLeft  = Math.max(0, Math.ceil((periodEnd.getTime() - today.getTime()) / 86400000))
+  // Period end reference for the summary card:
+  // the soonest FUTURE period_end across rows; if all periods are over, the latest one.
+  const today = todayStr()
+  const todayMs = new Date(today).getTime()
+  const ends = sales.map(r => r.period_end).filter(Boolean).sort()
+  const futureEnds = ends.filter(e => e >= today)
+  const periodEndStr = futureEnds.length ? futureEnds[0] : (ends.length ? ends[ends.length - 1] : today)
+  const periodEnd = new Date(periodEndStr)
+  const daysLeft = Math.max(0, Math.round((periodEnd.getTime() - todayMs) / 86400000))
 
+  // Summary totals run over ALL sales (search filters the table, not the headline KPIs).
   const totalTarget = sales.reduce((s, r) => s + Number(r.sales_target_amount), 0)
   const totalActual = sales.reduce((s, r) => s + Number(r.actual_sales), 0)
   const overallPct  = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0
   const gap         = Math.max(0, totalTarget - totalActual)
   const perDay      = daysLeft > 0 && gap > 0 ? Math.round(gap / daysLeft) : 0
+
+  // Client-side text search across product id + product name.
+  const filtered = sales.filter(s => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    const product = products.find(p => p.product_id === s.product_id)
+    return s.product_id.toLowerCase().includes(q) || (product?.name || '').toLowerCase().includes(q)
+  })
 
   const headers = ['Product ID', 'ชื่อสินค้า', 'เป้ายอดขาย', 'ยอดจริง', 'รับเงินจริง', 'ยังขาด', '% สำเร็จ', 'ต้องขาย/วัน', 'สถานะ', '']
 
@@ -101,7 +136,7 @@ export default function Sales() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-gray-900">Sales</h1>
-          <p className="text-sm text-gray-400 mt-0.5">ยอดขาย พฤศจิกายน 2026 — เหลือ {daysLeft} วัน</p>
+          <p className="text-sm text-gray-400 mt-0.5">ยอดขายรวม — เหลือ {daysLeft} วัน ถึงสิ้นรอบ</p>
         </div>
         {canInsert && (
           <button
@@ -113,6 +148,10 @@ export default function Sales() {
           </button>
         )}
       </div>
+
+      {error && !showForm && (
+        <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-lg px-3.5 py-2.5">{error}</p>
+      )}
 
       {/* Add sales target form */}
       {showForm && (
@@ -201,12 +240,18 @@ export default function Sales() {
         <div className="bg-white rounded-xl border border-gray-100 p-5">
           <p className="text-xs text-gray-400 mb-3">วันที่คงเหลือ</p>
           <p className="text-2xl font-semibold text-gray-900 leading-none">{daysLeft} วัน</p>
-          <p className="text-xs text-gray-400 mt-2">สิ้นสุด 30 พ.ย. 2026</p>
+          <p className="text-xs text-gray-400 mt-2">
+            สิ้นสุด {periodEnd.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}
+          </p>
         </div>
       </div>
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+          <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาด้วย Product ID หรือชื่อสินค้า..." />
+          <span className="text-xs text-gray-400 whitespace-nowrap">{filtered.length} รายการ</span>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -218,16 +263,21 @@ export default function Sales() {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={10} className="px-4 py-10 text-center text-sm text-gray-400">กำลังโหลด...</td>
-                </tr>
-              ) : sales.map(s => {
+                <TableSkeleton cols={headers.length} />
+              ) : filtered.length === 0 ? (
+                <EmptyState message="ยังไม่มีเป้ายอดขาย กด &quot;เพิ่มเป้ายอดขาย&quot; เพื่อเริ่ม" />
+              ) : filtered.map(s => {
                 const product = products.find(p => p.product_id === s.product_id)
                 const target  = Number(s.sales_target_amount)
                 const actual  = Number(s.actual_sales)
+                const received = Number(s.actual_received)
                 const rowGap  = Math.max(0, target - actual)
                 const pct     = target > 0 ? Math.round((actual / target) * 100) : 0
-                const perDayRow = daysLeft > 0 && rowGap > 0 ? Math.round(rowGap / daysLeft) : 0
+                // Collection rate: cash collected vs sales booked.
+                const colPct  = actual > 0 ? Math.round((received / actual) * 100) : 0
+                // Per-row days left uses this row's OWN period_end (fixes the global-daysLeft bug).
+                const rowDaysLeft = Math.max(0, Math.round((new Date(s.period_end).getTime() - todayMs) / 86400000))
+                const perDayRow = rowDaysLeft > 0 && rowGap > 0 ? Math.round(rowGap / rowDaysLeft) : 0
                 return (
                   <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
                     <td className="px-4 py-3 font-mono text-xs text-gray-400">{s.product_id}</td>
@@ -247,7 +297,7 @@ export default function Sales() {
                       }
                     </td>
 
-                    {/* Inline edit: actual_received */}
+                    {/* Inline edit: actual_received + collection-rate indicator */}
                     <td className="px-4 py-3 tabular-nums">
                       {editing === s.id
                         ? <input
@@ -256,7 +306,16 @@ export default function Sales() {
                             onChange={e => setEditVal({ ...editVal, actual_received: e.target.value })}
                             className="w-28 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                           />
-                        : <span className="text-sm text-gray-600">฿{Number(s.actual_received).toLocaleString()}</span>
+                        : (
+                          <div className="flex flex-col">
+                            <span className="text-sm text-gray-600">฿{received.toLocaleString()}</span>
+                            {actual > 0 && (
+                              <span className={`text-[10px] ${colPct >= 80 ? 'text-green-600' : colPct >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                                เก็บได้ {colPct}%
+                              </span>
+                            )}
+                          </div>
+                        )
                       }
                     </td>
 
@@ -290,12 +349,13 @@ export default function Sales() {
                         ? <div className="flex gap-1">
                             <button
                               onClick={() => saveEdit(s.id)}
-                              className="text-xs bg-gray-900 text-white px-2.5 py-1 rounded-lg hover:bg-gray-700 transition-colors"
+                              disabled={savingRow}
+                              className="text-xs bg-gray-900 text-white px-2.5 py-1 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-40"
                             >
-                              บันทึก
+                              {savingRow ? '...' : 'บันทึก'}
                             </button>
                             <button
-                              onClick={() => setEditing(null)}
+                              onClick={() => { setEditing(null); setError('') }}
                               className="text-xs text-gray-400 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
                             >
                               ยกเลิก

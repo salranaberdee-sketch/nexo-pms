@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useCan } from '@/lib/profile-context'
 import ProfilePicker from './ProfilePicker'
+import SearchInput from './SearchInput'
+import { TableSkeleton, EmptyState, todayStr } from './TableState'
 
 const STATUSES = ['รอผลิต', 'ผลิตอยู่', 'รออนุมัติ', 'อนุมัติแล้ว', 'กำหนดโพสต์', 'โพสต์แล้ว']
 const TYPES    = ['GRAPHIC', 'VIDEO', 'COPY']
@@ -23,6 +25,9 @@ const typeLabel: Record<string, string> = {
   COPY:    'Copy',
 }
 
+// Deadlines are only meaningful before the content is posted.
+const DONE_STATUS = 'โพสต์แล้ว'
+
 function IconPlus() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -36,6 +41,7 @@ export default function Contents() {
   const [products, setProducts]         = useState<any[]>([])
   const [filterProduct, setFilterProduct] = useState('all')
   const [filterStatus, setFilterStatus]   = useState('all')
+  const [search, setSearch]             = useState('')
   const [loading, setLoading]           = useState(true)
   const [showForm, setShowForm]         = useState(false)
   const [saving, setSaving]             = useState(false)
@@ -86,14 +92,30 @@ export default function Contents() {
     setContents(prev => prev.map(c => c.id === id ? { ...c, status } : c))
   }
 
+  // Suggest the next seq for the currently selected product.
+  const suggestedSeq = form.product_id
+    ? (Math.max(0, ...contents.filter(c => c.product_id === form.product_id).map(c => Number(c.seq) || 0)) + 1)
+    : 0
+
   const filtered = contents.filter(c =>
     (filterProduct === 'all' || c.product_id === filterProduct) &&
-    (filterStatus === 'all' || c.status === filterStatus)
+    (filterStatus === 'all' || c.status === filterStatus) &&
+    (search === '' || (() => {
+      const q = search.toLowerCase()
+      return (c.title || '').toLowerCase().includes(q)
+        || (c.hook || '').toLowerCase().includes(q)
+        || (c.product_id || '').toLowerCase().includes(q)
+        || (c.assigned_to || '').toLowerCase().includes(q)
+        || (c.objective || '').toLowerCase().includes(q)
+    })())
   )
 
   const countByStatus = STATUSES.reduce((acc, s) => ({
     ...acc, [s]: contents.filter(c => c.status === s).length,
   }), {} as Record<string, number>)
+
+  const today = todayStr()
+  const headers = ['#', 'Product', 'ประเภท', 'ชื่อ Content', 'วัตถุประสงค์', 'Hook', 'Format', 'ผู้รับผิดชอบ', 'กำหนดส่ง', 'สถานะ', 'อัปเดต']
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-5">
@@ -121,17 +143,32 @@ export default function Contents() {
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             <select
               value={form.product_id}
-              onChange={e => setForm({ ...form, product_id: e.target.value })}
+              // Auto-suggest the next seq when the product changes and seq is still empty.
+              onChange={e => {
+                const pid = e.target.value
+                setForm(f => ({ ...f, product_id: pid, seq: f.seq === '' && pid ? String(Math.max(0, ...contents.filter(c => c.product_id === pid).map(c => Number(c.seq) || 0)) + 1) : f.seq }))
+              }}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
             >
               <option value="">เลือก Product</option>
               {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id}</option>)}
             </select>
-            <input
-              type="number" placeholder="ลำดับ (seq)" value={form.seq}
-              onChange={e => setForm({ ...form, seq: e.target.value })}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
-            />
+            <div className="relative">
+              <input
+                type="number" placeholder="ลำดับ (seq)" value={form.seq}
+                onChange={e => setForm({ ...form, seq: e.target.value })}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
+              />
+              {form.product_id && form.seq === '' && suggestedSeq > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, seq: String(suggestedSeq) })}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded hover:bg-blue-100"
+                >
+                  แนะนำ {suggestedSeq}
+                </button>
+              )}
+            </div>
             <select
               value={form.type}
               onChange={e => setForm({ ...form, type: e.target.value })}
@@ -220,8 +257,9 @@ export default function Contents() {
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2">
+      {/* Filters + search */}
+      <div className="flex gap-2 flex-wrap">
+        <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาชื่อ, Hook, Product, ผู้รับผิดชอบ..." />
         <select
           value={filterProduct}
           onChange={e => setFilterProduct(e.target.value)}
@@ -249,50 +287,72 @@ export default function Contents() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
-                {['#', 'Product', 'ประเภท', 'ชื่อ Content', 'วัตถุประสงค์', 'Hook', 'Format', 'ผู้รับผิดชอบ', 'สถานะ', 'อัปเดต'].map(h => (
+                {headers.map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={10} className="px-4 py-10 text-center text-sm text-gray-400">กำลังโหลด...</td>
-                </tr>
-              ) : filtered.map(c => (
-                <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
-                  <td className="px-4 py-3 text-xs text-gray-400 tabular-nums">{c.seq}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-400">{c.product_id}</td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                      {typeLabel[c.type] || c.type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-medium text-gray-900 max-w-[160px] truncate">{c.title}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400 max-w-[100px] truncate">{c.objective}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400 max-w-[140px] truncate">{c.hook}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{c.format_size}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.assigned_to || '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium whitespace-nowrap ${statusStyle[c.status]}`}>
-                      {c.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {canUpdate ? (
-                      <select
-                        value={c.status}
-                        onChange={e => updateStatus(c.id, e.target.value)}
-                        className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900 bg-white text-gray-700"
-                      >
-                        {STATUSES.map(s => <option key={s}>{s}</option>)}
-                      </select>
-                    ) : (
-                      <span className="text-xs text-gray-300">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                <TableSkeleton cols={headers.length} />
+              ) : filtered.length === 0 ? (
+                <EmptyState message="ไม่พบ Content ที่ตรงเงื่อนไข — ลองเปลี่ยนตัวกรองหรือเพิ่ม Content ใหม่" />
+              ) : filtered.map(c => {
+                // Overdue: deadline passed and not yet posted.
+                const overdue = c.deadline && c.deadline < today && c.status !== DONE_STATUS
+                const daysLate = overdue
+                  ? Math.round((new Date(today).getTime() - new Date(c.deadline).getTime()) / 86400000)
+                  : 0
+                return (
+                  <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0 ${overdue ? 'bg-red-50/30' : ''}`}>
+                    <td className="px-4 py-3 text-xs text-gray-400 tabular-nums">{c.seq}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-400">{c.product_id}</td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                        {typeLabel[c.type] || c.type}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-medium text-gray-900 max-w-[160px] truncate">{c.title}</td>
+                    <td className="px-4 py-3 text-xs text-gray-400 max-w-[100px] truncate">{c.objective}</td>
+                    <td className="px-4 py-3 text-xs text-gray-400 max-w-[140px] truncate">{c.hook}</td>
+                    <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{c.format_size}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.assigned_to || '—'}</td>
+                    {/* Deadline column with overdue indicator */}
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {c.deadline ? (
+                        <div className="flex flex-col">
+                          <span className={`text-xs ${overdue ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                            {new Date(c.deadline).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}
+                          </span>
+                          {overdue && (
+                            <span className="text-[10px] text-red-500 font-medium">เลย {daysLate} วัน</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium whitespace-nowrap ${statusStyle[c.status]}`}>
+                        {c.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {canUpdate ? (
+                        <select
+                          value={c.status}
+                          onChange={e => updateStatus(c.id, e.target.value)}
+                          className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-900 bg-white text-gray-700"
+                        >
+                          {STATUSES.map(s => <option key={s}>{s}</option>)}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

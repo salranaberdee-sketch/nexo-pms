@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useProfile } from '@/lib/profile-context'
+import { EmptyState } from './TableState'
 
 export default function Dashboard() {
   const [products, setProducts] = useState<any[]>([])
@@ -10,32 +12,38 @@ export default function Dashboard() {
   const [contents, setContents] = useState<any[]>([])
   const [ads, setAds] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const profile = useProfile()
+  const router = useRouter()
   const supabase = createClient()
 
-  useEffect(() => {
-    async function load() {
-      const [p, s, c, a] = await Promise.all([
-        supabase.from('products').select('*'),
-        supabase.from('sales').select('*'),
-        supabase.from('contents').select('*'),
-        supabase.from('ads').select('*'),
-      ])
-      setProducts(p.data || [])
-      setSales(s.data || [])
-      setContents(c.data || [])
-      setAds(a.data || [])
-      setLoading(false)
-    }
-    load()
-  }, [])
+  async function load() {
+    setRefreshing(true)
+    const [p, s, c, a] = await Promise.all([
+      supabase.from('products').select('*'),
+      supabase.from('sales').select('*'),
+      supabase.from('contents').select('*'),
+      supabase.from('ads').select('*'),
+    ])
+    setProducts(p.data || [])
+    setSales(s.data || [])
+    setContents(c.data || [])
+    setAds(a.data || [])
+    setLastUpdated(new Date())
+    setLoading(false)
+    setRefreshing(false)
+  }
+
+  useEffect(() => { load() }, [])
 
   if (loading) return <Loading />
 
+  // Bug fix: use the generated budget_total column (approved + adjustment) instead of budget_approved alone.
+  const totalBudget  = ads.reduce((s, r) => s + Number(r.budget_total ?? 0), 0)
+  const totalSpent   = ads.reduce((s, r) => s + Number(r.budget_spent), 0)
   const totalTarget  = sales.reduce((s, r) => s + Number(r.sales_target_amount), 0)
   const totalActual  = sales.reduce((s, r) => s + Number(r.actual_sales), 0)
-  const totalBudget  = ads.reduce((s, r) => s + Number(r.budget_approved), 0)
-  const totalSpent   = ads.reduce((s, r) => s + Number(r.budget_spent), 0)
   const totalLeads   = ads.reduce((s, r) => s + Number(r.leads), 0)
   const contentDone  = contents.filter(c => c.status === 'โพสต์แล้ว').length
   const contentWait  = contents.filter(c => c.status === 'รอผลิต').length
@@ -48,37 +56,65 @@ export default function Dashboard() {
     'หยุดขาย':       'bg-gray-100 text-gray-400',
   }
 
+  const updatedLabel = lastUpdated
+    ? lastUpdated.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : ''
+
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-6">
 
-      {/* Page header */}
-      <div>
-        <h1 className="text-lg font-semibold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-400 mt-0.5">ภาพรวมทุก Product — พฤศจิกายน 2026</p>
+      {/* Page header with refresh */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-900">Dashboard</h1>
+          <p className="text-sm text-gray-400 mt-0.5">
+            ภาพรวมทุก Product{updatedLabel && ` — อัปเดต ${updatedLabel}`}
+          </p>
+        </div>
+        <button
+          onClick={load}
+          disabled={refreshing}
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-40"
+        >
+          <svg
+            width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className={refreshing ? 'animate-spin' : ''}
+          >
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+          {refreshing ? 'กำลังโหลด...' : 'รีเฟรช'}
+        </button>
       </div>
 
-      {/* KPI row */}
+      {/* KPI row — clickable to drill down into the relevant page */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           label="ยอดขายจริง"
           value={`฿${totalActual.toLocaleString()}`}
           sub={`เป้า ฿${totalTarget.toLocaleString()}`}
           pct={pct}
+          onClick={() => router.push('/sales')}
         />
         <KPICard
           label="งบ Ads คงเหลือ"
           value={`฿${(totalBudget - totalSpent).toLocaleString()}`}
           sub={`ใช้ไป ฿${totalSpent.toLocaleString()}`}
+          onClick={() => router.push('/ads')}
         />
         <KPICard
           label="Leads รวม"
           value={totalLeads.toLocaleString()}
           sub={`${ads.length} campaigns`}
+          onClick={() => router.push('/ads')}
         />
         <KPICard
           label="Content โพสต์แล้ว"
           value={`${contentDone} / ${contents.length}`}
           sub={`รอผลิตอีก ${contentWait} ชิ้น`}
+          onClick={() => router.push('/contents')}
         />
       </div>
 
@@ -103,12 +139,14 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {products.map(p => {
+              {products.length === 0 ? (
+                <EmptyState message="ยังไม่มี Product ในระบบ" />
+              ) : products.map(p => {
                 const s = sales.find(s => s.product_id === p.product_id)
                 const c = contents.filter(c => c.product_id === p.product_id)
                 const target = Number(s?.sales_target_amount || 0)
                 const actual = Number(s?.actual_sales || 0)
-                const pct = target > 0 ? Math.round((actual / target) * 100) : 0
+                const rowPct = target > 0 ? Math.round((actual / target) * 100) : 0
                 return (
                   <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
                     <td className="px-5 py-3 font-mono text-xs text-gray-400">{p.product_id}</td>
@@ -125,11 +163,11 @@ export default function Dashboard() {
                       <div className="flex items-center justify-end gap-2">
                         <div className="w-14 h-1 bg-gray-100 rounded-full overflow-hidden">
                           <div
-                            className={`h-full rounded-full ${pct >= 80 ? 'bg-green-500' : pct >= 40 ? 'bg-amber-400' : 'bg-blue-500'}`}
-                            style={{ width: `${Math.min(pct, 100)}%` }}
+                            className={`h-full rounded-full ${rowPct >= 80 ? 'bg-green-500' : rowPct >= 40 ? 'bg-amber-400' : 'bg-blue-500'}`}
+                            style={{ width: `${Math.min(rowPct, 100)}%` }}
                           />
                         </div>
-                        <span className="text-xs text-gray-500 w-8 text-right">{pct}%</span>
+                        <span className="text-xs text-gray-500 w-8 text-right">{rowPct}%</span>
                       </div>
                     </td>
                     <td className="px-5 py-3 text-right text-xs text-gray-400">
@@ -187,15 +225,30 @@ export default function Dashboard() {
   )
 }
 
-function KPICard({ label, value, sub, pct }: {
+function KPICard({ label, value, sub, pct, onClick }: {
   label: string
   value: string
   sub: string
   pct?: number
+  onClick?: () => void
 }) {
+  const interactive = !!onClick
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5">
-      <p className="text-xs text-gray-400 mb-3">{label}</p>
+    <div
+      onClick={onClick}
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onKeyDown={interactive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick!() } } : undefined}
+      className={`bg-white rounded-xl border border-gray-100 p-5 ${interactive ? 'hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer' : ''}`}
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-400 mb-3">{label}</p>
+        {interactive && (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300">
+            <line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" />
+          </svg>
+        )}
+      </div>
       <p className="text-2xl font-semibold text-gray-900 leading-none">{value}</p>
       <p className="text-xs text-gray-400 mt-2">{sub}</p>
       {pct !== undefined && (
