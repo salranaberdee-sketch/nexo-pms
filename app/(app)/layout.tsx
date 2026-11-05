@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
@@ -15,49 +15,66 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const supabase = createClient()
+  // Prevent concurrent calls to init() from overwriting each other
+  const initializing = useRef(false)
 
-  useEffect(() => {
-    async function init(session: any) {
-      if (!session?.user) {
-        router.replace('/login')
-        return
-      }
-      setUser(session.user)
+  async function init(sessionUser: User) {
+    // Deduplicate concurrent calls — only the first one runs
+    if (initializing.current) return
+    initializing.current = true
 
-      // Fetch profile — RLS allows self SELECT via "Users view own profile" policy
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single()
+    setUser(sessionUser)
 
-      if (!data) {
-        // Profile row not yet created by trigger — send to pending page
-        router.replace('/pending')
-        return
-      }
+    // Fetch own profile row — "Users view own profile" policy allows this
+    // regardless of approval_status, so pending users can read their own row
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', sessionUser.id)
+      .single()
 
-      if (data.approval_status !== 'approved') {
-        // Not approved yet — redirect to pending page
-        router.replace('/pending')
-        return
-      }
+    initializing.current = false
 
-      setProfile(data as Profile)
-      setLoading(false)
+    if (error || !data) {
+      // Profile row not yet created by trigger (rare race) — redirect to pending
+      router.replace('/pending')
+      return
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => init(session))
+    if (data.approval_status !== 'approved') {
+      router.replace('/pending')
+      return
+    }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (!session?.user) {
+    setProfile(data as Profile)
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    // Use getUser() which verifies the JWT with Supabase Auth server
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) {
         router.replace('/login')
-      } else {
-        init(session)
+        return
+      }
+      init(user)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session?.user) {
+        router.replace('/login')
+        return
+      }
+      // Only re-init on token refresh or explicit sign-in, not on initial SIGNED_IN
+      // (already handled above by getUser). This prevents the double-init race.
+      if (event === 'TOKEN_REFRESHED') {
+        initializing.current = false
+        init(session.user)
       }
     })
+
     return () => subscription.unsubscribe()
-  }, [router, supabase])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading || !user || !profile) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
