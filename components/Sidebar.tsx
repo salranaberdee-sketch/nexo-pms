@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useEffect, useState, useMemo } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
 import { useIsAdmin, type Profile } from '@/lib/profile-context'
@@ -82,7 +83,6 @@ const roleStyle: Record<string, string> = {
 
 export default function Sidebar({ user, profile }: { user: User | null; profile: Profile | null }) {
   const pathname = usePathname()
-  const router = useRouter()
   const supabase = createClient()
   const isAdmin = useIsAdmin()
   const [pendingCount, setPendingCount] = useState(0)
@@ -133,9 +133,10 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
         {visibleNav.map(({ path, label, Icon }) => {
           const active = pathname === path
           return (
-            <button
+            <Link
               key={path}
-              onClick={() => router.push(path)}
+              href={path}
+              prefetch={true}
               className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                 ${active
                   ? 'bg-gray-900 text-white'
@@ -148,7 +149,7 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
                   {pendingCount}
                 </span>
               )}
-            </button>
+            </Link>
           )
         })}
       </nav>
