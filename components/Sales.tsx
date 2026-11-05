@@ -2,10 +2,21 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { useCan } from '@/lib/profile-context'
+
+const SALES_STATUS_OPTIONS = ['ยังไม่เปิดขาย', 'ยังไม่เริ่ม', 'กำลังขาย', 'ปิดเป้า']
 
 const salesStatusStyle: Record<string, string> = {
   'ยังไม่เปิดขาย': 'bg-gray-100 text-gray-400',
   'ปิดเป้า':        'bg-green-50 text-green-700',
+}
+
+function IconPlus() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
 }
 
 export default function Sales() {
@@ -14,6 +25,15 @@ export default function Sales() {
   const [loading, setLoading]   = useState(true)
   const [editing, setEditing]   = useState<number | null>(null)
   const [editVal, setEditVal]   = useState({ actual_sales: '', actual_received: '' })
+  const [showForm, setShowForm] = useState(false)
+  const [saving, setSaving]     = useState(false)
+  const [form, setForm] = useState({
+    product_id: '', period_start: '', period_end: '',
+    sales_target_amount: '', sales_target_count: '', status: 'ยังไม่เปิดขาย',
+  })
+  const [error, setError]       = useState('')
+  const canInsert = useCan('insert', 'sales')
+  const canUpdate = useCan('update', 'sales')
   const supabase = createClient()
 
   async function load() {
@@ -27,6 +47,32 @@ export default function Sales() {
   }
 
   useEffect(() => { load() }, [])
+
+  // Insert a new sales target row.
+  // UNIQUE(product_id, period_start) — duplicate will fail with a constraint error.
+  async function save() {
+    setSaving(true)
+    setError('')
+    const { error: insErr } = await supabase.from('sales').insert([{
+      product_id:          form.product_id,
+      period_start:        form.period_start,
+      period_end:          form.period_end,
+      sales_target_amount: Number(form.sales_target_amount) || 0,
+      sales_target_count:  Number(form.sales_target_count) || 0,
+      status:              form.status,
+    }])
+    if (insErr) {
+      setError(insErr.code === '23505'
+        ? 'มีเป้ายอดขายของ Product นี้ในช่วงเวลานี้อยู่แล้ว'
+        : insErr.message)
+      setSaving(false)
+      return
+    }
+    setShowForm(false)
+    setForm({ product_id: '', period_start: '', period_end: '', sales_target_amount: '', sales_target_count: '', status: 'ยังไม่เปิดขาย' })
+    await load()
+    setSaving(false)
+  }
 
   async function saveEdit(id: number) {
     await supabase.from('sales').update({
@@ -52,10 +98,83 @@ export default function Sales() {
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-5">
 
-      <div>
-        <h1 className="text-lg font-semibold text-gray-900">Sales</h1>
-        <p className="text-sm text-gray-400 mt-0.5">ยอดขาย พฤศจิกายน 2026 — เหลือ {daysLeft} วัน</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-900">Sales</h1>
+          <p className="text-sm text-gray-400 mt-0.5">ยอดขาย พฤศจิกายน 2026 — เหลือ {daysLeft} วัน</p>
+        </div>
+        {canInsert && (
+          <button
+            onClick={() => setShowForm(v => !v)}
+            className="flex items-center gap-1.5 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+          >
+            <IconPlus />
+            เพิ่มเป้ายอดขาย
+          </button>
+        )}
       </div>
+
+      {/* Add sales target form */}
+      {showForm && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 className="text-sm font-semibold text-gray-900 mb-4">เพิ่มเป้ายอดขายใหม่</h3>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            <select
+              value={form.product_id}
+              onChange={e => setForm({ ...form, product_id: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+            >
+              <option value="">เลือก Product</option>
+              {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
+            </select>
+            <input
+              type="date" value={form.period_start}
+              onChange={e => setForm({ ...form, period_start: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+            />
+            <input
+              type="date" value={form.period_end}
+              onChange={e => setForm({ ...form, period_end: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+            />
+            <input
+              type="number" placeholder="เป้ายอดขาย (฿)" value={form.sales_target_amount}
+              onChange={e => setForm({ ...form, sales_target_amount: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
+            />
+            <input
+              type="number" placeholder="เป้าจำนวนชิ้น" value={form.sales_target_count}
+              onChange={e => setForm({ ...form, sales_target_count: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
+            />
+            <select
+              value={form.status}
+              onChange={e => setForm({ ...form, status: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+            >
+              {SALES_STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+          {error && (
+            <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-lg px-3.5 py-2.5 mt-3">{error}</p>
+          )}
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={save}
+              disabled={saving || !form.product_id || !form.period_start || !form.period_end}
+              className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-40 hover:bg-gray-700 transition-colors"
+            >
+              {saving ? 'กำลังบันทึก...' : 'บันทึก'}
+            </button>
+            <button
+              onClick={() => { setShowForm(false); setError('') }}
+              className="text-sm text-gray-400 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              ยกเลิก
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
@@ -182,7 +301,7 @@ export default function Sales() {
                               ยกเลิก
                             </button>
                           </div>
-                        : <button
+                        : canUpdate ? <button
                             onClick={() => {
                               setEditing(s.id)
                               setEditVal({ actual_sales: String(s.actual_sales), actual_received: String(s.actual_received) })
@@ -190,7 +309,7 @@ export default function Sales() {
                             className="text-xs text-gray-400 hover:text-gray-900 transition-colors"
                           >
                             แก้ไข
-                          </button>
+                          </button> : <span className="text-xs text-gray-300">—</span>
                       }
                     </td>
                   </tr>

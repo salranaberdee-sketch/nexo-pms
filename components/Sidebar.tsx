@@ -1,8 +1,10 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
-import type { Page } from '@/app/page'
+import { useIsAdmin, type Profile } from '@/lib/profile-context'
 
 // SVG icon components — inline, no external dependency
 function IconDashboard() {
@@ -50,6 +52,16 @@ function IconTrendingUp() {
     </svg>
   )
 }
+function IconUsers() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  )
+}
 function IconLogOut() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -60,20 +72,42 @@ function IconLogOut() {
   )
 }
 
-const nav: { id: Page; label: string; Icon: () => React.ReactElement }[] = [
-  { id: 'dashboard', label: 'Dashboard',  Icon: IconDashboard },
-  { id: 'products',  label: 'Products',   Icon: IconBox },
-  { id: 'contents',  label: 'Content',    Icon: IconFileText },
-  { id: 'ads',       label: 'Ads',        Icon: IconBarChart },
-  { id: 'sales',     label: 'Sales',      Icon: IconTrendingUp },
-]
+// Role badge styles
+const roleStyle: Record<string, string> = {
+  admin:   'bg-purple-50 text-purple-700',
+  manager: 'bg-blue-50 text-blue-700',
+  editor:  'bg-teal-50 text-teal-700',
+  viewer:  'bg-gray-100 text-gray-500',
+}
 
-export default function Sidebar({ page, setPage, user }: {
-  page: Page
-  setPage: (p: Page) => void
-  user: any
-}) {
+export default function Sidebar({ user, profile }: { user: User | null; profile: Profile | null }) {
+  const pathname = usePathname()
+  const router = useRouter()
   const supabase = createClient()
+  const isAdmin = useIsAdmin()
+  const [pendingCount, setPendingCount] = useState(0)
+
+  // Fetch pending user count for admin badge
+  useEffect(() => {
+    if (!isAdmin) return
+    supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('approval_status', 'pending')
+      .then(({ count }) => setPendingCount(count || 0))
+  }, [supabase, isAdmin])
+
+  // Base nav items — visible to all approved users
+  const nav: { path: string; label: string; Icon: () => React.ReactElement; adminOnly?: boolean }[] = [
+    { path: '/dashboard', label: 'Dashboard',  Icon: IconDashboard },
+    { path: '/products',  label: 'Products',   Icon: IconBox },
+    { path: '/contents',  label: 'Content',    Icon: IconFileText },
+    { path: '/ads',       label: 'Ads',        Icon: IconBarChart },
+    { path: '/sales',     label: 'Sales',      Icon: IconTrendingUp },
+    { path: '/team',      label: 'ทีม',        Icon: IconUsers, adminOnly: true },
+  ]
+
+  const visibleNav = nav.filter(item => !item.adminOnly || isAdmin)
 
   return (
     <aside className="w-52 bg-white border-r border-gray-100 flex flex-col h-screen shrink-0">
@@ -93,28 +127,43 @@ export default function Sidebar({ page, setPage, user }: {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-3 space-y-0.5">
-        {nav.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            onClick={() => setPage(id)}
-            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-              ${page === id
-                ? 'bg-gray-900 text-white'
-                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}`}
-          >
-            <Icon />
-            {label}
-          </button>
-        ))}
+        {visibleNav.map(({ path, label, Icon }) => {
+          const active = pathname === path
+          return (
+            <button
+              key={path}
+              onClick={() => router.push(path)}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+                ${active
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}`}
+            >
+              <Icon />
+              {label}
+              {path === '/team' && pendingCount > 0 && (
+                <span className="ml-auto bg-amber-100 text-amber-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums">
+                  {pendingCount}
+                </span>
+              )}
+            </button>
+          )
+        })}
       </nav>
 
       {/* User */}
       <div className="px-3 py-3 border-t border-gray-100">
         <div className="flex items-center gap-2 px-3 py-2 mb-1">
           <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 font-semibold text-xs shrink-0">
-            {user?.email?.[0]?.toUpperCase()}
+            {profile?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase()}
           </div>
-          <p className="text-xs text-gray-600 truncate flex-1 min-w-0">{user?.email}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-gray-900 truncate">{profile?.name || user?.email}</p>
+            {profile && (
+              <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${roleStyle[profile.role] || 'bg-gray-100 text-gray-500'}`}>
+                {profile.role}
+              </span>
+            )}
+          </div>
         </div>
         <button
           onClick={() => supabase.auth.signOut()}

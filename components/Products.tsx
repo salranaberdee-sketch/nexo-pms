@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { useCan } from '@/lib/profile-context'
+import ProfilePicker from './ProfilePicker'
 
 const STATUS_OPTIONS = ['กำลังพัฒนา', 'เตรียมเปิดตัว', 'เปิดขาย', 'หยุดขาย']
 
@@ -25,10 +27,12 @@ export default function Products() {
   const [loading, setLoading]     = useState(true)
   const [showForm, setShowForm]   = useState(false)
   const [saving, setSaving]       = useState(false)
+  const [error, setError]         = useState('')
   const [form, setForm] = useState({
     product_id: '', name: '', business_type: '', product_type: '',
-    brand: '', owner: '', status: 'กำลังพัฒนา', notes: '',
+    brand: '', owner: '', owner_id: '', status: 'กำลังพัฒนา', notes: '',
   })
+  const canInsert = useCan('insert', 'products')
   const supabase = createClient()
 
   async function load() {
@@ -41,9 +45,18 @@ export default function Products() {
 
   async function save() {
     setSaving(true)
-    await supabase.from('products').insert([form])
+    setError('')
+    const { error: insErr } = await supabase.from('products').insert([{
+      ...form,
+      owner_id: form.owner_id || null,
+    }])
+    if (insErr) {
+      setError(insErr.message)
+      setSaving(false)
+      return
+    }
     setShowForm(false)
-    setForm({ product_id: '', name: '', business_type: '', product_type: '', brand: '', owner: '', status: 'กำลังพัฒนา', notes: '' })
+    setForm({ product_id: '', name: '', business_type: '', product_type: '', brand: '', owner: '', owner_id: '', status: 'กำลังพัฒนา', notes: '' })
     await load()
     setSaving(false)
   }
@@ -54,7 +67,6 @@ export default function Products() {
     ['business_type', 'ประเภทธุรกิจ'],
     ['product_type',  'ประเภทสินค้า'],
     ['brand',         'แบรนด์'],
-    ['owner',         'ผู้รับผิดชอบ'],
   ]
 
   return (
@@ -65,13 +77,15 @@ export default function Products() {
           <h1 className="text-lg font-semibold text-gray-900">Products</h1>
           <p className="text-sm text-gray-400 mt-0.5">จัดการ Product ID และข้อมูลสินค้า</p>
         </div>
-        <button
-          onClick={() => setShowForm(v => !v)}
-          className="flex items-center gap-1.5 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
-        >
-          <IconPlus />
-          เพิ่มสินค้า
-        </button>
+        {canInsert && (
+          <button
+            onClick={() => setShowForm(v => !v)}
+            className="flex items-center gap-1.5 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+          >
+            <IconPlus />
+            เพิ่มสินค้า
+          </button>
+        )}
       </div>
 
       {/* Add product form */}
@@ -88,6 +102,11 @@ export default function Products() {
                 className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
               />
             ))}
+            <ProfilePicker
+              value={form.owner_id}
+              onChange={(id, name) => setForm({ ...form, owner_id: id, owner: name })}
+              placeholder="ผู้รับผิดชอบ"
+            />
             <select
               value={form.status}
               onChange={e => setForm({ ...form, status: e.target.value })}
@@ -102,6 +121,9 @@ export default function Products() {
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
             />
           </div>
+          {error && (
+            <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-lg px-3.5 py-2.5 mt-3">{error}</p>
+          )}
           <div className="flex gap-2 mt-4">
             <button
               onClick={save}
@@ -111,7 +133,7 @@ export default function Products() {
               {saving ? 'กำลังบันทึก...' : 'บันทึก'}
             </button>
             <button
-              onClick={() => setShowForm(false)}
+              onClick={() => { setShowForm(false); setError('') }}
               className="text-sm text-gray-400 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
             >
               ยกเลิก
@@ -142,7 +164,7 @@ export default function Products() {
                   <td className="px-4 py-3 font-medium text-gray-900 max-w-[180px] truncate">{p.name}</td>
                   <td className="px-4 py-3 text-sm text-gray-500">{p.product_type}</td>
                   <td className="px-4 py-3 text-sm text-gray-500">{p.brand}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{p.owner}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500">{p.owner || '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${statusStyle[p.status] || 'bg-gray-100 text-gray-400'}`}>
                       {p.status}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { useProfile } from '@/lib/profile-context'
 
 export default function Dashboard() {
   const [products, setProducts] = useState<any[]>([])
@@ -9,6 +10,7 @@ export default function Dashboard() {
   const [contents, setContents] = useState<any[]>([])
   const [ads, setAds] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const profile = useProfile()
   const supabase = createClient()
 
   useEffect(() => {
@@ -140,6 +142,47 @@ export default function Dashboard() {
           </table>
         </div>
       </div>
+
+      {/* My Tasks — work assigned to the current user */}
+      {(() => {
+        const myContents = contents.filter(c => c.assigned_to_id === profile.id)
+        const myAds = ads.filter(a => a.managed_by_id === profile.id)
+        const myProducts = products.filter(p => p.owner_id === profile.id)
+        const myDone = myContents.filter(c => c.status === 'โพสต์แล้ว').length
+        const myInProgress = myContents.filter(c => c.status !== 'โพสต์แล้ว' && c.status !== 'รอผลิต').length
+        const myWaiting = myContents.filter(c => c.status === 'รอผลิต').length
+        const totalTasks = myContents.length + myAds.length + myProducts.length
+
+        return (
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-900">งานของฉัน</h2>
+              <span className="text-xs text-gray-400">{totalTasks} งาน</span>
+            </div>
+            <div className="grid grid-cols-3 gap-0 divide-x divide-gray-100">
+              <div className="p-5">
+                <p className="text-xs text-gray-400 mb-2">Content ที่รับผิดชอบ</p>
+                <p className="text-2xl font-semibold text-gray-900 leading-none">{myContents.length}</p>
+                <div className="flex gap-3 mt-3 flex-wrap">
+                  <span className="text-xs text-green-600">โพสต์แล้ว {myDone}</span>
+                  <span className="text-xs text-blue-500">กำลังทำ {myInProgress}</span>
+                  <span className="text-xs text-gray-400">รอผลิต {myWaiting}</span>
+                </div>
+              </div>
+              <div className="p-5">
+                <p className="text-xs text-gray-400 mb-2">แคมเปญ Ads ที่ดูแล</p>
+                <p className="text-2xl font-semibold text-gray-900 leading-none">{myAds.length}</p>
+                <p className="text-xs text-gray-400 mt-3">campaigns</p>
+              </div>
+              <div className="p-5">
+                <p className="text-xs text-gray-400 mb-2">Product ที่ดูแล</p>
+                <p className="text-2xl font-semibold text-gray-900 leading-none">{myProducts.length}</p>
+                <p className="text-xs text-gray-400 mt-3">products</p>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

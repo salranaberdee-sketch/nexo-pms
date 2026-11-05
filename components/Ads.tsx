@@ -2,18 +2,71 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { useCan } from '@/lib/profile-context'
+import ProfilePicker from './ProfilePicker'
+
+function IconPlus() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
 
 export default function Ads() {
-  const [ads, setAds]       = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [ads, setAds]           = useState<any[]>([])
+  const [products, setProducts] = useState<any[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState('')
+  const [form, setForm] = useState({
+    product_id: '', month: '', campaign_name: '', channel: 'Facebook',
+    budget_approved: '', budget_allocated: '', content_ref: '',
+    managed_by: '', managed_by_id: '', start_date: '', end_date: '', result_notes: '',
+  })
+  const canInsert = useCan('insert', 'ads')
   const supabase = createClient()
 
-  useEffect(() => {
-    supabase.from('ads').select('*').order('product_id').then(({ data }) => {
-      setAds(data || [])
-      setLoading(false)
-    })
-  }, [])
+  async function load() {
+    const [a, p] = await Promise.all([
+      supabase.from('ads').select('*').order('product_id'),
+      supabase.from('products').select('product_id, name'),
+    ])
+    setAds(a.data || [])
+    setProducts(p.data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function save() {
+    setSaving(true)
+    setError('')
+    const { error: insErr } = await supabase.from('ads').insert([{
+      product_id:      form.product_id,
+      month:           form.month,
+      campaign_name:   form.campaign_name,
+      channel:         form.channel,
+      budget_approved: Number(form.budget_approved) || 0,
+      budget_allocated: Number(form.budget_allocated) || 0,
+      content_ref:     form.content_ref,
+      managed_by:      form.managed_by,
+      managed_by_id:   form.managed_by_id || null,
+      start_date:      form.start_date || null,
+      end_date:        form.end_date || null,
+      result_notes:    form.result_notes,
+    }])
+    if (insErr) {
+      setError(insErr.message)
+      setSaving(false)
+      return
+    }
+    setShowForm(false)
+    setForm({ product_id: '', month: '', campaign_name: '', channel: 'Facebook', budget_approved: '', budget_allocated: '', content_ref: '', managed_by: '', managed_by_id: '', start_date: '', end_date: '', result_notes: '' })
+    await load()
+    setSaving(false)
+  }
 
   const totalBudget = ads.reduce((s, r) => s + Number(r.budget_approved), 0)
   const totalSpent  = ads.reduce((s, r) => s + Number(r.budget_spent), 0)
@@ -33,10 +86,106 @@ export default function Ads() {
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-5">
 
-      <div>
-        <h1 className="text-lg font-semibold text-gray-900">Ads</h1>
-        <p className="text-sm text-gray-400 mt-0.5">ติดตามแคมเปญโฆษณาและ ROI</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-900">Ads</h1>
+          <p className="text-sm text-gray-400 mt-0.5">ติดตามแคมเปญโฆษณาและ ROI</p>
+        </div>
+        {canInsert && (
+          <button
+            onClick={() => setShowForm(v => !v)}
+            className="flex items-center gap-1.5 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+          >
+            <IconPlus />
+            เพิ่มแคมเปญ
+          </button>
+        )}
       </div>
+
+      {/* Add ad form */}
+      {showForm && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 className="text-sm font-semibold text-gray-900 mb-4">เพิ่มแคมเปญโฆษณาใหม่</h3>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            <select
+              value={form.product_id}
+              onChange={e => setForm({ ...form, product_id: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+            >
+              <option value="">เลือก Product</option>
+              {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id}</option>)}
+            </select>
+            <input
+              placeholder="เดือน (เช่น 2026-11)" value={form.month}
+              onChange={e => setForm({ ...form, month: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
+            />
+            <input
+              placeholder="ชื่อแคมเปญ" value={form.campaign_name}
+              onChange={e => setForm({ ...form, campaign_name: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
+            />
+            <input
+              placeholder="ช่องทาง" value={form.channel}
+              onChange={e => setForm({ ...form, channel: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
+            />
+            <input
+              type="number" placeholder="งบที่อนุมัติ (฿)" value={form.budget_approved}
+              onChange={e => setForm({ ...form, budget_approved: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
+            />
+            <input
+              type="number" placeholder="งบจัดสรร (฿)" value={form.budget_allocated}
+              onChange={e => setForm({ ...form, budget_allocated: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
+            />
+            <input
+              placeholder="อ้างอิง Content" value={form.content_ref}
+              onChange={e => setForm({ ...form, content_ref: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
+            />
+            <ProfilePicker
+              value={form.managed_by_id}
+              onChange={(id, name) => setForm({ ...form, managed_by_id: id, managed_by: name })}
+              placeholder="ผู้ดูแล"
+            />
+            <input
+              type="date" value={form.start_date}
+              onChange={e => setForm({ ...form, start_date: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+            />
+            <input
+              type="date" value={form.end_date}
+              onChange={e => setForm({ ...form, end_date: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+            />
+            <input
+              placeholder="หมายเหตุผล" value={form.result_notes}
+              onChange={e => setForm({ ...form, result_notes: e.target.value })}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
+            />
+          </div>
+          {error && (
+            <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-lg px-3.5 py-2.5 mt-3">{error}</p>
+          )}
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={save}
+              disabled={saving || !form.product_id || !form.campaign_name || !form.month}
+              className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-40 hover:bg-gray-700 transition-colors"
+            >
+              {saving ? 'กำลังบันทึก...' : 'บันทึก'}
+            </button>
+            <button
+              onClick={() => { setShowForm(false); setError('') }}
+              className="text-sm text-gray-400 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              ยกเลิก
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

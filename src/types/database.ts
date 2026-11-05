@@ -30,6 +30,7 @@ export type Database = {
           id: number
           leads: number | null
           managed_by: string | null
+          managed_by_id: string | null
           month: string
           next_action: string | null
           product_id: string
@@ -57,6 +58,7 @@ export type Database = {
           id?: number
           leads?: number | null
           managed_by?: string | null
+          managed_by_id?: string | null
           month: string
           next_action?: string | null
           product_id: string
@@ -84,6 +86,7 @@ export type Database = {
           id?: number
           leads?: number | null
           managed_by?: string | null
+          managed_by_id?: string | null
           month?: string
           next_action?: string | null
           product_id?: string
@@ -95,6 +98,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ads_managed_by_id_fkey"
+            columns: ["managed_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ads_product_id_fkey"
             columns: ["product_id"]
@@ -110,8 +120,10 @@ export type Database = {
           actual_submit_date: string | null
           approved_at: string | null
           approver: string | null
+          approver_id: string | null
           assigned_date: string | null
           assigned_to: string | null
+          assigned_to_id: string | null
           channel: string | null
           created_at: string | null
           cta: string | null
@@ -126,7 +138,9 @@ export type Database = {
           objective: string | null
           post_link: string | null
           poster: string | null
+          poster_id: string | null
           producer: string | null
+          producer_id: string | null
           product_id: string
           scheduled_post_date: string | null
           seq: number
@@ -140,8 +154,10 @@ export type Database = {
           actual_submit_date?: string | null
           approved_at?: string | null
           approver?: string | null
+          approver_id?: string | null
           assigned_date?: string | null
           assigned_to?: string | null
+          assigned_to_id?: string | null
           channel?: string | null
           created_at?: string | null
           cta?: string | null
@@ -156,7 +172,9 @@ export type Database = {
           objective?: string | null
           post_link?: string | null
           poster?: string | null
+          poster_id?: string | null
           producer?: string | null
+          producer_id?: string | null
           product_id: string
           scheduled_post_date?: string | null
           seq: number
@@ -170,8 +188,10 @@ export type Database = {
           actual_submit_date?: string | null
           approved_at?: string | null
           approver?: string | null
+          approver_id?: string | null
           assigned_date?: string | null
           assigned_to?: string | null
+          assigned_to_id?: string | null
           channel?: string | null
           created_at?: string | null
           cta?: string | null
@@ -186,7 +206,9 @@ export type Database = {
           objective?: string | null
           post_link?: string | null
           poster?: string | null
+          poster_id?: string | null
           producer?: string | null
+          producer_id?: string | null
           product_id?: string
           scheduled_post_date?: string | null
           seq?: number
@@ -196,6 +218,34 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "contents_approver_id_fkey"
+            columns: ["approver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contents_assigned_to_id_fkey"
+            columns: ["assigned_to_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contents_poster_id_fkey"
+            columns: ["poster_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contents_producer_id_fkey"
+            columns: ["producer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "contents_product_id_fkey"
             columns: ["product_id"]
@@ -319,6 +369,7 @@ export type Database = {
           name: string
           notes: string | null
           owner: string | null
+          owner_id: string | null
           product_id: string
           product_type: string | null
           start_date: string | null
@@ -334,6 +385,7 @@ export type Database = {
           name: string
           notes?: string | null
           owner?: string | null
+          owner_id?: string | null
           product_id: string
           product_type?: string | null
           start_date?: string | null
@@ -349,6 +401,7 @@ export type Database = {
           name?: string
           notes?: string | null
           owner?: string | null
+          owner_id?: string | null
           product_id?: string
           product_type?: string | null
           start_date?: string | null
@@ -363,10 +416,20 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "products_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {
         Row: {
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
           brand_access: string[] | null
           created_at: string | null
           email: string
@@ -376,6 +439,9 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
           brand_access?: string[] | null
           created_at?: string | null
           email: string
@@ -385,6 +451,9 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
           brand_access?: string[] | null
           created_at?: string | null
           email?: string
@@ -393,7 +462,15 @@ export type Database = {
           role?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sales: {
         Row: {
