@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "url": "https://mcp.supabase.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${SUPABASE_MCP_TOKEN}"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "list_projects", "get_project", "list_tables", "list_migrations",
+        "get_project_url", "get_advisors", "list_extensions",
+        "get_publishable_keys", "generate_typescript_types",
+        "list_edge_functions", "get_edge_function",
+        "apply_migration", "execute_sql", "restore_project", "deploy_edge_function"
+      ]
+    },
+    "vercel": {
+      "url": "https://mcp.vercel.com",
+      "headers": {
+        "Authorization": "Bearer ${VERCEL_MCP_TOKEN}"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "list_deployments", "get_deployment", "list_projects",
+        "get_project", "list_environment_variables", "create_deployment"
+      ]
+    }
+  }
+}

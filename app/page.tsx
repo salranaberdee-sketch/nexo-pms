@@ -1,69 +1,216 @@
-import Image from "next/image";
+'use client'
+
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase'
+import Sidebar from '@/components/Sidebar'
+import Dashboard from '@/components/Dashboard'
+import Products from '@/components/Products'
+import Contents from '@/components/Contents'
+import Ads from '@/components/Ads'
+import Sales from '@/components/Sales'
+
+export type Page = 'dashboard' | 'products' | 'contents' | 'ads' | 'sales'
+
+// Feature list for login branding panel
+const FEATURES = [
+  'จัดการ Product ทุกประเภท',
+  'ติดตาม Content workflow',
+  'วิเคราะห์ Ads และ ROI',
+  'กรอกยอดขายและติดตามเป้า',
+]
 
 export default function Home() {
+  const [page, setPage]     = useState<Page>('dashboard')
+  const [user, setUser]     = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const supabase = createClient()
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      setLoading(false)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-sm text-gray-400">กำลังโหลด...</p>
+      </div>
+    </div>
+  )
+
+  if (!user) return <LoginPage />
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+    <div className="flex h-screen overflow-hidden bg-gray-50">
+      <Sidebar page={page} setPage={setPage} user={user} />
+      <main className="flex-1 overflow-y-auto">
+        {page === 'dashboard' && <Dashboard />}
+        {page === 'products'  && <Products />}
+        {page === 'contents'  && <Contents />}
+        {page === 'ads'       && <Ads />}
+        {page === 'sales'     && <Sales />}
       </main>
     </div>
-  );
+  )
+}
+
+function LoginPage() {
+  const [email, setEmail]         = useState('admin@nexo.dev')
+  const [password, setPassword]   = useState('nexo1234')
+  const [isRegister, setIsRegister] = useState(false)
+  const [name, setName]           = useState('')
+  const [error, setError]         = useState('')
+  const [loading, setLoading]     = useState(false)
+  const supabase = createClient()
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    if (isRegister) {
+      const { error } = await supabase.auth.signUp({ email, password, options: { data: { name } } })
+      if (error) setError(error.message)
+      else setError('สมัครสำเร็จ กรุณาตรวจสอบอีเมลเพื่อยืนยัน')
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง')
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="min-h-screen flex bg-gray-950">
+
+      {/* Left — Branding */}
+      <div className="hidden lg:flex flex-1 flex-col justify-center px-16">
+        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center mb-10">
+          <span className="text-gray-900 text-lg font-bold">N</span>
+        </div>
+        <h1 className="text-3xl font-semibold text-white mb-3">Nexo PMS</h1>
+        <p className="text-gray-400 text-base mb-10 leading-relaxed">
+          ระบบจัดการสินค้า, Content, Ads<br />และยอดขาย ในที่เดียว
+        </p>
+        <ul className="space-y-3">
+          {FEATURES.map(t => (
+            <li key={t} className="flex items-center gap-3 text-gray-500 text-sm">
+              <span className="w-1 h-1 bg-gray-500 rounded-full shrink-0" />
+              {t}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Right — Form */}
+      <div className="flex-1 flex items-center justify-center p-8 bg-white">
+        <div className="w-full max-w-sm">
+
+          {/* Mobile logo */}
+          <div className="lg:hidden text-center mb-8">
+            <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center mx-auto mb-3">
+              <span className="text-white text-lg font-bold">N</span>
+            </div>
+            <p className="text-lg font-semibold text-gray-900">Nexo PMS</p>
+          </div>
+
+          <div className="mb-7">
+            <h2 className="text-2xl font-semibold text-gray-900">
+              {isRegister ? 'สร้างบัญชี' : 'ยินดีต้อนรับ'}
+            </h2>
+            <p className="text-sm text-gray-400 mt-1">
+              {isRegister ? 'กรอกข้อมูลเพื่อสมัครสมาชิก' : 'เข้าสู่ระบบเพื่อจัดการสินค้า'}
+            </p>
+          </div>
+
+          {/* Test account hint */}
+          {!isRegister && (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 mb-6">
+              <p className="text-xs font-medium text-gray-500 mb-2">Test Account</p>
+              <button
+                onClick={() => { setEmail('admin@nexo.dev'); setPassword('nexo1234') }}
+                className="text-xs bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors font-medium"
+              >
+                Admin — admin@nexo.dev
+              </button>
+            </div>
+          )}
+
+          {/* Tab toggle */}
+          <div className="flex bg-gray-100 rounded-xl p-1 mb-6">
+            <button
+              onClick={() => setIsRegister(false)}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${!isRegister ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400'}`}
+            >
+              เข้าสู่ระบบ
+            </button>
+            <button
+              onClick={() => setIsRegister(true)}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${isRegister ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400'}`}
+            >
+              สมัครสมาชิก
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {isRegister && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">ชื่อ</label>
+                <input
+                  type="text" value={name} onChange={e => setName(e.target.value)} required
+                  placeholder="ชื่อของคุณ"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
+                />
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">อีเมล</label>
+              <input
+                type="email" value={email} onChange={e => setEmail(e.target.value)} required
+                placeholder="your@email.com"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">รหัสผ่าน</label>
+              <input
+                type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6}
+                placeholder="••••••••"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
+              />
+            </div>
+
+            {error && (
+              <p className={`text-sm px-3.5 py-2.5 rounded-lg ${
+                error.includes('สมัครสำเร็จ')
+                  ? 'bg-green-50 text-green-700 border border-green-100'
+                  : 'bg-red-50 text-red-600 border border-red-100'
+              }`}>
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gray-900 text-white py-3 rounded-xl text-sm font-semibold hover:bg-gray-700 transition-colors disabled:opacity-50 mt-1"
+            >
+              {loading
+                ? <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    กำลังดำเนินการ...
+                  </span>
+                : isRegister ? 'สร้างบัญชี' : 'เข้าสู่ระบบ'
+              }
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
 }
