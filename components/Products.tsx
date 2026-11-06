@@ -10,6 +10,7 @@ import StatusSelect from './StatusSelect'
 import InlinePersonPicker, { type ProfileOption } from './InlinePersonPicker'
 import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
+import CategoryManager, { useCategories } from './CategoryManager'
 
 const STATUS_OPTIONS = ['กำลังพัฒนา', 'เตรียมเปิดตัว', 'เปิดขาย', 'หยุดขาย']
 
@@ -67,6 +68,7 @@ export default function Products() {
   const [loading, setLoading]               = useState(true)
   const [loadError, setLoadError]           = useState('')
   const [showForm, setShowForm]             = useState(false)
+  const [showCategoryManager, setShowCategoryManager] = useState(false)
   const [saving, setSaving]                 = useState(false)
   const [error, setError]                   = useState('')
   const [search, setSearch]                 = useState('')
@@ -79,6 +81,9 @@ export default function Products() {
   const canUpdate = useCan('update', 'products')
   const canDelete = useCan('delete', 'products')
   const supabase = createClient()
+
+  // Categories from DB
+  const { categories, reload: reloadCategories } = useCategories()
 
   async function load() {
     setLoadError('')
@@ -164,10 +169,10 @@ export default function Products() {
 
   const pidInvalid = !editingId && form.product_id !== '' && !PID_RE.test(form.product_id)
 
-  // Derived category lists
+  // Derived category lists — from categories table (DB source of truth)
   const allBusinessTypes = useMemo(
-    () => [...new Set(products.map(p => p.business_type).filter(Boolean))].sort(),
-    [products],
+    () => categories.map(c => c.name),
+    [categories],
   )
 
   const [filterCategory, setFilterCategory] = useState('all') // business_type filter
@@ -208,10 +213,20 @@ export default function Products() {
           <p className="text-sm text-slate-400 mt-0.5">จัดการ Product ID และข้อมูลสินค้า</p>
         </div>
         {canInsert && (
-          <button onClick={openAdd}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-500 transition-colors shadow-sm">
-            <IconPlus />เพิ่มสินค้า
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowCategoryManager(true)}
+              className="flex items-center gap-2 border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+              หมวดหมู่
+            </button>
+            <button onClick={openAdd}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-500 transition-colors shadow-sm">
+              <IconPlus />เพิ่มสินค้า
+            </button>
+          </div>
         )}
       </div>
 
@@ -357,13 +372,13 @@ export default function Products() {
           <Field label="ประเภทธุรกิจ">
             <input
               list="business-type-options"
-              placeholder="เช่น การศึกษา"
+              placeholder="เลือกหรือพิมพ์หมวดหมู่"
               value={form.business_type}
               onChange={e => setForm({ ...form, business_type: e.target.value })}
               className={inputCls}
             />
             <datalist id="business-type-options">
-              {allBusinessTypes.map(bt => <option key={bt} value={bt} />)}
+              {categories.map(c => <option key={c.id} value={c.name} />)}
             </datalist>
           </Field>
           <Field label="ประเภทสินค้า">
@@ -422,6 +437,16 @@ export default function Products() {
             ยกเลิก
           </button>
         </div>
+      </Modal>
+
+      {/* Category Manager Modal */}
+      <Modal
+        open={showCategoryManager}
+        onClose={() => { setShowCategoryManager(false); reloadCategories() }}
+        title="จัดการหมวดหมู่"
+        width="max-w-sm"
+      >
+        <CategoryManager onClose={() => { setShowCategoryManager(false); reloadCategories() }} />
       </Modal>
 
       {/* Delete confirm modal */}

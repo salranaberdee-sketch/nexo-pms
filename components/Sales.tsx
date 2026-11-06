@@ -7,6 +7,7 @@ import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState, todayStr } from './TableState'
 import { showToast } from './Toast'
 import Modal, { Field } from './Modal'
+import { useCategories } from './CategoryManager'
 
 const SALES_STATUS_OPTIONS = ['ยังไม่เปิดขาย', 'ยังไม่เริ่ม', 'กำลังขาย', 'ปิดเป้า']
 
@@ -73,6 +74,9 @@ export default function Sales() {
   const canInsert = useCan('insert', 'sales')
   const canUpdate = useCan('update', 'sales')
   const supabase = createClient()
+
+  // Categories from DB (same source as Products page)
+  const { categories } = useCategories()
 
   async function load() {
     setLoadError('')
@@ -181,12 +185,9 @@ export default function Sales() {
     [products],
   )
 
-  // Category (business_type) filter
+  // Category filter — from DB (same order as CategoryManager)
   const [filterCategory, setFilterCategory] = useState('all')
-  const allCategories = useMemo(
-    () => [...new Set(products.map(p => p.business_type).filter(Boolean))].sort() as string[],
-    [products],
-  )
+  const allCategories = useMemo(() => categories.map(c => c.name), [categories])
 
   // Per-category aggregation for summary cards
   const categoryStats = useMemo(() => {
