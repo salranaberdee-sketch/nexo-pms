@@ -355,19 +355,44 @@ export default function Products() {
               className={inputCls} />
           </Field>
           <Field label="ประเภทธุรกิจ">
-            <input placeholder="เช่น การศึกษา" value={form.business_type}
+            <input
+              list="business-type-options"
+              placeholder="เช่น การศึกษา"
+              value={form.business_type}
               onChange={e => setForm({ ...form, business_type: e.target.value })}
-              className={inputCls} />
+              className={inputCls}
+            />
+            <datalist id="business-type-options">
+              {allBusinessTypes.map(bt => <option key={bt} value={bt} />)}
+            </datalist>
           </Field>
           <Field label="ประเภทสินค้า">
-            <input placeholder="เช่น หลักสูตร" value={form.product_type}
+            <input
+              list="product-type-options"
+              placeholder="เช่น หลักสูตร"
+              value={form.product_type}
               onChange={e => setForm({ ...form, product_type: e.target.value })}
-              className={inputCls} />
+              className={inputCls}
+            />
+            <datalist id="product-type-options">
+              {[...new Set(products.map(p => p.product_type).filter(Boolean))].sort().map(pt => (
+                <option key={pt} value={pt} />
+              ))}
+            </datalist>
           </Field>
           <Field label="แบรนด์">
-            <input placeholder="เช่น REBORN" value={form.brand}
+            <input
+              list="brand-options"
+              placeholder="เช่น REBORN"
+              value={form.brand}
               onChange={e => setForm({ ...form, brand: e.target.value })}
-              className={inputCls} />
+              className={inputCls}
+            />
+            <datalist id="brand-options">
+              {[...new Set(products.map(p => p.brand).filter(Boolean))].sort().map(b => (
+                <option key={b} value={b} />
+              ))}
+            </datalist>
           </Field>
           <Field label="ผู้รับผิดชอบ">
             <ProfilePicker value={form.owner_id} profiles={profileOptions}
