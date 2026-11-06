@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { useCan } from '@/lib/profile-context'
+import { useCan, useProfile } from '@/lib/profile-context'
 import ProfilePicker from './ProfilePicker'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState, todayStr } from './TableState'
@@ -36,7 +36,6 @@ const TODAY = todayStr()
 const TODAY_MS = new Date(TODAY).getTime()
 const SOON_DAYS = 3
 
-// Shared input class
 const inputCls = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-slate-400 bg-white'
 const selectCls = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white'
 
@@ -59,18 +58,26 @@ function IconPencil() {
 const EMPTY_ADD_FORM = {
   product_id: '', seq: '', type: 'GRAPHIC', title: '',
   objective: '', channel: 'Facebook', hook: '', format_size: '',
-  assigned_to: '', assigned_to_id: '', deadline: '', status: 'รอผลิต',
+  assigned_to: '', assigned_to_id: '',
+  producer: '', producer_id: '',
+  approver: '', approver_id: '',
+  deadline: '', status: 'รอผลิต',
 }
 
 const EMPTY_EDIT_FORM = {
   product_id: '', seq: '', type: 'GRAPHIC', title: '',
   objective: '', channel: '', hook: '', format_size: '',
-  deadline: '', assigned_to: '', assigned_to_id: '', status: 'รอผลิต',
+  deadline: '',
+  assigned_to: '', assigned_to_id: '',
+  producer: '', producer_id: '',
+  approver: '', approver_id: '',
+  status: 'รอผลิต',
 }
 
 export default function Contents() {
   const searchParams = useSearchParams()
   const initialProduct = searchParams.get('product') || 'all'
+  const me = useProfile()
 
   const [contents, setContents]             = useState<any[]>([])
   const [products, setProducts]             = useState<any[]>([])
@@ -97,15 +104,21 @@ export default function Contents() {
   const canUpdate = useCan('update', 'contents')
   const supabase = createClient()
 
+  // Approvers = admin/manager only
+  const approverOptions = useMemo(
+    () => profileOptions.filter(p => p.role === 'admin' || p.role === 'manager'),
+    [profileOptions],
+  )
+
   async function load() {
     setLoadError('')
     const [c, p, pr] = await Promise.all([
       supabase
         .from('contents')
-        .select('id, product_id, seq, type, title, objective, hook, format_size, assigned_to, assigned_to_id, deadline, status')
+        .select('id, product_id, seq, type, title, objective, hook, format_size, assigned_to, assigned_to_id, producer, producer_id, approver, approver_id, deadline, status, acknowledged_at, assigned_date')
         .order('product_id').order('seq'),
-      supabase.from('products').select('product_id, name'),
-      supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
+      supabase.from('products').select('product_id, name, brand'),
+      supabase.from('profiles').select('id, name, role, brand_access').eq('approval_status', 'approved').order('name'),
     ])
     if (c.error) { setLoadError(c.error.message); setLoading(false); return }
     setContents(c.data || [])
@@ -121,6 +134,35 @@ export default function Contents() {
     if (p) setFilterProduct(p)
   }, [searchParams])
 
+  // Filter profiles by brand of selected product (if brand_access is populated)
+  function getProfilesForProduct(product_id: string): ProfileOption[] {
+    const product = products.find(p => p.product_id === product_id)
+    if (!product?.brand) return profileOptions
+    return profileOptions.filter(p =>
+      p.role === 'admin' || p.role === 'manager' ||
+      !p.brand_access?.length ||
+      (p.brand_access as string[]).includes(product.brand),
+    )
+  }
+
+  // ── Log assignment change ─────────────────────────────────────
+  async function logAssignment(
+    content_id: number,
+    role: 'assigned_to' | 'producer' | 'approver',
+    assigned_to_id: string | null,
+    assigned_to_name: string,
+  ) {
+    if (!assigned_to_id) return
+    await supabase.from('content_assignment_log').insert([{
+      content_id,
+      role,
+      assigned_to_id,
+      assigned_to_name,
+      assigned_by_id: me.id,
+      assigned_by_name: me.name,
+    }])
+  }
+
   // ── Add ──────────────────────────────────────────────────────
   const suggestedSeq = useMemo(() => {
     if (!addForm.product_id) return 0
@@ -130,12 +172,34 @@ export default function Contents() {
 
   async function saveAdd() {
     setSaving(true); setAddError('')
-    const { error: insErr } = await supabase.from('contents').insert([{
-      ...addForm,
-      assigned_to_id: addForm.assigned_to_id || null,
-      seq: Number(addForm.seq) || suggestedSeq || 1,
-    }])
+    const { data: inserted, error: insErr } = await supabase.from('contents').insert([{
+      product_id:      addForm.product_id,
+      seq:             Number(addForm.seq) || suggestedSeq || 1,
+      type:            addForm.type,
+      title:           addForm.title,
+      objective:       addForm.objective || null,
+      channel:         addForm.channel || null,
+      hook:            addForm.hook || null,
+      format_size:     addForm.format_size || null,
+      assigned_to:     addForm.assigned_to || null,
+      assigned_to_id:  addForm.assigned_to_id || null,
+      assigned_date:   addForm.assigned_to_id ? new Date().toISOString().split('T')[0] : null,
+      producer:        addForm.producer || null,
+      producer_id:     addForm.producer_id || null,
+      approver:        addForm.approver || null,
+      approver_id:     addForm.approver_id || null,
+      deadline:        addForm.deadline || null,
+      status:          addForm.status,
+    }]).select('id').single()
     if (insErr) { setAddError(insErr.message); setSaving(false); return }
+    // Log assignments
+    if (inserted?.id) {
+      const logs = []
+      if (addForm.assigned_to_id) logs.push(logAssignment(inserted.id, 'assigned_to', addForm.assigned_to_id, addForm.assigned_to))
+      if (addForm.producer_id)    logs.push(logAssignment(inserted.id, 'producer', addForm.producer_id, addForm.producer))
+      if (addForm.approver_id)    logs.push(logAssignment(inserted.id, 'approver', addForm.approver_id, addForm.approver))
+      await Promise.all(logs)
+    }
     setShowAdd(false)
     setAddForm({ ...EMPTY_ADD_FORM })
     await load()
@@ -158,6 +222,10 @@ export default function Contents() {
       deadline:       c.deadline || '',
       assigned_to:    c.assigned_to || '',
       assigned_to_id: c.assigned_to_id || '',
+      producer:       c.producer || '',
+      producer_id:    c.producer_id || '',
+      approver:       c.approver || '',
+      approver_id:    c.approver_id || '',
       status:         c.status || 'รอผลิต',
     })
     setEditError('')
@@ -166,23 +234,55 @@ export default function Contents() {
   async function saveEdit() {
     if (!editingRow) return
     setSavingEdit(true); setEditError('')
+
+    const prevProducerId  = editingRow.producer_id
+    const prevApproverId  = editingRow.approver_id
+    const prevAssigneeId  = editingRow.assigned_to_id
+
+    // Reset acknowledged_at when producer changes
+    const producerChanged  = editForm.producer_id !== (prevProducerId || '')
+    const assigneeChanged  = editForm.assigned_to_id !== (prevAssigneeId || '')
+
     const { error: updErr } = await supabase.from('contents').update({
       product_id:     editForm.product_id,
       seq:            Number(editForm.seq) || editingRow.seq,
       type:           editForm.type,
       title:          editForm.title,
-      objective:      editForm.objective,
-      channel:        editForm.channel,
-      hook:           editForm.hook,
-      format_size:    editForm.format_size,
+      objective:      editForm.objective || null,
+      channel:        editForm.channel || null,
+      hook:           editForm.hook || null,
+      format_size:    editForm.format_size || null,
       deadline:       editForm.deadline || null,
-      assigned_to:    editForm.assigned_to,
+      assigned_to:    editForm.assigned_to || null,
       assigned_to_id: editForm.assigned_to_id || null,
+      assigned_date:  assigneeChanged && editForm.assigned_to_id ? new Date().toISOString().split('T')[0] : editingRow.assigned_date,
+      producer:       editForm.producer || null,
+      producer_id:    editForm.producer_id || null,
+      approver:       editForm.approver || null,
+      approver_id:    editForm.approver_id || null,
       status:         editForm.status,
+      // Clear acknowledgement when producer reassigned (new person hasn't seen it yet)
+      ...(producerChanged ? { acknowledged_at: null, acknowledged_by: null } : {}),
     }).eq('id', editingRow.id)
+
     setSavingEdit(false)
     if (updErr) { setEditError(updErr.message); showToast(updErr.message, 'error'); return }
-    setContents(prev => prev.map(c => c.id === editingRow.id ? { ...c, ...editForm, seq: Number(editForm.seq) || editingRow.seq } : c))
+
+    // Log assignment changes
+    const logs = []
+    if (assigneeChanged && editForm.assigned_to_id)
+      logs.push(logAssignment(editingRow.id, 'assigned_to', editForm.assigned_to_id, editForm.assigned_to))
+    if (producerChanged && editForm.producer_id)
+      logs.push(logAssignment(editingRow.id, 'producer', editForm.producer_id, editForm.producer))
+    if (editForm.approver_id !== (prevApproverId || '') && editForm.approver_id)
+      logs.push(logAssignment(editingRow.id, 'approver', editForm.approver_id, editForm.approver))
+    await Promise.all(logs)
+
+    setContents(prev => prev.map(c => c.id === editingRow.id ? {
+      ...c, ...editForm,
+      seq: Number(editForm.seq) || editingRow.seq,
+      ...(producerChanged ? { acknowledged_at: null } : {}),
+    } : c))
     setEditingRow(null)
     showToast('บันทึกแล้ว')
   }
@@ -200,13 +300,18 @@ export default function Contents() {
 
   async function updateAssignee(id: number, assigned_to_id: string, assigned_to: string) {
     const old = contents.find(c => c.id === id)
+    const prevId = old?.assigned_to_id || ''
     setContents(prev => prev.map(c => c.id === id ? { ...c, assigned_to_id, assigned_to } : c))
     const { error: updErr } = await supabase.from('contents').update({
-      assigned_to_id: assigned_to_id || null, assigned_to,
+      assigned_to_id: assigned_to_id || null,
+      assigned_to,
+      assigned_date: assigned_to_id ? new Date().toISOString().split('T')[0] : null,
     }).eq('id', id)
     if (updErr) {
       showToast(updErr.message, 'error')
       setContents(prev => prev.map(c => c.id === id ? { ...c, assigned_to_id: old?.assigned_to_id, assigned_to: old?.assigned_to } : c))
+    } else if (assigned_to_id && assigned_to_id !== prevId) {
+      await logAssignment(id, 'assigned_to', assigned_to_id, assigned_to)
     }
   }
 
@@ -220,6 +325,7 @@ export default function Contents() {
         || (c.hook || '').toLowerCase().includes(q)
         || (c.product_id || '').toLowerCase().includes(q)
         || (c.assigned_to || '').toLowerCase().includes(q)
+        || (c.producer || '').toLowerCase().includes(q)
         || (c.objective || '').toLowerCase().includes(q)
     })()),
   ), [contents, filterProduct, filterStatus, search])
@@ -314,6 +420,9 @@ export default function Contents() {
                 const soon = !overdue && daysUntil !== null && daysUntil >= 0 && daysUntil <= SOON_DAYS
                 const daysLate = overdue ? Math.round((TODAY_MS - new Date(c.deadline).getTime()) / 86400000) : 0
                 const rowBg = overdue ? 'bg-red-50/40' : soon ? 'bg-amber-50/40' : ''
+                const isNew = !c.acknowledged_at && (
+                  c.producer_id === me.id || c.assigned_to_id === me.id
+                ) && c.status !== DONE_STATUS
 
                 return (
                   <tr key={c.id} className={`border-b border-slate-100/60 hover:bg-indigo-50/20 transition-colors last:border-0 ${rowBg}`}>
@@ -326,18 +435,24 @@ export default function Contents() {
                         {typeLabel[c.type] || c.type}
                       </span>
                     </td>
-                    {/* Title — read only, click edit button to change */}
                     <td className="px-5 py-4 max-w-[220px]">
-                      <span className="font-semibold text-slate-900 truncate block" title={c.title}>{c.title}</span>
+                      <div className="flex items-center gap-1.5">
+                        {isNew && (
+                          <span className="shrink-0 text-[10px] font-bold bg-indigo-500 text-white px-1.5 py-0.5 rounded-full">ใหม่</span>
+                        )}
+                        <span className="font-semibold text-slate-900 truncate block" title={c.title}>{c.title}</span>
+                      </div>
                       {c.objective && <span className="text-xs text-slate-400 truncate block mt-0.5" title={c.objective}>{c.objective}</span>}
+                      {/* Producer sub-label */}
+                      {c.producer && (
+                        <span className="text-xs text-blue-500 mt-0.5 block">ผู้ผลิต: {c.producer}</span>
+                      )}
                     </td>
-                    {/* Assignee — inline picker for quick reassign */}
                     <td className="px-5 py-4 whitespace-nowrap">
                       <InlinePersonPicker value={c.assigned_to_id || ''} display={c.assigned_to || ''}
                         profiles={profileOptions} disabled={!canUpdate}
                         onChange={(id, name) => updateAssignee(c.id, id, name)} />
                     </td>
-                    {/* Deadline */}
                     <td className="px-5 py-4 whitespace-nowrap">
                       {c.deadline ? (
                         <div className="flex flex-col">
@@ -349,12 +464,10 @@ export default function Contents() {
                         </div>
                       ) : <span className="text-sm text-slate-300">—</span>}
                     </td>
-                    {/* Status — quick inline */}
                     <td className="px-5 py-4">
                       <StatusSelect value={c.status} options={STATUSES} styleMap={statusStyle}
                         disabled={!canUpdate} onChange={v => updateStatus(c.id, v)} />
                     </td>
-                    {/* Edit button */}
                     <td className="px-5 py-4 whitespace-nowrap">
                       {canUpdate && (
                         <button onClick={() => openEdit(c)}
@@ -377,10 +490,7 @@ export default function Contents() {
         <div className="grid grid-cols-2 gap-4">
           <Field label="Product" required>
             <select value={addForm.product_id}
-              onChange={e => {
-                const pid = e.target.value
-                setAddForm(f => ({ ...f, product_id: pid }))
-              }}
+              onChange={e => setAddForm(f => ({ ...f, product_id: e.target.value }))}
               className={selectCls}>
               <option value="">เลือก Product</option>
               {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
@@ -389,8 +499,7 @@ export default function Contents() {
           <Field label="ลำดับชิ้น (seq)" hint={addForm.product_id && suggestedSeq > 0 ? `แนะนำ: ${suggestedSeq}` : undefined}>
             <div className="flex gap-2">
               <input type="number" placeholder={String(suggestedSeq || 1)} value={addForm.seq}
-                onChange={e => setAddForm({ ...addForm, seq: e.target.value })}
-                className={inputCls} />
+                onChange={e => setAddForm({ ...addForm, seq: e.target.value })} className={inputCls} />
               {suggestedSeq > 0 && addForm.seq === '' && (
                 <button type="button" onClick={() => setAddForm({ ...addForm, seq: String(suggestedSeq) })}
                   className="shrink-0 text-xs text-indigo-600 bg-indigo-50 px-3 py-2 rounded-xl hover:bg-indigo-100">
@@ -424,14 +533,29 @@ export default function Contents() {
             <input placeholder="เช่น 1:1 1080x1080" value={addForm.format_size}
               onChange={e => setAddForm({ ...addForm, format_size: e.target.value })} className={inputCls} />
           </Field>
-          <Field label="มอบหมายให้">
-            <ProfilePicker value={addForm.assigned_to_id} profiles={profileOptions}
+
+          {/* Assignment section */}
+          <Field label="ผู้รับผิดชอบ (assigned to)">
+            <ProfilePicker value={addForm.assigned_to_id}
+              profiles={getProfilesForProduct(addForm.product_id)}
               onChange={(id, name) => setAddForm({ ...addForm, assigned_to_id: id, assigned_to: name })}
               placeholder="เลือกผู้รับผิดชอบ" />
           </Field>
           <Field label="กำหนดส่ง">
             <input type="date" value={addForm.deadline}
               onChange={e => setAddForm({ ...addForm, deadline: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="ผู้ผลิต (producer)">
+            <ProfilePicker value={addForm.producer_id}
+              profiles={getProfilesForProduct(addForm.product_id)}
+              onChange={(id, name) => setAddForm({ ...addForm, producer_id: id, producer: name })}
+              placeholder="เลือกผู้ผลิต" />
+          </Field>
+          <Field label="ผู้อนุมัติ (approver)" hint="admin / manager เท่านั้น">
+            <ProfilePicker value={addForm.approver_id}
+              profiles={approverOptions}
+              onChange={(id, name) => setAddForm({ ...addForm, approver_id: id, approver: name })}
+              placeholder="เลือกผู้อนุมัติ" />
           </Field>
           <Field label="สถานะ">
             <select value={addForm.status} onChange={e => setAddForm({ ...addForm, status: e.target.value })} className={selectCls}>
@@ -489,10 +613,25 @@ export default function Contents() {
           <Field label="กำหนดส่ง">
             <input type="date" value={editForm.deadline} onChange={e => setEditForm(f => ({ ...f, deadline: e.target.value }))} className={inputCls} />
           </Field>
-          <Field label="มอบหมายให้">
-            <ProfilePicker value={editForm.assigned_to_id} profiles={profileOptions}
+
+          {/* Assignment section */}
+          <Field label="ผู้รับผิดชอบ">
+            <ProfilePicker value={editForm.assigned_to_id}
+              profiles={getProfilesForProduct(editForm.product_id)}
               onChange={(id, name) => setEditForm(f => ({ ...f, assigned_to_id: id, assigned_to: name }))}
               placeholder="เลือกผู้รับผิดชอบ" />
+          </Field>
+          <Field label="ผู้ผลิต (producer)">
+            <ProfilePicker value={editForm.producer_id}
+              profiles={getProfilesForProduct(editForm.product_id)}
+              onChange={(id, name) => setEditForm(f => ({ ...f, producer_id: id, producer: name }))}
+              placeholder="เลือกผู้ผลิต" />
+          </Field>
+          <Field label="ผู้อนุมัติ (approver)" hint="admin / manager เท่านั้น">
+            <ProfilePicker value={editForm.approver_id}
+              profiles={approverOptions}
+              onChange={(id, name) => setEditForm(f => ({ ...f, approver_id: id, approver: name }))}
+              placeholder="เลือกผู้อนุมัติ" />
           </Field>
           <Field label="สถานะ">
             <select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))} className={selectCls}>

@@ -63,6 +63,14 @@ function IconUsers() {
     </svg>
   )
 }
+function IconCheckSquare() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 11 12 14 22 4" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </svg>
+  )
+}
 function IconLogOut() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -86,6 +94,7 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
   const supabase = createClient()
   const isAdmin = useIsAdmin()
   const [pendingCount, setPendingCount] = useState(0)
+  const [myTaskCount, setMyTaskCount]   = useState(0)
   const [confirmLogout, setConfirmLogout] = useState(false)
 
   // Fetch pending user count for admin badge
@@ -98,11 +107,24 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
       .then(({ count }: { count: number | null }) => setPendingCount(count ?? 0))
   }, [supabase, isAdmin])
 
+  // Fetch my unacknowledged task count (contents where I am producer/approver/assigned_to and not acknowledged)
+  useEffect(() => {
+    if (!profile?.id) return
+    supabase
+      .from('contents')
+      .select('id', { count: 'exact', head: true })
+      .or(`producer_id.eq.${profile.id},approver_id.eq.${profile.id},assigned_to_id.eq.${profile.id}`)
+      .is('acknowledged_at', null)
+      .neq('status', 'โพสต์แล้ว')
+      .then(({ count }: { count: number | null }) => setMyTaskCount(count ?? 0))
+  }, [supabase, profile?.id])
+
   // Base nav items — visible to all approved users
   const nav: { path: string; label: string; Icon: () => React.ReactElement; adminOnly?: boolean }[] = [
     { path: '/dashboard', label: 'Dashboard',  Icon: IconDashboard },
     { path: '/products',  label: 'Products',   Icon: IconBox },
     { path: '/contents',  label: 'Content',    Icon: IconFileText },
+    { path: '/my-tasks',  label: 'งานของฉัน',  Icon: IconCheckSquare },
     { path: '/ads',       label: 'Ads',        Icon: IconBarChart },
     { path: '/sales',     label: 'Sales',      Icon: IconTrendingUp },
     { path: '/team',      label: 'ทีม',        Icon: IconUsers, adminOnly: true },
@@ -148,6 +170,11 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
               {path === '/team' && pendingCount > 0 && (
                 <span className="ml-auto bg-amber-100 text-amber-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums">
                   {pendingCount}
+                </span>
+              )}
+              {path === '/my-tasks' && myTaskCount > 0 && (
+                <span className="ml-auto bg-indigo-100 text-indigo-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums">
+                  {myTaskCount}
                 </span>
               )}
             </Link>

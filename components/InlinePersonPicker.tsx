@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 
-export type ProfileOption = { id: string; name: string; role: string }
+export type ProfileOption = { id: string; name: string; role: string; brand_access?: string[] }
 
 // Minimal inline assignee chip for table rows.
 // Idle: avatar + name, no border — clean.
