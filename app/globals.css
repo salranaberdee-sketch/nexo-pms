@@ -2,6 +2,17 @@
 
 :root {
   --font-sarabun: 'Sarabun', sans-serif;
+
+  /* Warm, friendly color system */
+  --color-canvas: #f8f9fb;
+  --color-surface: #ffffff;
+  --color-border: #eef0f5;
+  --color-border-soft: #f5f6f9;
+
+  /* Accent — indigo primary */
+  --color-accent: #6366f1;
+  --color-accent-soft: #eef2ff;
+  --color-accent-text: #4f46e5;
 }
 
 * {
@@ -10,4 +21,21 @@
 
 body {
   font-family: var(--font-sarabun), sans-serif;
+  background-color: var(--color-canvas);
+}
+
+/* Smooth scrollbar for friendlier feel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5e0;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b0b6c8;
 }

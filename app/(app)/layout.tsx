@@ -85,17 +85,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading || !user || !profile) return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-canvas)' }}>
       <div className="text-center">
-        <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-        <p className="text-sm text-gray-400">กำลังโหลด...</p>
+        <div className="w-9 h-9 border-[3px] border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-sm text-slate-400">กำลังโหลด...</p>
       </div>
     </div>
   )
 
   return (
     <ProfileProvider profile={profile}>
-      <div className="flex h-screen overflow-hidden bg-gray-50">
+      <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--color-canvas)' }}>
         <Sidebar user={user} profile={profile} />
         <main className="flex-1 overflow-y-auto">
           {children}

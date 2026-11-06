@@ -16,7 +16,7 @@ export default function StatusSelect({
   onChange: (v: string) => void
   disabled?: boolean
 }) {
-  const cls = styleMap[value] || 'bg-gray-100 text-gray-400'
+  const cls = styleMap[value] || 'bg-slate-100 text-slate-400'
 
   if (disabled) {
     return (
@@ -31,10 +31,10 @@ export default function StatusSelect({
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
-        className={`cursor-pointer appearance-none rounded-md text-xs font-medium pl-2 pr-6 py-1 focus:outline-none focus:ring-2 focus:ring-gray-900 border border-current/20 ${cls}`}
+        className={`cursor-pointer appearance-none rounded-lg text-xs font-medium pl-2 pr-6 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-current/20 ${cls}`}
       >
         {options.map(s => (
-          <option key={s} value={s} className="bg-white text-gray-700">{s}</option>
+          <option key={s} value={s} className="bg-white text-slate-700">{s}</option>
         ))}
       </select>
       <svg

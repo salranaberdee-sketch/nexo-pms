@@ -20,7 +20,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="th">
-      <body className={`${sarabun.variable} font-sans antialiased bg-gray-50`}>
+      <body className={`${sarabun.variable} font-sans antialiased`}>
         {children}
       </body>
     </html>

@@ -7,31 +7,22 @@ import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState, todayStr } from './TableState'
 import StatusSelect from './StatusSelect'
 import { showToast } from './Toast'
+import Modal, { Field } from './Modal'
 
 const SALES_STATUS_OPTIONS = ['ยังไม่เปิดขาย', 'ยังไม่เริ่ม', 'กำลังขาย', 'ปิดเป้า']
 
 const salesStatusStyle: Record<string, string> = {
-  'ยังไม่เปิดขาย': 'bg-gray-100 text-gray-400',
+  'ยังไม่เปิดขาย': 'bg-slate-100 text-slate-400',
   'ยังไม่เริ่ม':   'bg-blue-50 text-blue-700',
   'กำลังขาย':     'bg-amber-50 text-amber-700',
-  'ปิดเป้า':       'bg-green-50 text-green-700',
+  'ปิดเป้า':       'bg-emerald-50 text-emerald-700',
 }
 
-// TODAY is stable for the component lifetime — compute once, not on every render.
 const TODAY = todayStr()
 const TODAY_MS = new Date(TODAY).getTime()
 
-// Module-level inline input — avoids remounting on each keystroke (same pattern as Ads.tsx NumInput).
-function InlineNumInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <input
-      type="number"
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      className="w-28 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-    />
-  )
-}
+const inputCls = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-slate-400 bg-white'
+const selectCls = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white'
 
 function IconPlus() {
   return (
@@ -40,23 +31,37 @@ function IconPlus() {
     </svg>
   )
 }
+function IconPencil() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
+  )
+}
 
 export default function Sales() {
-  const [sales, setSales]       = useState<any[]>([])
+  const [sales, setSales]     = useState<any[]>([])
   const [products, setProducts] = useState<any[]>([])
-  const [loading, setLoading]   = useState(true)
+  const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
-  const [editing, setEditing]   = useState<number | null>(null)
-  const [savingRow, setSavingRow] = useState(false)
-  const [editVal, setEditVal]   = useState({ sales_target_amount: '', actual_sales: '', actual_received: '' })
-  const [search, setSearch]     = useState('')
-  const [showForm, setShowForm] = useState(false)
-  const [saving, setSaving]     = useState(false)
-  const [form, setForm] = useState({
+  const [search, setSearch]   = useState('')
+
+  // Add modal
+  const [showAdd, setShowAdd] = useState(false)
+  const [saving, setSaving]   = useState(false)
+  const [addError, setAddError] = useState('')
+  const [addForm, setAddForm] = useState({
     product_id: '', period_start: '', period_end: '',
     sales_target_amount: '', sales_target_count: '', status: 'ยังไม่เปิดขาย',
   })
-  const [error, setError]       = useState('')
+
+  // Edit modal
+  const [editingRow, setEditingRow] = useState<any | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError]   = useState('')
+  const [editVal, setEditVal] = useState({ sales_target_amount: '', actual_sales: '', actual_received: '', status: 'ยังไม่เปิดขาย' })
+
   const canInsert = useCan('insert', 'sales')
   const canUpdate = useCan('update', 'sales')
   const supabase = createClient()
@@ -75,78 +80,83 @@ export default function Sales() {
 
   useEffect(() => { load() }, [])
 
-  async function save() {
-    setSaving(true)
-    setError('')
-    if (form.period_start && form.period_end && form.period_end <= form.period_start) {
-      setError('วันสิ้นสุดต้องหลังวันเริ่มต้น')
-      setSaving(false)
-      return
+  // ── Add ──────────────────────────────────────────────────────
+  async function saveAdd() {
+    setSaving(true); setAddError('')
+    if (addForm.period_start && addForm.period_end && addForm.period_end <= addForm.period_start) {
+      setAddError('วันสิ้นสุดต้องหลังวันเริ่มต้น')
+      setSaving(false); return
     }
     const { error: insErr } = await supabase.from('sales').insert([{
-      product_id:          form.product_id,
-      period_start:        form.period_start,
-      period_end:          form.period_end,
-      sales_target_amount: Number(form.sales_target_amount) || 0,
-      sales_target_count:  Number(form.sales_target_count) || 0,
-      status:              form.status,
+      product_id:          addForm.product_id,
+      period_start:        addForm.period_start,
+      period_end:          addForm.period_end,
+      sales_target_amount: Number(addForm.sales_target_amount) || 0,
+      sales_target_count:  Number(addForm.sales_target_count) || 0,
+      status:              addForm.status,
     }])
     if (insErr) {
-      setError(insErr.code === '23505'
+      setAddError(insErr.code === '23505'
         ? 'มีเป้ายอดขายของ Product นี้ในช่วงเวลานี้อยู่แล้ว'
         : insErr.message)
-      setSaving(false)
-      return
+      setSaving(false); return
     }
-    setShowForm(false)
-    setForm({ product_id: '', period_start: '', period_end: '', sales_target_amount: '', sales_target_count: '', status: 'ยังไม่เปิดขาย' })
+    setShowAdd(false)
+    setAddForm({ product_id: '', period_start: '', period_end: '', sales_target_amount: '', sales_target_count: '', status: 'ยังไม่เปิดขาย' })
     await load()
     setSaving(false)
     showToast('เพิ่มเป้ายอดขายแล้ว')
   }
 
-  async function saveEdit(id: number) {
-    setSavingRow(true)
+  // ── Edit ─────────────────────────────────────────────────────
+  function openEdit(s: any) {
+    setEditingRow(s)
+    setEditVal({
+      sales_target_amount: String(s.sales_target_amount ?? 0),
+      actual_sales:        String(s.actual_sales ?? 0),
+      actual_received:     String(s.actual_received ?? 0),
+      status:              s.status,
+    })
+    setEditError('')
+  }
+
+  async function saveEdit() {
+    if (!editingRow) return
+    setSavingEdit(true); setEditError('')
     const { error: updErr } = await supabase.from('sales').update({
       sales_target_amount: Number(editVal.sales_target_amount),
       actual_sales:        Number(editVal.actual_sales),
       actual_received:     Number(editVal.actual_received),
-    }).eq('id', id)
-    setSavingRow(false)
-    if (updErr) {
-      setError(updErr.message)
-      return
-    }
-    // Update local state from editVal — avoids full table reload for numeric-only update.
-    setSales(prev => prev.map(s => s.id === id ? {
+      status:              editVal.status,
+    }).eq('id', editingRow.id)
+    setSavingEdit(false)
+    if (updErr) { setEditError(updErr.message); return }
+    setSales(prev => prev.map(s => s.id === editingRow.id ? {
       ...s,
       sales_target_amount: Number(editVal.sales_target_amount),
       actual_sales:        Number(editVal.actual_sales),
       actual_received:     Number(editVal.actual_received),
+      status:              editVal.status,
     } : s))
-    setEditing(null)
-    setError('')
+    setEditingRow(null)
     showToast('บันทึกยอดขายแล้ว')
   }
 
-  // Inline status change — optimistic update, revert on error.
   async function updateStatus(id: number, status: string) {
     const old = sales.find(s => s.id === id)?.status
     setSales(prev => prev.map(s => s.id === id ? { ...s, status } : s))
     const { error: updErr } = await supabase.from('sales').update({ status }).eq('id', id)
     if (updErr) {
-      setError(updErr.message)
       setSales(prev => prev.map(s => s.id === id ? { ...s, status: old } : s))
+      showToast(updErr.message, 'error')
     }
   }
 
-  // O(1) product name lookup — avoids O(N) linear scan inside each render row.
   const productMap = useMemo(
     () => new Map(products.map(p => [p.product_id, p])),
     [products],
   )
 
-  // Summary period logic — memoized.
   const { daysLeft, periodEnd } = useMemo(() => {
     const ends = sales.map(r => r.period_end).filter(Boolean).sort()
     const futureEnds = ends.filter(e => e >= TODAY)
@@ -158,14 +168,12 @@ export default function Sales() {
     }
   }, [sales])
 
-  // KPI summary totals — memoized.
   const totalTarget = useMemo(() => sales.reduce((s, r) => s + Number(r.sales_target_amount), 0), [sales])
   const totalActual = useMemo(() => sales.reduce((s, r) => s + Number(r.actual_sales), 0), [sales])
   const overallPct  = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0
   const gap         = Math.max(0, totalTarget - totalActual)
   const perDay      = daysLeft > 0 && gap > 0 ? Math.round(gap / daysLeft) : 0
 
-  // Client-side text search — memoized.
   const filtered = useMemo(() => {
     if (!search) return sales
     const q = search.toLowerCase()
@@ -175,142 +183,73 @@ export default function Sales() {
     })
   }, [sales, search, productMap])
 
-  const headers = ['Product ID', 'ชื่อสินค้า', 'เป้ายอดขาย', 'ยอดจริง', 'รับเงินจริง', 'ยังขาด', '% สำเร็จ', 'ต้องขาย/วัน', 'สถานะ', '']
+  const headers = ['Product', 'ชื่อสินค้า', 'ช่วงเวลา', 'เป้ายอดขาย', 'ยอดจริง', 'รับเงินจริง', 'ยังขาด', '% สำเร็จ', 'สถานะ', '']
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-5">
 
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-gray-900">Sales</h1>
-          <p className="text-sm text-gray-400 mt-0.5">ยอดขายรวม — เหลือ {daysLeft} วัน ถึงสิ้นรอบ</p>
+          <h1 className="text-xl font-semibold text-slate-900">Sales</h1>
+          <p className="text-sm text-slate-400 mt-0.5">ยอดขายรวม — เหลือ {daysLeft} วัน ถึงสิ้นรอบ</p>
         </div>
         {canInsert && (
-          <button
-            onClick={() => setShowForm(v => !v)}
-            className="flex items-center gap-1.5 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
-          >
-            <IconPlus />
-            เพิ่มเป้ายอดขาย
+          <button onClick={() => { setAddForm({ product_id: '', period_start: '', period_end: '', sales_target_amount: '', sales_target_count: '', status: 'ยังไม่เปิดขาย' }); setAddError(''); setShowAdd(true) }}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-500 transition-colors shadow-sm">
+            <IconPlus />เพิ่มเป้ายอดขาย
           </button>
         )}
       </div>
 
       {loadError && (
-        <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-sm text-red-600">
+        <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600">
           โหลดข้อมูลไม่สำเร็จ: {loadError}
           <button onClick={load} className="ml-3 underline text-red-500 hover:text-red-700">ลองใหม่</button>
-        </div>
-      )}
-      {error && !showForm && (
-        <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-lg px-3.5 py-2.5">{error}</p>
-      )}
-
-      {/* Add sales target form */}
-      {showForm && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">เพิ่มเป้ายอดขายใหม่</h3>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-            <select
-              value={form.product_id}
-              onChange={e => setForm({ ...form, product_id: e.target.value })}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
-            >
-              <option value="">เลือก Product</option>
-              {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
-            </select>
-            <input
-              type="date" value={form.period_start}
-              onChange={e => setForm({ ...form, period_start: e.target.value })}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-            />
-            <input
-              type="date" value={form.period_end}
-              onChange={e => setForm({ ...form, period_end: e.target.value })}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-            />
-            <input
-              type="number" placeholder="เป้ายอดขาย (฿)" value={form.sales_target_amount}
-              onChange={e => setForm({ ...form, sales_target_amount: e.target.value })}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
-            />
-            <input
-              type="number" placeholder="เป้าจำนวนชิ้น" value={form.sales_target_count}
-              onChange={e => setForm({ ...form, sales_target_count: e.target.value })}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
-            />
-            <select
-              value={form.status}
-              onChange={e => setForm({ ...form, status: e.target.value })}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
-            >
-              {SALES_STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
-            </select>
-          </div>
-          {error && (
-            <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-lg px-3.5 py-2.5 mt-3">{error}</p>
-          )}
-          <div className="flex gap-2 mt-4">
-            <button
-              onClick={save}
-              disabled={saving || !form.product_id || !form.period_start || !form.period_end}
-              className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-40 hover:bg-gray-700 transition-colors"
-            >
-              {saving ? 'กำลังบันทึก...' : 'บันทึก'}
-            </button>
-            <button
-              onClick={() => { setShowForm(false); setError('') }}
-              className="text-sm text-gray-400 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              ยกเลิก
-            </button>
-          </div>
         </div>
       )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <p className="text-xs text-gray-400 mb-3">ยอดขายรวม</p>
-          <p className="text-2xl font-semibold text-gray-900 leading-none">฿{totalActual.toLocaleString()}</p>
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-indigo-500" />
+          <p className="text-xs text-slate-400 mb-3 mt-1">ยอดขายรวม</p>
+          <p className="text-2xl font-semibold text-slate-900 leading-none">฿{totalActual.toLocaleString()}</p>
           <div className="mt-3">
-            <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full bg-gray-900"
-                style={{ width: `${Math.min(overallPct, 100)}%` }}
-              />
+            <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#f1f5f9' }}>
+              <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${Math.min(overallPct, 100)}%` }} />
             </div>
-            <p className="text-xs text-gray-400 mt-1.5">{overallPct}% ของเป้า ฿{totalTarget.toLocaleString()}</p>
+            <p className="text-xs text-slate-400 mt-1.5">{overallPct}% ของเป้า ฿{totalTarget.toLocaleString()}</p>
           </div>
         </div>
-
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <p className="text-xs text-gray-400 mb-3">ยังขาดอยู่</p>
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-red-400" />
+          <p className="text-xs text-slate-400 mb-3 mt-1">ยังขาดอยู่</p>
           <p className="text-2xl font-semibold text-red-500 leading-none">฿{gap.toLocaleString()}</p>
-          <p className="text-xs text-gray-400 mt-2">ต้องขายเพิ่ม ฿{perDay.toLocaleString()}/วัน</p>
+          <p className="text-xs text-slate-400 mt-2">ต้องขายเพิ่ม ฿{perDay.toLocaleString()}/วัน</p>
         </div>
-
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <p className="text-xs text-gray-400 mb-3">วันที่คงเหลือ</p>
-          <p className="text-2xl font-semibold text-gray-900 leading-none">{daysLeft} วัน</p>
-          <p className="text-xs text-gray-400 mt-2">
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-amber-400" />
+          <p className="text-xs text-slate-400 mb-3 mt-1">วันที่คงเหลือ</p>
+          <p className="text-2xl font-semibold text-slate-900 leading-none">{daysLeft} วัน</p>
+          <p className="text-xs text-slate-400 mt-2">
             สิ้นสุด {periodEnd.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}
           </p>
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3">
           <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาด้วย Product ID หรือชื่อสินค้า..." />
-          <span className="text-xs text-gray-400 whitespace-nowrap">{filtered.length} รายการ</span>
+          <span className="text-xs text-slate-400 whitespace-nowrap">{filtered.length} รายการ</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100">
+              <tr className="border-b border-slate-100">
                 {headers.map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">{h}</th>
+                  <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 whitespace-nowrap uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -318,9 +257,8 @@ export default function Sales() {
               {loading ? (
                 <TableSkeleton cols={headers.length} />
               ) : filtered.length === 0 ? (
-                <EmptyState message="ยังไม่มีเป้ายอดขาย กด &quot;เพิ่มเป้ายอดขาย&quot; เพื่อเริ่ม" />
+                <EmptyState message="ยังไม่มีเป้ายอดขาย" />
               ) : filtered.map(s => {
-                // O(1) lookup via productMap
                 const product = productMap.get(s.product_id)
                 const target  = Number(s.sales_target_amount)
                 const actual  = Number(s.actual_sales)
@@ -328,94 +266,51 @@ export default function Sales() {
                 const rowGap  = Math.max(0, target - actual)
                 const pct     = target > 0 ? Math.round((actual / target) * 100) : 0
                 const colPct  = actual > 0 ? Math.round((received / actual) * 100) : 0
-                const rowDaysLeft = Math.max(0, Math.round((new Date(s.period_end).getTime() - TODAY_MS) / 86400000))
-                const perDayRow = rowDaysLeft > 0 && rowGap > 0 ? Math.round(rowGap / rowDaysLeft) : 0
                 return (
-                  <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-400">{s.product_id}</td>
-                    <td className="px-4 py-3 font-medium text-gray-900 max-w-[160px] truncate">{product?.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 tabular-nums">
-                      {editing === s.id
-                        ? <InlineNumInput value={editVal.sales_target_amount} onChange={v => setEditVal({ ...editVal, sales_target_amount: v })} />
-                        : <span>฿{target.toLocaleString()}</span>
-                      }
-                    </td>
-                    <td className="px-4 py-3 tabular-nums">
-                      {editing === s.id
-                        ? <InlineNumInput value={editVal.actual_sales} onChange={v => setEditVal({ ...editVal, actual_sales: v })} />
-                        : <span className="text-sm font-medium text-gray-900">฿{actual.toLocaleString()}</span>
-                      }
-                    </td>
-                    <td className="px-4 py-3 tabular-nums">
-                      {editing === s.id
-                        ? <InlineNumInput value={editVal.actual_received} onChange={v => setEditVal({ ...editVal, actual_received: v })} />
-                        : (
-                          <div className="flex flex-col">
-                            <span className="text-sm text-gray-600">฿{received.toLocaleString()}</span>
-                            {actual > 0 && (
-                              <span className={`text-[10px] ${colPct >= 80 ? 'text-green-600' : colPct >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
-                                เก็บได้ {colPct}%
-                              </span>
-                            )}
-                          </div>
-                        )
-                      }
-                    </td>
-                    <td className="px-4 py-3 text-sm text-red-500 tabular-nums">฿{rowGap.toLocaleString()}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-12 h-1 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${pct >= 80 ? 'bg-green-500' : pct >= 40 ? 'bg-amber-400' : 'bg-blue-500'}`}
-                            style={{ width: `${Math.min(pct, 100)}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-500 tabular-nums">{pct}%</span>
+                  <tr key={s.id} className="border-b border-slate-100/60 hover:bg-indigo-50/20 transition-colors last:border-0">
+                    <td className="px-5 py-4 font-mono text-xs font-medium text-slate-500">{s.product_id}</td>
+                    <td className="px-5 py-4 font-semibold text-slate-900 max-w-[180px] truncate">{product?.name}</td>
+                    {/* Period */}
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <div className="text-xs text-slate-500">
+                        {s.period_start && new Date(s.period_start).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}
+                        {' – '}
+                        {s.period_end && new Date(s.period_end).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs font-medium text-amber-600 tabular-nums">
-                      {perDayRow > 0 ? `฿${perDayRow.toLocaleString()}` : '—'}
+                    <td className="px-5 py-4 text-sm text-slate-500 tabular-nums">฿{target.toLocaleString()}</td>
+                    <td className="px-5 py-4 text-sm font-semibold text-slate-900 tabular-nums">฿{actual.toLocaleString()}</td>
+                    <td className="px-5 py-4 tabular-nums">
+                      <div className="flex flex-col">
+                        <span className="text-sm text-slate-600">฿{received.toLocaleString()}</span>
+                        {actual > 0 && (
+                          <span className={`text-xs ${colPct >= 80 ? 'text-emerald-600' : colPct >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                            เก็บได้ {colPct}%
+                          </span>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-4 py-3">
-                      <StatusSelect
-                        value={s.status}
-                        options={SALES_STATUS_OPTIONS}
-                        styleMap={salesStatusStyle}
-                        disabled={!canUpdate}
-                        onChange={v => updateStatus(s.id, v)}
-                      />
+                    <td className="px-5 py-4 text-sm text-red-500 tabular-nums font-medium">฿{rowGap.toLocaleString()}</td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#f1f5f9' }}>
+                          <div className={`h-full rounded-full ${pct >= 80 ? 'bg-emerald-500' : pct >= 40 ? 'bg-amber-400' : 'bg-blue-500'}`}
+                            style={{ width: `${Math.min(pct, 100)}%` }} />
+                        </div>
+                        <span className="text-sm text-slate-600 tabular-nums font-medium">{pct}%</span>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {editing === s.id
-                        ? <div className="flex gap-1">
-                            <button
-                              onClick={() => saveEdit(s.id)}
-                              disabled={savingRow}
-                              className="text-xs bg-gray-900 text-white px-2.5 py-1 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-40"
-                            >
-                              {savingRow ? '...' : 'บันทึก'}
-                            </button>
-                            <button
-                              onClick={() => { setEditing(null); setError('') }}
-                              className="text-xs text-gray-400 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
-                            >
-                              ยกเลิก
-                            </button>
-                          </div>
-                        : canUpdate ? <button
-                            onClick={() => {
-                              setEditing(s.id)
-                              setEditVal({
-                                sales_target_amount: String(s.sales_target_amount),
-                                actual_sales:        String(s.actual_sales),
-                                actual_received:     String(s.actual_received),
-                              })
-                            }}
-                            className="text-xs text-gray-400 hover:text-gray-900 transition-colors"
-                          >
-                            แก้ไข
-                          </button> : <span className="text-xs text-gray-300">—</span>
-                      }
+                    <td className="px-5 py-4">
+                      <StatusSelect value={s.status} options={SALES_STATUS_OPTIONS} styleMap={salesStatusStyle}
+                        disabled={!canUpdate} onChange={v => updateStatus(s.id, v)} />
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      {canUpdate ? (
+                        <button onClick={() => openEdit(s)} title="แก้ไข"
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 rounded-lg transition-colors">
+                          <IconPencil />แก้ไข
+                        </button>
+                      ) : <span className="text-xs text-slate-300">—</span>}
                     </td>
                   </tr>
                 )
@@ -424,6 +319,84 @@ export default function Sales() {
           </table>
         </div>
       </div>
+
+      {/* ── ADD modal ──────────────────────────────────────────── */}
+      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="เพิ่มเป้ายอดขายใหม่" width="max-w-lg">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <Field label="Product" required>
+              <select value={addForm.product_id} onChange={e => setAddForm({ ...addForm, product_id: e.target.value })} className={selectCls}>
+                <option value="">เลือก Product</option>
+                {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
+              </select>
+            </Field>
+          </div>
+          <Field label="วันเริ่มต้น" required>
+            <input type="date" value={addForm.period_start} onChange={e => setAddForm({ ...addForm, period_start: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="วันสิ้นสุด" required>
+            <input type="date" value={addForm.period_end} onChange={e => setAddForm({ ...addForm, period_end: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="เป้ายอดขาย (฿)">
+            <input type="number" placeholder="0" value={addForm.sales_target_amount} onChange={e => setAddForm({ ...addForm, sales_target_amount: e.target.value })} className={inputCls} />
+          </Field>
+          <Field label="เป้าจำนวนชิ้น">
+            <input type="number" placeholder="0" value={addForm.sales_target_count} onChange={e => setAddForm({ ...addForm, sales_target_count: e.target.value })} className={inputCls} />
+          </Field>
+          <div className="col-span-2">
+            <Field label="สถานะ">
+              <select value={addForm.status} onChange={e => setAddForm({ ...addForm, status: e.target.value })} className={selectCls}>
+                {SALES_STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </Field>
+          </div>
+        </div>
+        {addError && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{addError}</p>}
+        <div className="flex gap-2 mt-6">
+          <button onClick={saveAdd} disabled={saving || !addForm.product_id || !addForm.period_start || !addForm.period_end}
+            className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-indigo-500 transition-colors">
+            {saving ? 'กำลังบันทึก...' : 'บันทึก'}
+          </button>
+          <button onClick={() => setShowAdd(false)} className="px-5 py-2.5 text-sm text-slate-500 rounded-xl hover:bg-slate-100 transition-colors">ยกเลิก</button>
+        </div>
+      </Modal>
+
+      {/* ── EDIT modal ─────────────────────────────────────────── */}
+      <Modal open={!!editingRow} onClose={() => setEditingRow(null)} title={`แก้ไขยอดขาย — ${editingRow?.product_id}`} width="max-w-md">
+        <div className="space-y-4">
+          <Field label="เป้ายอดขาย (฿)">
+            <input type="number" value={editVal.sales_target_amount} onChange={e => setEditVal(v => ({ ...v, sales_target_amount: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="ยอดขายจริง (฿)">
+            <input type="number" value={editVal.actual_sales} onChange={e => setEditVal(v => ({ ...v, actual_sales: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="รับเงินจริง (฿)">
+            <input type="number" value={editVal.actual_received} onChange={e => setEditVal(v => ({ ...v, actual_received: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="สถานะ">
+            <select value={editVal.status} onChange={e => setEditVal(v => ({ ...v, status: e.target.value }))} className={selectCls}>
+              {SALES_STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </Field>
+        </div>
+        {editError && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{editError}</p>}
+        <div className="flex gap-2 mt-6">
+          <button onClick={saveEdit} disabled={savingEdit}
+            className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-indigo-500 transition-colors">
+            {savingEdit ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
+          </button>
+          <button onClick={() => setEditingRow(null)} className="px-5 py-2.5 text-sm text-slate-500 rounded-xl hover:bg-slate-100 transition-colors">ยกเลิก</button>
+        </div>
+      </Modal>
     </div>
+  )
+}
+
+function IconPencil() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
   )
 }

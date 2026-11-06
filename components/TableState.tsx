@@ -7,11 +7,11 @@ export function TableSkeleton({ cols, rows = 6 }: { cols: number; rows?: number 
   return (
     <>
       {[...Array(rows)].map((_, r) => (
-        <tr key={r} className="border-b border-gray-50 last:border-0">
+        <tr key={r} className="border-b border-slate-100/60 last:border-0">
           {[...Array(cols)].map((_, c) => (
             <td key={c} className="px-4 py-3">
               <div
-                className="h-4 bg-gray-100 rounded animate-pulse"
+                className="h-4 bg-slate-100 rounded animate-pulse"
                 style={{ width: `${50 + ((r + c) % 4) * 15}%` }}
               />
             </td>
@@ -30,11 +30,11 @@ export function EmptyState({ message = 'ยังไม่มีข้อมู�
           <svg
             width="36" height="36" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-            className="text-gray-200"
+            className="text-slate-200"
           >
             <path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z" />
           </svg>
-          <p className="text-sm text-gray-400">{message}</p>
+          <p className="text-sm text-slate-400">{message}</p>
         </div>
       </td>
     </tr>

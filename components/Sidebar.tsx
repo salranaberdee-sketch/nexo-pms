@@ -78,7 +78,7 @@ const roleStyle: Record<string, string> = {
   admin:   'bg-purple-50 text-purple-700',
   manager: 'bg-blue-50 text-blue-700',
   editor:  'bg-teal-50 text-teal-700',
-  viewer:  'bg-gray-100 text-gray-500',
+  viewer:  'bg-slate-100 text-slate-500',
 }
 
 export default function Sidebar({ user, profile }: { user: User | null; profile: Profile | null }) {
@@ -114,23 +114,23 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
   )
 
   return (
-    <aside className="w-52 bg-white border-r border-gray-100 flex flex-col h-screen shrink-0">
+    <aside className="w-52 bg-white border-r flex flex-col h-screen shrink-0" style={{ borderColor: 'var(--color-border)' }}>
 
       {/* Logo → Dashboard */}
-      <div className="px-5 py-5 border-b border-gray-100">
+      <div className="px-5 py-5 border-b" style={{ borderColor: 'var(--color-border)' }}>
         <Link href="/dashboard" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-          <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
             <span className="text-white font-bold text-sm tracking-tight">N</span>
           </div>
           <div>
-            <p className="font-semibold text-gray-900 text-sm leading-none">Nexo PMS</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">v1.0</p>
+            <p className="font-semibold text-slate-900 text-sm leading-none">Nexo PMS</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">v1.0</p>
           </div>
         </Link>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-3 space-y-0.5">
+      <nav className="flex-1 px-3 py-3 space-y-1">
         {visibleNav.map(({ path, label, Icon }) => {
           const active = pathname === path
           return (
@@ -138,10 +138,10 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
               key={path}
               href={path}
               prefetch={true}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                 ${active
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}`}
+                  ? 'bg-indigo-50 text-indigo-700 shadow-sm'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
             >
               <Icon />
               {label}
@@ -156,15 +156,15 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
       </nav>
 
       {/* User */}
-      <div className="px-3 py-3 border-t border-gray-100">
+      <div className="px-3 py-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
         <div className="flex items-center gap-2 px-3 py-2 mb-1">
-          <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 font-semibold text-xs shrink-0">
+          <div className="w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs shrink-0" style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)', color: '#4f46e5' }}>
             {profile?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-gray-900 truncate">{profile?.name || user?.email}</p>
+            <p className="text-xs font-medium text-slate-900 truncate">{profile?.name || user?.email}</p>
             {profile && (
-              <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${roleStyle[profile.role] || 'bg-gray-100 text-gray-500'}`}>
+              <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${roleStyle[profile.role] || 'bg-slate-100 text-slate-500'}`}>
                 {profile.role}
               </span>
             )}
@@ -181,7 +181,7 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
             </button>
             <button
               onClick={() => setConfirmLogout(false)}
-              className="text-[11px] text-gray-400 px-2 py-0.5 rounded-md hover:bg-gray-100 transition-colors"
+              className="text-[11px] text-slate-400 px-2 py-0.5 rounded-md hover:bg-slate-100 transition-colors"
             >
               ยกเลิก
             </button>
@@ -189,7 +189,7 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
         ) : (
           <button
             onClick={() => setConfirmLogout(true)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
           >
             <IconLogOut />
             ออกจากระบบ

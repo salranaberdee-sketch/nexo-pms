@@ -25,7 +25,7 @@ export default function InlinePersonPicker({
   placeholder?: string
 }) {
   if (disabled) {
-    return <span className="text-xs text-gray-500">{display || placeholder}</span>
+    return <span className="text-xs text-slate-500">{display || placeholder}</span>
   }
 
   return (
@@ -36,7 +36,7 @@ export default function InlinePersonPicker({
           const p = profiles.find(p => p.id === e.target.value)
           onChange(e.target.value, p?.name || '')
         }}
-        className="appearance-none cursor-pointer text-xs text-gray-700 bg-transparent pr-4 focus:outline-none focus:ring-1 focus:ring-gray-900 rounded hover:text-gray-900 transition-colors min-w-[60px]"
+        className="appearance-none cursor-pointer text-xs text-slate-700 bg-transparent pr-4 focus:outline-none focus:ring-1 focus:ring-indigo-500 rounded hover:text-slate-900 transition-colors min-w-[60px]"
       >
         <option value="">{placeholder}</option>
         {profiles.map(p => (
@@ -45,7 +45,7 @@ export default function InlinePersonPicker({
       </select>
       {/* tiny pencil hint — visible on row hover */}
       <svg
-        className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-gray-300 group-hover:text-gray-400 transition-colors"
+        className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-slate-300 group-hover:text-slate-400 transition-colors"
         width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
       >

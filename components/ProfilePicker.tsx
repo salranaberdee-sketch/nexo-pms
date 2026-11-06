@@ -28,7 +28,7 @@ export default function ProfilePicker({
         const p = profiles.find(p => p.id === e.target.value)
         onChange(e.target.value, p?.name || '')
       }}
-      className={`border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white ${className}`}
+      className={`border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white ${className}`}
     >
       {allowEmpty && <option value="">{placeholder}</option>}
       {profiles.map(p => (

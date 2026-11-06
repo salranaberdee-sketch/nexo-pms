@@ -44,9 +44,9 @@ export function ToastContainer() {
           key={t.id}
           className={`flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm font-medium
             pointer-events-auto animate-in slide-in-from-bottom-2 fade-in duration-200
-            ${t.type === 'success' ? 'bg-gray-900 text-white'
+            ${t.type === 'success' ? 'bg-emerald-600 text-white'
               : t.type === 'error' ? 'bg-red-600 text-white'
-              : 'bg-white text-gray-900 border border-gray-100'}`}
+              : 'bg-white text-slate-900 border border-slate-100'}`}
         >
           {t.type === 'success' && (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

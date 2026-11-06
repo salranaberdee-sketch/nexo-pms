@@ -16,7 +16,7 @@ const APPROVAL_OPTIONS = ['pending', 'approved', 'rejected']
 
 const approvalStyle: Record<string, string> = {
   pending:  'bg-amber-50 text-amber-700',
-  approved: 'bg-green-50 text-green-700',
+  approved: 'bg-emerald-50 text-emerald-700',
   rejected: 'bg-red-50 text-red-600',
 }
 
@@ -29,7 +29,7 @@ const approvalLabel: Record<string, string> = {
 // StyleMap uses English keys to match DB values.
 const approvalStyleMap: Record<string, string> = {
   pending:  'bg-amber-50 text-amber-700',
-  approved: 'bg-green-50 text-green-700',
+  approved: 'bg-emerald-50 text-emerald-700',
   rejected: 'bg-red-50 text-red-600',
 }
 
@@ -37,7 +37,7 @@ const roleStyle: Record<string, string> = {
   admin:   'bg-purple-50 text-purple-700',
   manager: 'bg-blue-50 text-blue-700',
   editor:  'bg-teal-50 text-teal-700',
-  viewer:  'bg-gray-100 text-gray-500',
+  viewer:  'bg-slate-100 text-slate-500',
 }
 
 // Map DB value → Thai label for the StatusSelect display.
@@ -46,7 +46,7 @@ const roleStyle: Record<string, string> = {
 const APPROVAL_DISPLAY_OPTIONS = ['รออนุมัติ', 'อนุมัติแล้ว', 'ปฏิเสธ']
 const approvalDisplayStyle: Record<string, string> = {
   'รออนุมัติ':  'bg-amber-50 text-amber-700',
-  'อนุมัติแล้ว': 'bg-green-50 text-green-700',
+  'อนุมัติแล้ว': 'bg-emerald-50 text-emerald-700',
   'ปฏิเสธ':    'bg-red-50 text-red-600',
 }
 // Thai → DB value
@@ -140,25 +140,25 @@ export default function Team() {
 
       {/* Header */}
       <div>
-        <h1 className="text-lg font-semibold text-gray-900">จัดการสมาชิก</h1>
-        <p className="text-sm text-gray-400 mt-0.5">อนุมัติ ปฏิเสธ และกำหนดบทบาทของผู้ใช้ในระบบ</p>
+        <h1 className="text-xl font-semibold text-slate-900">จัดการสมาชิก</h1>
+        <p className="text-sm text-slate-400 mt-0.5">อนุมัติ ปฏิเสธ และกำหนดบทบาทของผู้ใช้ในระบบ</p>
       </div>
 
       {/* Summary filter cards */}
       <div className="grid grid-cols-3 gap-4">
         {[
           { key: 'pending',  label: 'รออนุมัติ',   count: pendingCount,  color: 'text-amber-600',  ring: 'border-amber-300 ring-amber-100' },
-          { key: 'approved', label: 'อนุมัติแล้ว', count: approvedCount, color: 'text-green-600',  ring: 'border-green-300 ring-green-100' },
+          { key: 'approved', label: 'อนุมัติแล้ว', count: approvedCount, color: 'text-emerald-600',  ring: 'border-emerald-300 ring-emerald-100' },
           { key: 'rejected', label: 'ปฏิเสธ',      count: rejectedCount, color: 'text-red-500',    ring: 'border-red-300 ring-red-100' },
         ].map(({ key, label, count, color, ring }) => (
           <button
             key={key}
             onClick={() => setFilter(filter === key ? 'all' : key)}
-            className={`bg-white rounded-xl border p-5 text-left transition-colors ${filter === key ? `${ring} ring-2` : 'border-gray-100 hover:border-gray-200'}`}
+            className={`bg-white rounded-2xl border p-5 text-left transition-all shadow-sm ${filter === key ? `${ring} ring-2` : 'border-slate-100 hover:border-slate-200'}`}
           >
-            <p className="text-xs text-gray-400 mb-3">{label}</p>
+            <p className="text-xs text-slate-400 mb-3">{label}</p>
             <p className={`text-2xl font-semibold leading-none ${color}`}>{count}</p>
-            <p className="text-xs text-gray-400 mt-2">คน</p>
+            <p className="text-xs text-slate-400 mt-2">คน</p>
           </button>
         ))}
       </div>
@@ -184,7 +184,7 @@ export default function Team() {
               </button>
               <button
                 onClick={() => setConfirmSuspend(null)}
-                className="text-xs text-gray-500 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                className="text-xs text-slate-500 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors"
               >
                 ยกเลิก
               </button>
@@ -194,15 +194,15 @@ export default function Team() {
       })()}
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3">
           <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาชื่อหรืออีเมล..." />
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs text-gray-400">{filtered.length} คน</span>
+            <span className="text-xs text-slate-400">{filtered.length} คน</span>
             {filter !== 'all' && (
               <button
                 onClick={() => setFilter('all')}
-                className="text-xs text-gray-400 hover:text-gray-900 transition-colors"
+                className="text-xs text-slate-400 hover:text-slate-900 transition-colors"
               >
                 ดูทั้งหมด
               </button>
@@ -212,9 +212,9 @@ export default function Team() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100">
+              <tr className="border-b border-slate-100">
                 {['ชื่อ', 'อีเมล', 'บทบาท', 'สถานะ', 'วันที่สมัคร'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-400 whitespace-nowrap">{h}</th>
+                  <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 whitespace-nowrap uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -227,31 +227,31 @@ export default function Team() {
                 const isSelf = p.id === me.id
                 const displayApproval = approvalLabel[p.approval_status] || p.approval_status
                 return (
-                  <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
+                  <tr key={p.id} className="border-b border-slate-100/60 hover:bg-indigo-50/20 transition-colors last:border-0">
                     {/* Name + avatar */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 font-semibold text-xs shrink-0">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center font-semibold text-xs shrink-0" style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)', color: '#4f46e5' }}>
                           {p.name?.[0]?.toUpperCase()}
                         </div>
-                        <span className="font-medium text-gray-900">{p.name}</span>
+                        <span className="font-semibold text-slate-900">{p.name}</span>
                         {isSelf && (
-                          <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">คุณ</span>
+                          <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">คุณ</span>
                         )}
                       </div>
                     </td>
                     {/* Email */}
-                    <td className="px-4 py-3 text-xs text-gray-400">{p.email}</td>
+                    <td className="px-5 py-4 text-sm text-slate-400">{p.email}</td>
                     {/* Role — inline styled select (already was; keep as-is) */}
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-4">
                       <div className="relative inline-flex">
                         <select
                           value={p.role}
                           onChange={e => changeRole(p.id, e.target.value)}
                           disabled={isSelf}
-                          className={`appearance-none cursor-pointer text-xs font-medium pl-2 pr-6 py-1 rounded-md border border-current/20 focus:outline-none focus:ring-2 focus:ring-gray-900 ${roleStyle[p.role] || 'bg-gray-100 text-gray-500'} ${isSelf ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          className={`appearance-none cursor-pointer text-xs font-medium pl-2 pr-6 py-1 rounded-lg border border-current/20 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${roleStyle[p.role] || 'bg-slate-100 text-slate-500'} ${isSelf ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                          {ROLES.map(r => <option key={r} value={r} className="bg-white text-gray-700">{r}</option>)}
+                          {ROLES.map(r => <option key={r} value={r} className="bg-white text-slate-700">{r}</option>)}
                         </select>
                         {!isSelf && (
                           <svg className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 opacity-60" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -261,7 +261,7 @@ export default function Team() {
                       </div>
                     </td>
                     {/* Approval status — inline StatusSelect (replaces badge + action buttons) */}
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-4">
                       <StatusSelect
                         value={displayApproval}
                         options={APPROVAL_DISPLAY_OPTIONS}
@@ -271,7 +271,7 @@ export default function Team() {
                       />
                     </td>
                     {/* Date */}
-                    <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
+                    <td className="px-5 py-4 text-sm text-slate-400 whitespace-nowrap">
                       {p.created_at
                         ? new Date(p.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })
                         : '—'}

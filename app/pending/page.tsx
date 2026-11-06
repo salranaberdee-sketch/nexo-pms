@@ -46,10 +46,10 @@ export default function PendingPage() {
   }, [router, supabase])
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-canvas)' }}>
       <div className="text-center">
-        <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-        <p className="text-sm text-gray-400">กำลังโหลด...</p>
+        <div className="w-9 h-9 border-[3px] border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-sm text-slate-400">กำลังโหลด...</p>
       </div>
     </div>
   )
@@ -57,18 +57,18 @@ export default function PendingPage() {
   const isRejected = profile?.approval_status === 'rejected'
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-canvas)' }}>
       <div className="max-w-md w-full mx-auto px-6">
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-12 h-12 bg-gray-900 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
             <span className="text-white font-bold text-lg tracking-tight">N</span>
           </div>
-          <p className="text-sm font-semibold text-gray-900">Nexo PMS</p>
+          <p className="text-sm font-semibold text-slate-900">Nexo PMS</p>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+        <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center shadow-sm">
 
           {isRejected ? (
             <>
@@ -80,11 +80,11 @@ export default function PendingPage() {
                   <line x1="9" y1="9" x2="15" y2="15" />
                 </svg>
               </div>
-              <h1 className="text-lg font-semibold text-gray-900 mb-2">คำขอเข้าใช้งานถูกปฏิเสธ</h1>
-              <p className="text-sm text-gray-500 leading-relaxed mb-1">
-                สวัสดี <span className="font-medium text-gray-700">{profile?.name}</span>,
+              <h1 className="text-lg font-semibold text-slate-900 mb-2">คำขอเข้าใช้งานถูกปฏิเสธ</h1>
+              <p className="text-sm text-slate-500 leading-relaxed mb-1">
+                สวัสดี <span className="font-medium text-slate-700">{profile?.name}</span>,
               </p>
-              <p className="text-sm text-gray-500 leading-relaxed">
+              <p className="text-sm text-slate-500 leading-relaxed">
                 ผู้ดูแลระบบปฏิเสธคำขอเข้าใช้งานของคุณ หากมีข้อสงสัยกรุณาติดต่อผู้ดูแลระบบโดยตรง
               </p>
             </>
@@ -97,14 +97,14 @@ export default function PendingPage() {
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
               </div>
-              <h1 className="text-lg font-semibold text-gray-900 mb-2">รอการอนุมัติ</h1>
-              <p className="text-sm text-gray-500 leading-relaxed mb-1">
-                สวัสดี <span className="font-medium text-gray-700">{profile?.name}</span>,
+              <h1 className="text-lg font-semibold text-slate-900 mb-2">รอการอนุมัติ</h1>
+              <p className="text-sm text-slate-500 leading-relaxed mb-1">
+                สวัสดี <span className="font-medium text-slate-700">{profile?.name}</span>,
               </p>
-              <p className="text-sm text-gray-500 leading-relaxed">
+              <p className="text-sm text-slate-500 leading-relaxed">
                 บัญชีของคุณกำลังรอผู้ดูแลระบบอนุมัติ หน้านี้จะเปลี่ยนไปหน้า Dashboard อัตโนมัติเมื่อได้รับการอนุมัติ
               </p>
-              <div className="flex items-center justify-center gap-1.5 mt-4 text-xs text-gray-400">
+              <div className="flex items-center justify-center gap-1.5 mt-4 text-xs text-slate-400">
                 <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
                 กำลังตรวจสอบสถานะ...
               </div>
@@ -116,7 +116,7 @@ export default function PendingPage() {
         <div className="text-center mt-6">
           <button
             onClick={() => supabase.auth.signOut().then(() => router.replace('/login'))}
-            className="text-xs text-gray-400 hover:text-gray-900 transition-colors"
+            className="text-xs text-slate-400 hover:text-slate-900 transition-colors"
           >
             ออกจากระบบ
           </button>

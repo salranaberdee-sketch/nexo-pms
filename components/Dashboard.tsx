@@ -90,10 +90,10 @@ export default function Dashboard() {
   }, [contents, ads, products, profile.id])
 
   const statusStyle: Record<string, string> = {
-    'เปิดขาย':       'bg-green-50 text-green-700',
+    'เปิดขาย':       'bg-emerald-50 text-emerald-700',
     'เตรียมเปิดตัว': 'bg-amber-50 text-amber-700',
     'กำลังพัฒนา':   'bg-blue-50 text-blue-700',
-    'หยุดขาย':       'bg-gray-100 text-gray-400',
+    'หยุดขาย':       'bg-slate-100 text-slate-400',
   }
 
   const updatedLabel = lastUpdated
@@ -108,15 +108,15 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <h1 className="text-xl font-semibold text-slate-900">Dashboard</h1>
+          <p className="text-sm text-slate-400 mt-0.5">
             ภาพรวมทุก Product{updatedLabel && ` — อัปเดต ${updatedLabel}`}
           </p>
         </div>
         <button
           onClick={() => load(false)}
           disabled={refreshing}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-40"
+          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-40"
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -130,7 +130,7 @@ export default function Dashboard() {
       </div>
 
       {loadError && (
-        <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-sm text-red-600">
+        <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600">
           โหลดข้อมูลไม่สำเร็จ: {loadError}
           <button onClick={() => load(false)} className="ml-3 underline text-red-500 hover:text-red-700">ลองใหม่</button>
         </div>
@@ -139,33 +139,37 @@ export default function Dashboard() {
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard label="ยอดขายจริง" value={`฿${totalActual.toLocaleString()}`}
-          sub={`เป้า ฿${totalTarget.toLocaleString()}`} pct={pct} href="/sales" />
+          sub={`เป้า ฿${totalTarget.toLocaleString()}`} pct={pct} href="/sales"
+          accent="emerald" icon="baht" />
         <KPICard label="งบ Ads คงเหลือ" value={`฿${(totalBudget - totalSpent).toLocaleString()}`}
-          sub={`ใช้ไป ฿${totalSpent.toLocaleString()}`} href="/ads" />
+          sub={`ใช้ไป ฿${totalSpent.toLocaleString()}`} href="/ads"
+          accent="amber" icon="ads" />
         <KPICard label="Leads รวม" value={totalLeads.toLocaleString()}
-          sub={`${ads.length} campaigns`} href="/ads" />
+          sub={`${ads.length} campaigns`} href="/ads"
+          accent="blue" icon="trending" />
         <KPICard label="Content โพสต์แล้ว" value={`${contentDone} / ${contents.length}`}
-          sub={`รอผลิตอีก ${contentWait} ชิ้น`} href="/contents" />
+          sub={`รอผลิตอีก ${contentWait} ชิ้น`} href="/contents"
+          accent="violet" icon="edit" />
       </div>
 
       {/* Products summary table */}
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-900">สถานะทุก Product</h2>
-          <span className="text-xs text-gray-400">{products.length} รายการ</span>
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--color-border)' }}>
+          <h2 className="text-sm font-semibold text-slate-900">สถานะทุก Product</h2>
+          <span className="text-xs text-slate-400">{products.length} รายการ</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100">
-                <th className="text-left px-5 py-3 text-xs font-medium text-gray-400">Product ID</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-400">ชื่อสินค้า</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-400">แบรนด์</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-400">สถานะ</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-gray-400">เป้า</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-gray-400">ยอดจริง</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-gray-400">% สำเร็จ</th>
-                <th className="text-right px-5 py-3 text-xs font-medium text-gray-400">Content</th>
+              <tr className="border-b" style={{ borderColor: 'var(--color-border)' }}>
+                <th className="text-left px-5 py-3 text-xs font-medium text-slate-400">Product ID</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-slate-400">ชื่อสินค้า</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-slate-400">แบรนด์</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-slate-400">สถานะ</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">เป้า</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">ยอดจริง</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">% สำเร็จ</th>
+                <th className="text-right px-5 py-3 text-xs font-medium text-slate-400">Content</th>
               </tr>
             </thead>
             <tbody>
@@ -177,33 +181,33 @@ export default function Dashboard() {
                 const target = Number(s?.sales_target_amount || 0)
                 const actual = Number(s?.actual_sales || 0)
                 const rowPct = target > 0 ? Math.round((actual / target) * 100) : 0
-                const barColor = rowPct >= 80 ? 'bg-green-500' : rowPct >= 40 ? 'bg-amber-400' : 'bg-blue-500'
+                const barColor = rowPct >= 80 ? 'bg-emerald-500' : rowPct >= 40 ? 'bg-amber-400' : 'bg-blue-500'
                 return (
-                  <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
-                    <td className="px-5 py-3 font-mono text-xs text-gray-400">{p.product_id}</td>
+                  <tr key={p.id} className="border-b hover:bg-slate-50 transition-colors last:border-0" style={{ borderColor: 'var(--color-border-soft)' }}>
+                    <td className="px-5 py-3 font-mono text-xs text-slate-400">{p.product_id}</td>
                     {/* title tooltip on truncated name */}
-                    <td className="px-4 py-3 font-medium text-gray-900 max-w-[200px] truncate" title={p.name}>{p.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{p.brand}</td>
+                    <td className="px-4 py-3 font-medium text-slate-900 max-w-[200px] truncate" title={p.name}>{p.name}</td>
+                    <td className="px-4 py-3 text-sm text-slate-500">{p.brand}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${statusStyle[p.status] || 'bg-gray-100 text-gray-400'}`}>
+                      <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${statusStyle[p.status] || 'bg-slate-100 text-slate-400'}`}>
                         {p.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right text-sm text-gray-400">฿{target.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right text-sm font-medium text-gray-900">฿{actual.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right text-sm text-slate-400">฿{target.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right text-sm font-medium text-slate-900">฿{actual.toLocaleString()}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <div className="w-14 h-1 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="w-14 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#f1f5f9' }}>
                           <div className={`h-full rounded-full ${barColor}`}
                             style={{ width: `${Math.min(rowPct, 100)}%` }} />
                         </div>
-                        <span className="text-xs text-gray-500 w-10 text-right tabular-nums">{rowPct}%</span>
+                        <span className="text-xs text-slate-500 w-10 text-right tabular-nums">{rowPct}%</span>
                       </div>
                     </td>
                     {/* Click content count → Contents filtered by product */}
                     <td className="px-5 py-3 text-right">
                       <Link href={`/contents?product=${p.product_id}`}
-                        className="text-xs text-gray-400 hover:text-blue-600 hover:underline transition-colors">
+                        className="text-xs text-slate-400 hover:text-indigo-600 hover:underline transition-colors">
                         {c.filter((x: any) => x.status === 'โพสต์แล้ว').length}/{c.length}
                       </Link>
                     </td>
@@ -216,33 +220,33 @@ export default function Dashboard() {
       </div>
 
       {/* My Tasks */}
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-900">งานของฉัน</h2>
-          <span className="text-xs text-gray-400">{myTasks.totalTasks} รายการ</span>
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--color-border)' }}>
+          <h2 className="text-sm font-semibold text-slate-900">งานของฉัน</h2>
+          <span className="text-xs text-slate-400">{myTasks.totalTasks} รายการ</span>
         </div>
-        <div className="grid grid-cols-3 gap-0 divide-x divide-gray-100">
+        <div className="grid grid-cols-3 gap-3 p-4">
           {/* Content cell — drill-down to Contents filtered by me */}
-          <Link href="/contents" className="p-5 hover:bg-gray-50 transition-colors block">
-            <p className="text-xs text-gray-400 mb-2">Content ที่รับผิดชอบ</p>
-            <p className="text-2xl font-semibold text-gray-900 leading-none">{myTasks.myContents.length}</p>
+          <Link href="/contents" className="p-5 rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all block" style={{ backgroundColor: '#f5f3ff' }}>
+            <p className="text-xs text-slate-400 mb-2">Content ที่รับผิดชอบ</p>
+            <p className="text-2xl font-semibold text-slate-900 leading-none">{myTasks.myContents.length}</p>
             <div className="flex gap-3 mt-3 flex-wrap">
-              <span className="text-xs text-green-600">โพสต์แล้ว {myTasks.myDone}</span>
+              <span className="text-xs text-emerald-600">โพสต์แล้ว {myTasks.myDone}</span>
               <span className="text-xs text-blue-500">กำลังทำ {myTasks.myInProgress}</span>
-              <span className="text-xs text-gray-400">รอผลิต {myTasks.myWaiting}</span>
+              <span className="text-xs text-slate-400">รอผลิต {myTasks.myWaiting}</span>
             </div>
           </Link>
           {/* Ads cell */}
-          <Link href="/ads" className="p-5 hover:bg-gray-50 transition-colors block">
-            <p className="text-xs text-gray-400 mb-2">แคมเปญ Ads ที่ดูแล</p>
-            <p className="text-2xl font-semibold text-gray-900 leading-none">{myTasks.myAds.length}</p>
-            <p className="text-xs text-gray-400 mt-3">campaigns</p>
+          <Link href="/ads" className="p-5 rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all block" style={{ backgroundColor: '#fffbeb' }}>
+            <p className="text-xs text-slate-400 mb-2">แคมเปญ Ads ที่ดูแล</p>
+            <p className="text-2xl font-semibold text-slate-900 leading-none">{myTasks.myAds.length}</p>
+            <p className="text-xs text-slate-400 mt-3">campaigns</p>
           </Link>
           {/* Products cell */}
-          <Link href="/products" className="p-5 hover:bg-gray-50 transition-colors block">
-            <p className="text-xs text-gray-400 mb-2">Product ที่ดูแล</p>
-            <p className="text-2xl font-semibold text-gray-900 leading-none">{myTasks.myProducts.length}</p>
-            <p className="text-xs text-gray-400 mt-3">products</p>
+          <Link href="/products" className="p-5 rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all block" style={{ backgroundColor: '#ecfdf5' }}>
+            <p className="text-xs text-slate-400 mb-2">Product ที่ดูแล</p>
+            <p className="text-2xl font-semibold text-slate-900 leading-none">{myTasks.myProducts.length}</p>
+            <p className="text-xs text-slate-400 mt-3">products</p>
           </Link>
         </div>
       </div>
@@ -250,30 +254,58 @@ export default function Dashboard() {
   )
 }
 
-function KPICard({ label, value, sub, pct, href }: {
+function KPICard({ label, value, sub, pct, href, accent, icon }: {
   label: string; value: string; sub: string; pct?: number; href: string
+  accent: 'emerald' | 'amber' | 'blue' | 'violet'; icon: 'baht' | 'ads' | 'trending' | 'edit'
 }) {
+  // Accent color system per card type
+  const accentMap = {
+    emerald: { bar: '#10b981', bg: '#ecfdf5', fg: '#059669' },
+    amber:   { bar: '#f59e0b', bg: '#fffbeb', fg: '#d97706' },
+    blue:    { bar: '#3b82f6', bg: '#eff6ff', fg: '#2563eb' },
+    violet:  { bar: '#8b5cf6', bg: '#f5f3ff', fg: '#7c3aed' },
+  }
+  const a = accentMap[accent]
   const barColor = pct !== undefined
-    ? pct >= 80 ? 'bg-green-500' : pct >= 40 ? 'bg-amber-400' : 'bg-blue-500'
-    : 'bg-gray-900'
+    ? pct >= 80 ? '#10b981' : pct >= 40 ? '#f59e0b' : '#3b82f6'
+    : a.bar
+
   return (
     <Link href={href}
-      className="bg-white rounded-xl border border-gray-100 p-5 hover:border-gray-300 hover:shadow-sm transition-all block">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs text-gray-400">{label}</p>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300">
-          <line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" />
-        </svg>
+      className="bg-white rounded-2xl border border-slate-100 p-5 hover:shadow-md hover:-translate-y-0.5 transition-all block relative overflow-hidden"
+      style={{ borderColor: 'var(--color-border)' }}>
+      {/* Top accent bar */}
+      <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: a.bar }} />
+      <div className="flex items-center justify-between mb-3 mt-1">
+        <p className="text-xs text-slate-400">{label}</p>
+        {/* Colored icon circle */}
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: a.bg }}>
+          {icon === 'baht' && <span className="text-xs font-bold" style={{ color: a.fg }}>฿</span>}
+          {icon === 'ads' && (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={a.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" />
+            </svg>
+          )}
+          {icon === 'trending' && (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={a.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" />
+            </svg>
+          )}
+          {icon === 'edit' && (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={a.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          )}
+        </div>
       </div>
-      <p className="text-2xl font-semibold text-gray-900 leading-none">{value}</p>
-      <p className="text-xs text-gray-400 mt-2">{sub}</p>
+      <p className="text-2xl font-semibold text-slate-900 leading-none">{value}</p>
+      <p className="text-xs text-slate-400 mt-2">{sub}</p>
       {pct !== undefined && (
         <div className="mt-3">
-          <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
-            <div className={`h-full rounded-full ${barColor} transition-all`}
-              style={{ width: `${Math.min(pct, 100)}%` }} />
+          <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#f1f5f9' }}>
+            <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: barColor }} />
           </div>
-          <p className="text-xs text-gray-400 mt-1.5">{pct}% ของเป้า</p>
+          <p className="text-xs text-slate-400 mt-1.5">{pct}% ของเป้า</p>
         </div>
       )}
     </Link>
@@ -285,11 +317,11 @@ function Loading() {
     <div className="p-6 space-y-4">
       <div className="grid grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="bg-white rounded-xl h-28 animate-pulse border border-gray-100" />
+          <div key={i} className="bg-white rounded-2xl h-28 animate-pulse border border-slate-100" />
         ))}
       </div>
-      <div className="bg-white rounded-xl h-64 animate-pulse border border-gray-100" />
-      <div className="bg-white rounded-xl h-28 animate-pulse border border-gray-100" />
+      <div className="bg-white rounded-2xl h-64 animate-pulse border border-slate-100" />
+      <div className="bg-white rounded-2xl h-28 animate-pulse border border-slate-100" />
     </div>
   )
 }
