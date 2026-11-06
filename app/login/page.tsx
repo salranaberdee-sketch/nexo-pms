@@ -105,13 +105,25 @@ export default function LoginPage() {
           {/* Test account hint */}
           {!isRegister && (
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 mb-6">
-              <p className="text-xs font-medium text-slate-500 mb-2">Test Account</p>
-              <button
-                onClick={() => { setEmail('admin@nexo.dev'); setPassword('nexo1234') }}
-                className="text-xs bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors font-medium"
-              >
-                Admin — admin@nexo.dev
-              </button>
+              <p className="text-xs font-medium text-slate-500 mb-2.5">ทดสอบ — กดเพื่อเติมอัตโนมัติ (รหัส: <span className="font-mono">nexo1234</span>)</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: 'Admin',   email: 'admin@nexo.dev',   color: 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100' },
+                  { label: 'Manager', email: 'manager@nexo.dev', color: 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' },
+                  { label: 'Editor',  email: 'editor@nexo.dev',  color: 'bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-100' },
+                  { label: 'Viewer',  email: 'viewer@nexo.dev',  color: 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200' },
+                ].map(({ label, email, color }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => { setEmail(email); setPassword('nexo1234') }}
+                    className={`flex items-center justify-between gap-1.5 border px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${color}`}
+                  >
+                    <span>{label}</span>
+                    <span className="font-normal opacity-60 truncate">{email.split('@')[0]}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
