@@ -60,7 +60,16 @@ export default function Sales() {
   const [editingRow, setEditingRow] = useState<any | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError]   = useState('')
-  const [editVal, setEditVal] = useState({ sales_target_amount: '', actual_sales: '', actual_received: '', status: 'ยังไม่เปิดขาย' })
+  const [editVal, setEditVal] = useState({
+    product_id: '',
+    period_start: '',
+    period_end: '',
+    sales_target_amount: '',
+    sales_target_count: '',
+    actual_sales: '',
+    actual_received: '',
+    status: 'ยังไม่เปิดขาย',
+  })
 
   const canInsert = useCan('insert', 'sales')
   const canUpdate = useCan('update', 'sales')
@@ -69,7 +78,7 @@ export default function Sales() {
   async function load() {
     setLoadError('')
     const [s, p] = await Promise.all([
-      supabase.from('sales').select('id, product_id, period_start, period_end, sales_target_amount, actual_sales, actual_received, status').order('product_id'),
+      supabase.from('sales').select('id, product_id, period_start, period_end, sales_target_amount, sales_target_count, actual_sales, actual_received, status').order('product_id'),
       supabase.from('products').select('product_id, name, status'),
     ])
     if (s.error) { setLoadError(s.error.message); setLoading(false); return }
@@ -112,7 +121,11 @@ export default function Sales() {
   function openEdit(s: any) {
     setEditingRow(s)
     setEditVal({
+      product_id:          s.product_id,
+      period_start:        s.period_start ?? '',
+      period_end:          s.period_end ?? '',
       sales_target_amount: String(s.sales_target_amount ?? 0),
+      sales_target_count:  String(s.sales_target_count ?? 0),
       actual_sales:        String(s.actual_sales ?? 0),
       actual_received:     String(s.actual_received ?? 0),
       status:              s.status,
@@ -123,8 +136,16 @@ export default function Sales() {
   async function saveEdit() {
     if (!editingRow) return
     setSavingEdit(true); setEditError('')
+    if (editVal.period_start && editVal.period_end && editVal.period_end <= editVal.period_start) {
+      setEditError('วันสิ้นสุดต้องหลังวันเริ่มต้น')
+      setSavingEdit(false); return
+    }
     const { error: updErr } = await supabase.from('sales').update({
+      product_id:          editVal.product_id,
+      period_start:        editVal.period_start,
+      period_end:          editVal.period_end,
       sales_target_amount: Number(editVal.sales_target_amount),
+      sales_target_count:  Number(editVal.sales_target_count),
       actual_sales:        Number(editVal.actual_sales),
       actual_received:     Number(editVal.actual_received),
       status:              editVal.status,
@@ -133,7 +154,11 @@ export default function Sales() {
     if (updErr) { setEditError(updErr.message); return }
     setSales(prev => prev.map(s => s.id === editingRow.id ? {
       ...s,
+      product_id:          editVal.product_id,
+      period_start:        editVal.period_start,
+      period_end:          editVal.period_end,
       sales_target_amount: Number(editVal.sales_target_amount),
+      sales_target_count:  Number(editVal.sales_target_count),
       actual_sales:        Number(editVal.actual_sales),
       actual_received:     Number(editVal.actual_received),
       status:              editVal.status,
@@ -362,10 +387,27 @@ export default function Sales() {
       </Modal>
 
       {/* ── EDIT modal ─────────────────────────────────────────── */}
-      <Modal open={!!editingRow} onClose={() => setEditingRow(null)} title={`แก้ไขยอดขาย — ${editingRow?.product_id}`} width="max-w-md">
-        <div className="space-y-4">
+      <Modal open={!!editingRow} onClose={() => setEditingRow(null)} title={`แก้ไขยอดขาย — ${editingRow?.product_id}`} width="max-w-lg">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <Field label="Product" required>
+              <select value={editVal.product_id} onChange={e => setEditVal(v => ({ ...v, product_id: e.target.value }))} className={selectCls}>
+                <option value="">เลือก Product</option>
+                {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
+              </select>
+            </Field>
+          </div>
+          <Field label="วันเริ่มต้น" required>
+            <input type="date" value={editVal.period_start} onChange={e => setEditVal(v => ({ ...v, period_start: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="วันสิ้นสุด" required>
+            <input type="date" value={editVal.period_end} onChange={e => setEditVal(v => ({ ...v, period_end: e.target.value }))} className={inputCls} />
+          </Field>
           <Field label="เป้ายอดขาย (฿)">
             <input type="number" value={editVal.sales_target_amount} onChange={e => setEditVal(v => ({ ...v, sales_target_amount: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="เป้าจำนวนชิ้น">
+            <input type="number" value={editVal.sales_target_count} onChange={e => setEditVal(v => ({ ...v, sales_target_count: e.target.value }))} className={inputCls} />
           </Field>
           <Field label="ยอดขายจริง (฿)">
             <input type="number" value={editVal.actual_sales} onChange={e => setEditVal(v => ({ ...v, actual_sales: e.target.value }))} className={inputCls} />
@@ -373,15 +415,17 @@ export default function Sales() {
           <Field label="รับเงินจริง (฿)">
             <input type="number" value={editVal.actual_received} onChange={e => setEditVal(v => ({ ...v, actual_received: e.target.value }))} className={inputCls} />
           </Field>
-          <Field label="สถานะ">
-            <select value={editVal.status} onChange={e => setEditVal(v => ({ ...v, status: e.target.value }))} className={selectCls}>
-              {SALES_STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
-            </select>
-          </Field>
+          <div className="col-span-2">
+            <Field label="สถานะ">
+              <select value={editVal.status} onChange={e => setEditVal(v => ({ ...v, status: e.target.value }))} className={selectCls}>
+                {SALES_STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </Field>
+          </div>
         </div>
         {editError && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{editError}</p>}
         <div className="flex gap-2 mt-6">
-          <button onClick={saveEdit} disabled={savingEdit}
+          <button onClick={saveEdit} disabled={savingEdit || !editVal.product_id || !editVal.period_start || !editVal.period_end}
             className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-indigo-500 transition-colors">
             {savingEdit ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
           </button>

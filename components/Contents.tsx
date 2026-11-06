@@ -63,8 +63,9 @@ const EMPTY_ADD_FORM = {
 }
 
 const EMPTY_EDIT_FORM = {
-  title: '', objective: '', hook: '', format_size: '', deadline: '',
-  assigned_to: '', assigned_to_id: '', status: 'รอผลิต',
+  product_id: '', seq: '', type: 'GRAPHIC', title: '',
+  objective: '', channel: '', hook: '', format_size: '',
+  deadline: '', assigned_to: '', assigned_to_id: '', status: 'รอผลิต',
 }
 
 export default function Contents() {
@@ -146,8 +147,12 @@ export default function Contents() {
   function openEdit(c: any) {
     setEditingRow(c)
     setEditForm({
+      product_id:     c.product_id || '',
+      seq:            String(c.seq ?? ''),
+      type:           c.type || 'GRAPHIC',
       title:          c.title || '',
       objective:      c.objective || '',
+      channel:        c.channel || '',
       hook:           c.hook || '',
       format_size:    c.format_size || '',
       deadline:       c.deadline || '',
@@ -162,8 +167,12 @@ export default function Contents() {
     if (!editingRow) return
     setSavingEdit(true); setEditError('')
     const { error: updErr } = await supabase.from('contents').update({
+      product_id:     editForm.product_id,
+      seq:            Number(editForm.seq) || editingRow.seq,
+      type:           editForm.type,
       title:          editForm.title,
       objective:      editForm.objective,
+      channel:        editForm.channel,
       hook:           editForm.hook,
       format_size:    editForm.format_size,
       deadline:       editForm.deadline || null,
@@ -173,7 +182,7 @@ export default function Contents() {
     }).eq('id', editingRow.id)
     setSavingEdit(false)
     if (updErr) { setEditError(updErr.message); showToast(updErr.message, 'error'); return }
-    setContents(prev => prev.map(c => c.id === editingRow.id ? { ...c, ...editForm } : c))
+    setContents(prev => prev.map(c => c.id === editingRow.id ? { ...c, ...editForm, seq: Number(editForm.seq) || editingRow.seq } : c))
     setEditingRow(null)
     showToast('บันทึกแล้ว')
   }
@@ -444,8 +453,25 @@ export default function Contents() {
       </Modal>
 
       {/* ── EDIT modal ─────────────────────────────────────────── */}
-      <Modal open={!!editingRow} onClose={() => setEditingRow(null)} title={`แก้ไข Content — ${editingRow?.product_id} #${editingRow?.seq}`} width="max-w-xl">
+      <Modal open={!!editingRow} onClose={() => setEditingRow(null)} title={`แก้ไข Content — ${editingRow?.product_id} #${editingRow?.seq}`} width="max-w-2xl">
         <div className="grid grid-cols-2 gap-4">
+          <Field label="Product" required>
+            <select value={editForm.product_id} onChange={e => setEditForm(f => ({ ...f, product_id: e.target.value }))} className={selectCls}>
+              <option value="">เลือก Product</option>
+              {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
+            </select>
+          </Field>
+          <Field label="ลำดับชิ้น (seq)">
+            <input type="number" value={editForm.seq} onChange={e => setEditForm(f => ({ ...f, seq: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="ประเภท" required>
+            <select value={editForm.type} onChange={e => setEditForm(f => ({ ...f, type: e.target.value }))} className={selectCls}>
+              {TYPES.map(t => <option key={t}>{t}</option>)}
+            </select>
+          </Field>
+          <Field label="ช่องทาง">
+            <input placeholder="Facebook, Instagram ฯลฯ" value={editForm.channel} onChange={e => setEditForm(f => ({ ...f, channel: e.target.value }))} className={inputCls} />
+          </Field>
           <div className="col-span-2">
             <Field label="ชื่อ Content" required>
               <input value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} className={inputCls} />
@@ -476,7 +502,7 @@ export default function Contents() {
         </div>
         {editError && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{editError}</p>}
         <div className="flex gap-2 mt-6">
-          <button onClick={saveEdit} disabled={savingEdit || !editForm.title}
+          <button onClick={saveEdit} disabled={savingEdit || !editForm.title || !editForm.product_id}
             className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-indigo-500 transition-colors">
             {savingEdit ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
           </button>

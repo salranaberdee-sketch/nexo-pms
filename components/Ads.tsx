@@ -52,7 +52,13 @@ export default function Ads() {
   const [editingRow, setEditingRow] = useState<any | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError]   = useState('')
-  const [editVal, setEditVal] = useState({ reach: '', clicks: '', leads: '', budget_spent: '', sales_amount: '', result_notes: '' })
+  const [editVal, setEditVal] = useState({
+    product_id: '', month: '', campaign_name: '', channel: '',
+    budget_approved: '', budget_adjustment: '', budget_allocated: '',
+    content_ref: '', managed_by: '', managed_by_id: '',
+    start_date: '', end_date: '', next_action: '',
+    reach: '', clicks: '', leads: '', budget_spent: '', sales_amount: '', result_notes: '',
+  })
 
   const canInsert = useCan('insert', 'ads')
   const canUpdate = useCan('update', 'ads')
@@ -106,12 +112,25 @@ export default function Ads() {
   function openEdit(a: any) {
     setEditingRow(a)
     setEditVal({
-      reach:        String(a.reach ?? 0),
-      clicks:       String(a.clicks ?? 0),
-      leads:        String(a.leads ?? 0),
-      budget_spent: String(a.budget_spent ?? 0),
-      sales_amount: String(a.sales_amount ?? 0),
-      result_notes: a.result_notes || '',
+      product_id:       a.product_id || '',
+      month:            a.month || '',
+      campaign_name:    a.campaign_name || '',
+      channel:          a.channel || '',
+      budget_approved:  String(a.budget_approved ?? 0),
+      budget_adjustment: String(a.budget_adjustment ?? 0),
+      budget_allocated: String(a.budget_allocated ?? 0),
+      content_ref:      a.content_ref || '',
+      managed_by:       a.managed_by || '',
+      managed_by_id:    a.managed_by_id || '',
+      start_date:       a.start_date || '',
+      end_date:         a.end_date || '',
+      next_action:      a.next_action || '',
+      reach:            String(a.reach ?? 0),
+      clicks:           String(a.clicks ?? 0),
+      leads:            String(a.leads ?? 0),
+      budget_spent:     String(a.budget_spent ?? 0),
+      sales_amount:     String(a.sales_amount ?? 0),
+      result_notes:     a.result_notes || '',
     })
     setEditError('')
   }
@@ -121,18 +140,31 @@ export default function Ads() {
     if (!editingRow) return
     setSavingEdit(true); setEditError('')
     const { error: updErr } = await supabase.from('ads').update({
-      reach:        Number(editVal.reach) || 0,
-      clicks:       Number(editVal.clicks) || 0,
-      leads:        Number(editVal.leads) || 0,
-      budget_spent: Number(editVal.budget_spent) || 0,
-      sales_amount: Number(editVal.sales_amount) || 0,
-      result_notes: editVal.result_notes,
+      product_id:        editVal.product_id,
+      month:             editVal.month,
+      campaign_name:     editVal.campaign_name,
+      channel:           editVal.channel,
+      budget_approved:   Number(editVal.budget_approved) || 0,
+      budget_adjustment: Number(editVal.budget_adjustment) || 0,
+      budget_allocated:  Number(editVal.budget_allocated) || 0,
+      content_ref:       editVal.content_ref,
+      managed_by:        editVal.managed_by,
+      managed_by_id:     editVal.managed_by_id || null,
+      start_date:        editVal.start_date || null,
+      end_date:          editVal.end_date || null,
+      next_action:       editVal.next_action,
+      reach:             Number(editVal.reach) || 0,
+      clicks:            Number(editVal.clicks) || 0,
+      leads:             Number(editVal.leads) || 0,
+      budget_spent:      Number(editVal.budget_spent) || 0,
+      sales_amount:      Number(editVal.sales_amount) || 0,
+      result_notes:      editVal.result_notes,
     }).eq('id', editingRow.id)
     setSavingEdit(false)
     if (updErr) { setEditError(updErr.message); return }
     setEditingRow(null)
     await load()   // reload to get updated generated cols (budget_remaining, cpl, roas)
-    showToast('บันทึกผลแล้ว')
+    showToast('บันทึกแคมเปญแล้ว')
   }
 
   // ── Inline manager ────────────────────────────────────────────
@@ -342,37 +374,85 @@ export default function Ads() {
       </Modal>
 
       {/* ── EDIT / บันทึกผล modal ──────────────────────────────── */}
-      <Modal open={!!editingRow} onClose={() => setEditingRow(null)} title={`บันทึกผล — ${editingRow?.campaign_name}`} width="max-w-md">
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Reach (impressions)">
-              <input type="number" value={editVal.reach} onChange={e => setEditVal(v => ({ ...v, reach: e.target.value }))} className={inputCls} />
-            </Field>
-            <Field label="Clicks">
-              <input type="number" value={editVal.clicks} onChange={e => setEditVal(v => ({ ...v, clicks: e.target.value }))} className={inputCls} />
-            </Field>
-            <Field label="Leads">
-              <input type="number" value={editVal.leads} onChange={e => setEditVal(v => ({ ...v, leads: e.target.value }))} className={inputCls} />
-            </Field>
-            <Field label="ใช้จ่ายจริง (฿)">
-              <input type="number" value={editVal.budget_spent} onChange={e => setEditVal(v => ({ ...v, budget_spent: e.target.value }))} className={inputCls} />
+      <Modal open={!!editingRow} onClose={() => setEditingRow(null)} title={`แก้ไขแคมเปญ — ${editingRow?.campaign_name}`} width="max-w-2xl">
+        <div className="grid grid-cols-2 gap-4">
+          {/* ── ข้อมูลแคมเปญ ── */}
+          <Field label="Product" required>
+            <select value={editVal.product_id} onChange={e => setEditVal(v => ({ ...v, product_id: e.target.value }))} className={selectCls}>
+              <option value="">เลือก Product</option>
+              {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
+            </select>
+          </Field>
+          <Field label="เดือน" hint="รูปแบบ YYYY-MM เช่น 2026-11" required>
+            <input placeholder="2026-11" value={editVal.month} onChange={e => setEditVal(v => ({ ...v, month: e.target.value }))} className={inputCls} />
+          </Field>
+          <div className="col-span-2">
+            <Field label="ชื่อแคมเปญ" required>
+              <input placeholder="ชื่อแคมเปญ" value={editVal.campaign_name} onChange={e => setEditVal(v => ({ ...v, campaign_name: e.target.value }))} className={inputCls} />
             </Field>
           </div>
+          <Field label="ช่องทาง">
+            <input placeholder="Facebook, Instagram ฯลฯ" value={editVal.channel} onChange={e => setEditVal(v => ({ ...v, channel: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="อ้างอิง Content">
+            <input placeholder="ชื่อ content ที่ใช้" value={editVal.content_ref} onChange={e => setEditVal(v => ({ ...v, content_ref: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="งบที่อนุมัติ (฿)">
+            <input type="number" placeholder="0" value={editVal.budget_approved} onChange={e => setEditVal(v => ({ ...v, budget_approved: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="ปรับงบเพิ่มเติม (฿)">
+            <input type="number" placeholder="0" value={editVal.budget_adjustment} onChange={e => setEditVal(v => ({ ...v, budget_adjustment: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="งบจัดสรร (฿)">
+            <input type="number" placeholder="0" value={editVal.budget_allocated} onChange={e => setEditVal(v => ({ ...v, budget_allocated: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="ผู้ดูแล">
+            <ProfilePicker value={editVal.managed_by_id} profiles={profileOptions}
+              onChange={(id, name) => setEditVal(v => ({ ...v, managed_by_id: id, managed_by: name }))} placeholder="เลือกผู้ดูแล" />
+          </Field>
+          <Field label="วันเริ่มต้น">
+            <input type="date" value={editVal.start_date} onChange={e => setEditVal(v => ({ ...v, start_date: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="วันสิ้นสุด">
+            <input type="date" value={editVal.end_date} onChange={e => setEditVal(v => ({ ...v, end_date: e.target.value }))} className={inputCls} />
+          </Field>
+
+          {/* ── ผลลัพธ์ ── */}
+          <div className="col-span-2 border-t border-slate-100 pt-4 mt-1">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">ผลลัพธ์แคมเปญ</p>
+          </div>
+          <Field label="Reach (impressions)">
+            <input type="number" value={editVal.reach} onChange={e => setEditVal(v => ({ ...v, reach: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="Clicks">
+            <input type="number" value={editVal.clicks} onChange={e => setEditVal(v => ({ ...v, clicks: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="Leads">
+            <input type="number" value={editVal.leads} onChange={e => setEditVal(v => ({ ...v, leads: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="ใช้จ่ายจริง (฿)">
+            <input type="number" value={editVal.budget_spent} onChange={e => setEditVal(v => ({ ...v, budget_spent: e.target.value }))} className={inputCls} />
+          </Field>
           <Field label="ยอดขายที่ได้จากแคมเปญ (฿)">
             <input type="number" value={editVal.sales_amount} onChange={e => setEditVal(v => ({ ...v, sales_amount: e.target.value }))} className={inputCls} />
           </Field>
-          <Field label="หมายเหตุผล">
-            <input value={editVal.result_notes} onChange={e => setEditVal(v => ({ ...v, result_notes: e.target.value }))} className={inputCls} />
+          <Field label="แผนถัดไป (Next Action)">
+            <input placeholder="แผนการดำเนินงานถัดไป" value={editVal.next_action} onChange={e => setEditVal(v => ({ ...v, next_action: e.target.value }))} className={inputCls} />
           </Field>
-          <div className="bg-slate-50 rounded-xl px-4 py-3 text-xs text-slate-500">
+          <div className="col-span-2">
+            <Field label="หมายเหตุผล">
+              <input placeholder="หมายเหตุเพิ่มเติม" value={editVal.result_notes} onChange={e => setEditVal(v => ({ ...v, result_notes: e.target.value }))} className={inputCls} />
+            </Field>
+          </div>
+          <div className="col-span-2 bg-slate-50 rounded-xl px-4 py-3 text-xs text-slate-500">
             CPL และ ROAS จะคำนวณอัตโนมัติหลังบันทึก
           </div>
         </div>
         {editError && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{editError}</p>}
         <div className="flex gap-2 mt-6">
-          <button onClick={saveEdit} disabled={savingEdit}
+          <button onClick={saveEdit} disabled={savingEdit || !editVal.product_id || !editVal.campaign_name || !editVal.month}
             className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-indigo-500 transition-colors">
-            {savingEdit ? 'กำลังบันทึก...' : 'บันทึกผล'}
+            {savingEdit ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
           </button>
           <button onClick={() => setEditingRow(null)} className="px-5 py-2.5 text-sm text-slate-500 rounded-xl hover:bg-slate-100 transition-colors">ยกเลิก</button>
         </div>
