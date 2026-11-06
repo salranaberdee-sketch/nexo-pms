@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase'
 import { useCan } from '@/lib/profile-context'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState, todayStr } from './TableState'
-import StatusSelect from './StatusSelect'
 import { showToast } from './Toast'
 import Modal, { Field } from './Modal'
 
@@ -210,6 +209,19 @@ export default function Sales() {
 
   const headers = ['Product', 'ชื่อสินค้า', 'ช่วงเวลา', 'เป้ายอดขาย', 'ยอดจริง', 'รับเงินจริง', 'ยังขาด', '% สำเร็จ', 'สถานะ', '']
 
+  // Status filter
+  const [filterStatus, setFilterStatus] = useState('all')
+
+  const countByStatus = useMemo(
+    () => SALES_STATUS_OPTIONS.reduce((acc, s) => ({ ...acc, [s]: sales.filter(r => r.status === s).length }), {} as Record<string, number>),
+    [sales],
+  )
+
+  const filteredAndSearched = useMemo(() => {
+    let list = filterStatus === 'all' ? filtered : filtered.filter(s => s.status === filterStatus)
+    return list
+  }, [filtered, filterStatus])
+
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-5">
 
@@ -263,11 +275,27 @@ export default function Sales() {
         </div>
       </div>
 
+      {/* Status filter pills */}
+      <div className="flex gap-2 flex-wrap items-center">
+        <button onClick={() => setFilterStatus('all')}
+          className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors border
+            ${filterStatus === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+          ทั้งหมด <span className="ml-1 opacity-60">{sales.length}</span>
+        </button>
+        {SALES_STATUS_OPTIONS.map(s => (
+          <button key={s} onClick={() => setFilterStatus(filterStatus === s ? 'all' : s)}
+            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors border
+              ${filterStatus === s ? salesStatusStyle[s] + ' border-current/20' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+            {s} <span className="ml-1 tabular-nums opacity-60">{countByStatus[s] || 0}</span>
+          </button>
+        ))}
+      </div>
+
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
         <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3">
           <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาด้วย Product ID หรือชื่อสินค้า..." />
-          <span className="text-xs text-slate-400 whitespace-nowrap">{filtered.length} รายการ</span>
+          <span className="text-xs text-slate-400 whitespace-nowrap">{filteredAndSearched.length} รายการ</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -281,9 +309,9 @@ export default function Sales() {
             <tbody>
               {loading ? (
                 <TableSkeleton cols={headers.length} />
-              ) : filtered.length === 0 ? (
+              ) : filteredAndSearched.length === 0 ? (
                 <EmptyState message="ยังไม่มีเป้ายอดขาย" />
-              ) : filtered.map(s => {
+              ) : filteredAndSearched.map(s => {
                 const product = productMap.get(s.product_id)
                 const target  = Number(s.sales_target_amount)
                 const actual  = Number(s.actual_sales)
@@ -326,8 +354,28 @@ export default function Sales() {
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <StatusSelect value={s.status} options={SALES_STATUS_OPTIONS} styleMap={salesStatusStyle}
-                        disabled={!canUpdate} onChange={v => updateStatus(s.id, v)} />
+                      {canUpdate ? (
+                        <div className="flex gap-1 flex-wrap">
+                          {SALES_STATUS_OPTIONS.map(opt => (
+                            <button
+                              key={opt}
+                              onClick={() => s.status !== opt && updateStatus(s.id, opt)}
+                              title={opt}
+                              className={`text-xs font-medium px-2.5 py-1 rounded-lg border transition-all
+                                ${s.status === opt
+                                  ? salesStatusStyle[opt] + ' border-current/20 shadow-sm scale-105'
+                                  : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                                }`}
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className={`text-xs font-medium px-2.5 py-1 rounded-lg ${salesStatusStyle[s.status] || 'bg-slate-100 text-slate-400'}`}>
+                          {s.status}
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
                       {canUpdate ? (
