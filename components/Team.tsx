@@ -10,27 +10,10 @@ import { showToast } from './Toast'
 
 const ROLES = ['admin', 'manager', 'editor', 'viewer']
 
-// approval_status values that admin can assign directly via dropdown.
-// Maps to the profiles.approval_status CHECK constraint.
-const APPROVAL_OPTIONS = ['pending', 'approved', 'rejected']
-
-const approvalStyle: Record<string, string> = {
-  pending:  'bg-amber-50 text-amber-700',
-  approved: 'bg-emerald-50 text-emerald-700',
-  rejected: 'bg-red-50 text-red-600',
-}
-
 const approvalLabel: Record<string, string> = {
   pending:  'รออนุมัติ',
   approved: 'อนุมัติแล้ว',
   rejected: 'ปฏิเสธ',
-}
-
-// StyleMap uses English keys to match DB values.
-const approvalStyleMap: Record<string, string> = {
-  pending:  'bg-amber-50 text-amber-700',
-  approved: 'bg-emerald-50 text-emerald-700',
-  rejected: 'bg-red-50 text-red-600',
 }
 
 const roleStyle: Record<string, string> = {
@@ -40,16 +23,12 @@ const roleStyle: Record<string, string> = {
   viewer:  'bg-slate-100 text-slate-500',
 }
 
-// Map DB value → Thai label for the StatusSelect display.
-// StatusSelect uses the raw value as both key and display label —
-// so we need a thin wrapper that converts to/from Thai labels.
 const APPROVAL_DISPLAY_OPTIONS = ['รออนุมัติ', 'อนุมัติแล้ว', 'ปฏิเสธ']
 const approvalDisplayStyle: Record<string, string> = {
   'รออนุมัติ':  'bg-amber-50 text-amber-700',
   'อนุมัติแล้ว': 'bg-emerald-50 text-emerald-700',
   'ปฏิเสธ':    'bg-red-50 text-red-600',
 }
-// Thai → DB value
 const thaiToApproval: Record<string, string> = {
   'รออนุมัติ':  'pending',
   'อนุมัติแล้ว': 'approved',
@@ -64,16 +43,34 @@ export default function Team() {
   const [error, setError] = useState('')
   // Two-step confirm before suspending (downgrading to rejected) an approved user.
   const [confirmSuspend, setConfirmSuspend] = useState<string | null>(null)
+
+  // Brand access management state
+  const [allBrands, setAllBrands] = useState<string[]>([])
+  const [editingBrandAccess, setEditingBrandAccess] = useState<string | null>(null) // profile id
+  const [brandAccessDraft, setBrandAccessDraft] = useState<string[]>([])
+  const [savingBrandAccess, setSavingBrandAccess] = useState(false)
+
   const supabase = createClient()
   const me = useProfile()
 
   async function load() {
-    // Select only columns displayed in the table — skips brand_access, approved_by, updated_at.
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, name, email, role, approval_status, approved_at, created_at')
-      .order('created_at', { ascending: false })
-    setProfiles(data || [])
+    const [profileRes, brandRes] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, name, email, role, approval_status, approved_at, created_at, brand_access')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('products')
+        .select('brand')
+        .not('brand', 'is', null)
+        .neq('brand', ''),
+    ])
+    setProfiles(profileRes.data || [])
+    // Deduplicate brands
+    const rawBrands = (brandRes.data || []).map((r: any) => String(r.brand))
+    const uniqueBrands = new Set<string>(rawBrands)
+    const brands: string[] = [...uniqueBrands].sort()
+    setAllBrands(brands)
     setLoading(false)
   }
 
@@ -120,6 +117,37 @@ export default function Team() {
     } else {
       showToast('เปลี่ยน role แล้ว')
     }
+  }
+
+  // ── Brand Access ──────────────────────────────────────────────
+  function openBrandAccess(profileId: string, currentAccess: string[]) {
+    setEditingBrandAccess(profileId)
+    setBrandAccessDraft(currentAccess || [])
+  }
+
+  function toggleBrand(brand: string) {
+    setBrandAccessDraft(prev =>
+      prev.includes(brand) ? prev.filter(b => b !== brand) : [...prev, brand],
+    )
+  }
+
+  async function saveBrandAccess() {
+    if (!editingBrandAccess) return
+    setSavingBrandAccess(true)
+    const { error: updErr } = await supabase
+      .from('profiles')
+      .update({ brand_access: brandAccessDraft })
+      .eq('id', editingBrandAccess)
+    setSavingBrandAccess(false)
+    if (updErr) {
+      showToast(updErr.message, 'error')
+      return
+    }
+    setProfiles(prev => prev.map(p =>
+      p.id === editingBrandAccess ? { ...p, brand_access: brandAccessDraft } : p,
+    ))
+    setEditingBrandAccess(null)
+    showToast('บันทึกสิทธิ์ Brand แล้ว')
   }
 
   const pendingCount  = useMemo(() => profiles.filter(p => p.approval_status === 'pending').length, [profiles])
@@ -213,14 +241,14 @@ export default function Team() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100">
-                {['ชื่อ', 'อีเมล', 'บทบาท', 'สถานะ', 'วันที่สมัคร'].map(h => (
+                {['ชื่อ', 'อีเมล', 'บทบาท', 'สิทธิ์ Brand', 'สถานะ', 'วันที่สมัคร'].map(h => (
                   <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 whitespace-nowrap uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <TableSkeleton cols={5} />
+                <TableSkeleton cols={6} />
               ) : filtered.length === 0 ? (
                 <EmptyState message="ไม่พบสมาชิกที่ตรงเงื่อนไข" />
               ) : filtered.map(p => {
@@ -260,7 +288,7 @@ export default function Team() {
                         )}
                       </div>
                     </td>
-                    {/* Approval status — inline StatusSelect (replaces badge + action buttons) */}
+                    {/* Approval status */}
                     <td className="px-5 py-4">
                       <StatusSelect
                         value={displayApproval}
@@ -270,7 +298,31 @@ export default function Team() {
                         onChange={v => changeApproval(p.id, v)}
                       />
                     </td>
-                    {/* Date */}
+
+                    {/* Brand Access — only meaningful for editor role */}
+                    <td className="px-5 py-4">
+                      {p.role === 'editor' ? (
+                        <button
+                          type="button"
+                          onClick={() => openBrandAccess(p.id, p.brand_access || [])}
+                          className="flex items-center gap-1.5"
+                        >
+                          {(p.brand_access || []).length === 0 ? (
+                            <span className="text-xs text-red-400 bg-red-50 border border-red-100 px-2 py-1 rounded-lg font-medium hover:bg-red-100 transition-colors">
+                              ไม่มีสิทธิ์ — ตั้งค่า
+                            </span>
+                          ) : (
+                            <span className="text-xs text-teal-700 bg-teal-50 border border-teal-100 px-2 py-1 rounded-lg font-medium hover:bg-teal-100 transition-colors">
+                              {(p.brand_access || []).length} brand
+                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="inline ml-1 opacity-60"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </span>
+                          )}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-300">—</span>
+                      )}
+                    </td>
+
                     <td className="px-5 py-4 text-sm text-slate-400 whitespace-nowrap">
                       {p.created_at
                         ? new Date(p.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })
@@ -283,6 +335,99 @@ export default function Team() {
           </table>
         </div>
       </div>
+
+      {/* ── Brand Access Modal ──────────────────────────────────── */}
+      {editingBrandAccess && (() => {
+        const target = profiles.find(p => p.id === editingBrandAccess)
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}>
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-900">กำหนดสิทธิ์ Brand</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    <span className="font-medium text-slate-600">{target?.name}</span>
+                    {' — editor เห็นเฉพาะ product/content ของ brand ที่เลือก'}
+                  </p>
+                </div>
+                <button onClick={() => setEditingBrandAccess(null)} className="text-slate-300 hover:text-slate-600 transition-colors p-1">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+
+              {/* Brand checklist */}
+              <div className="px-6 py-4 space-y-2">
+                {allBrands.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-4">ยังไม่มีข้อมูล Brand ในระบบ</p>
+                ) : allBrands.map(brand => {
+                  const checked = brandAccessDraft.includes(brand)
+                  return (
+                    <label
+                      key={brand}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-colors
+                        ${checked
+                          ? 'bg-teal-50 border-teal-200 text-teal-800'
+                          : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50'
+                        }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleBrand(brand)}
+                        className="w-4 h-4 rounded accent-teal-600 shrink-0"
+                      />
+                      <span className="text-sm font-medium flex-1">{brand}</span>
+                      {checked && (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-teal-600 shrink-0">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      )}
+                    </label>
+                  )
+                })}
+              </div>
+
+              {/* Summary */}
+              <div className="px-6 pb-2">
+                {brandAccessDraft.length === 0 ? (
+                  <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-red-500 shrink-0">
+                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <p className="text-xs text-red-600">ไม่เลือก Brand ใดเลย — editor จะมองไม่เห็นข้อมูลใดๆ</p>
+                  </div>
+                ) : (
+                  <div className="px-3 py-2.5 bg-teal-50 border border-teal-100 rounded-xl">
+                    <p className="text-xs text-teal-700">
+                      เข้าถึงได้: <span className="font-semibold">{brandAccessDraft.join(', ')}</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 px-6 py-4">
+                <button
+                  onClick={saveBrandAccess}
+                  disabled={savingBrandAccess}
+                  className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-indigo-500 transition-colors"
+                >
+                  {savingBrandAccess ? 'กำลังบันทึก...' : 'บันทึกสิทธิ์'}
+                </button>
+                <button
+                  onClick={() => setEditingBrandAccess(null)}
+                  className="px-5 py-2.5 text-sm text-slate-500 rounded-xl hover:bg-slate-100 transition-colors"
+                >
+                  ยกเลิก
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
