@@ -78,7 +78,7 @@ export default function Sales() {
     setLoadError('')
     const [s, p] = await Promise.all([
       supabase.from('sales').select('id, product_id, period_start, period_end, sales_target_amount, sales_target_count, actual_sales, actual_received, status').order('product_id'),
-      supabase.from('products').select('product_id, name, status'),
+      supabase.from('products').select('product_id, name, status, business_type, product_type, brand'),
     ])
     if (s.error) { setLoadError(s.error.message); setLoading(false); return }
     setSales(s.data || [])
@@ -181,6 +181,25 @@ export default function Sales() {
     [products],
   )
 
+  // Category (business_type) filter
+  const [filterCategory, setFilterCategory] = useState('all')
+  const allCategories = useMemo(
+    () => [...new Set(products.map(p => p.business_type).filter(Boolean))].sort() as string[],
+    [products],
+  )
+
+  // Per-category aggregation for summary cards
+  const categoryStats = useMemo(() => {
+    return allCategories.map(cat => {
+      const catProductIds = products.filter(p => p.business_type === cat).map(p => p.product_id)
+      const catSales = sales.filter(s => catProductIds.includes(s.product_id))
+      const target = catSales.reduce((sum, r) => sum + Number(r.sales_target_amount), 0)
+      const actual = catSales.reduce((sum, r) => sum + Number(r.actual_sales), 0)
+      const pct = target > 0 ? Math.round((actual / target) * 100) : 0
+      return { cat, target, actual, pct, count: catProductIds.length }
+    })
+  }, [allCategories, products, sales])
+
   const { daysLeft, periodEnd } = useMemo(() => {
     const ends = sales.map(r => r.period_end).filter(Boolean).sort()
     const futureEnds = ends.filter(e => e >= TODAY)
@@ -199,15 +218,20 @@ export default function Sales() {
   const perDay      = daysLeft > 0 && gap > 0 ? Math.round(gap / daysLeft) : 0
 
   const filtered = useMemo(() => {
-    if (!search) return sales
+    let list = sales
+    if (filterCategory !== 'all') {
+      const catIds = products.filter(p => p.business_type === filterCategory).map(p => p.product_id)
+      list = list.filter(s => catIds.includes(s.product_id))
+    }
+    if (!search) return list
     const q = search.toLowerCase()
-    return sales.filter(s => {
+    return list.filter(s => {
       const product = productMap.get(s.product_id)
-      return s.product_id.toLowerCase().includes(q) || (product?.name || '').toLowerCase().includes(q)
+      return s.product_id.toLowerCase().includes(q)
+        || (product?.name || '').toLowerCase().includes(q)
+        || (product?.business_type || '').toLowerCase().includes(q)
     })
-  }, [sales, search, productMap])
-
-  const headers = ['Product', 'ชื่อสินค้า', 'ช่วงเวลา', 'เป้ายอดขาย', 'ยอดจริง', 'รับเงินจริง', 'ยังขาด', '% สำเร็จ', 'สถานะ', '']
+  }, [sales, search, productMap, filterCategory, products])
 
   // Status filter
   const [filterStatus, setFilterStatus] = useState('all')
@@ -218,9 +242,10 @@ export default function Sales() {
   )
 
   const filteredAndSearched = useMemo(() => {
-    let list = filterStatus === 'all' ? filtered : filtered.filter(s => s.status === filterStatus)
-    return list
+    return filterStatus === 'all' ? filtered : filtered.filter(s => s.status === filterStatus)
   }, [filtered, filterStatus])
+
+  const headers = ['Product', 'ชื่อสินค้า', 'หมวดหมู่', 'ช่วงเวลา', 'เป้ายอดขาย', 'ยอดจริง', 'รับเงินจริง', 'ยังขาด', '% สำเร็จ', 'สถานะ', '']
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-5">
@@ -275,6 +300,53 @@ export default function Sales() {
         </div>
       </div>
 
+      {/* Category summary cards */}
+      {categoryStats.length > 0 && (
+        <div className={`grid gap-3 ${categoryStats.length <= 2 ? 'grid-cols-2' : categoryStats.length === 3 ? 'grid-cols-3' : 'grid-cols-2 lg:grid-cols-4'}`}>
+          {categoryStats.map(({ cat, target, actual, pct }, i) => {
+            const colors = ['#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#3b82f6', '#f43f5e']
+            const color = colors[i % colors.length]
+            const isActive = filterCategory === cat
+            return (
+              <button key={cat} type="button"
+                onClick={() => setFilterCategory(isActive ? 'all' : cat)}
+                className={`text-left bg-white rounded-2xl border p-4 shadow-sm relative overflow-hidden transition-all hover:shadow-md
+                  ${isActive ? 'border-indigo-300 ring-2 ring-indigo-100' : 'border-slate-100'}`}>
+                <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: color }} />
+                <p className="text-xs text-slate-400 mb-2 mt-0.5 truncate">{cat}</p>
+                <p className="text-xl font-bold text-slate-900 leading-none">฿{actual.toLocaleString()}</p>
+                <div className="mt-2.5">
+                  <div className="w-full h-1.5 rounded-full overflow-hidden bg-slate-100">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: color }} />
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">{pct}% ของเป้า ฿{target.toLocaleString()}</p>
+                </div>
+                {isActive && <p className="text-[10px] mt-1.5" style={{ color }}>กำลังกรอง ✓</p>}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Category filter bar (เมื่อมีหมวดหมู่) */}
+      {allCategories.length > 1 && (
+        <div className="flex gap-2 flex-wrap items-center">
+          <span className="text-xs text-slate-400 font-medium shrink-0">หมวดหมู่:</span>
+          <button onClick={() => setFilterCategory('all')}
+            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border
+              ${filterCategory === 'all' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+            ทั้งหมด
+          </button>
+          {allCategories.map(cat => (
+            <button key={cat} onClick={() => setFilterCategory(filterCategory === cat ? 'all' : cat)}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border
+                ${filterCategory === cat ? 'bg-slate-700 text-white border-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+              {cat}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Status filter pills */}
       <div className="flex gap-2 flex-wrap items-center">
         <button onClick={() => setFilterStatus('all')}
@@ -322,7 +394,13 @@ export default function Sales() {
                 return (
                   <tr key={s.id} className="border-b border-slate-100/60 hover:bg-indigo-50/20 transition-colors last:border-0">
                     <td className="px-5 py-4 font-mono text-xs font-medium text-slate-500">{s.product_id}</td>
-                    <td className="px-5 py-4 font-semibold text-slate-900 max-w-[180px] truncate">{product?.name}</td>
+                    <td className="px-5 py-4 font-semibold text-slate-900 max-w-[160px] truncate">{product?.name}</td>
+                    {/* Category */}
+                    <td className="px-5 py-4">
+                      {product?.business_type ? (
+                        <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{product.business_type}</span>
+                      ) : <span className="text-xs text-slate-300">—</span>}
+                    </td>
                     {/* Period */}
                     <td className="px-5 py-4 whitespace-nowrap">
                       <div className="text-xs text-slate-500">

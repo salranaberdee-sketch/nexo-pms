@@ -164,20 +164,36 @@ export default function Products() {
 
   const pidInvalid = !editingId && form.product_id !== '' && !PID_RE.test(form.product_id)
 
+  // Derived category lists
+  const allBusinessTypes = useMemo(
+    () => [...new Set(products.map(p => p.business_type).filter(Boolean))].sort(),
+    [products],
+  )
+
+  const [filterCategory, setFilterCategory] = useState('all') // business_type filter
+
   const countByStatus = useMemo(
     () => STATUS_OPTIONS.reduce((acc, s) => ({ ...acc, [s]: products.filter(p => p.status === s).length }), {} as Record<string, number>),
     [products],
   )
 
+  const countByCategory = useMemo(
+    () => allBusinessTypes.reduce((acc, bt) => ({ ...acc, [bt]: products.filter(p => p.business_type === bt).length }), {} as Record<string, number>),
+    [products, allBusinessTypes],
+  )
+
   const filtered = useMemo(() => {
-    let list = filterStatus === 'all' ? products : products.filter(p => p.status === filterStatus)
+    let list = products
+    if (filterStatus !== 'all')   list = list.filter(p => p.status === filterStatus)
+    if (filterCategory !== 'all') list = list.filter(p => p.business_type === filterCategory)
     if (!search) return list
     const q = search.toLowerCase()
     return list.filter(p =>
       (p.product_id || '').toLowerCase().includes(q) || (p.name || '').toLowerCase().includes(q)
-      || (p.brand || '').toLowerCase().includes(q) || (p.owner || '').toLowerCase().includes(q),
+      || (p.brand || '').toLowerCase().includes(q) || (p.owner || '').toLowerCase().includes(q)
+      || (p.business_type || '').toLowerCase().includes(q) || (p.product_type || '').toLowerCase().includes(q),
     )
-  }, [products, search, filterStatus])
+  }, [products, search, filterStatus, filterCategory])
 
   const deleteTarget = confirmDelete !== null ? products.find(p => p.id === confirmDelete) : null
   const headers = ['Product ID', 'ชื่อสินค้า', 'ประเภท', 'แบรนด์', 'ผู้รับผิดชอบ', 'สถานะ', 'หมายเหตุ', '']
@@ -221,6 +237,28 @@ export default function Products() {
           </button>
         ))}
       </div>
+
+      {/* Category (business_type) filter pills */}
+      {allBusinessTypes.length > 0 && (
+        <div className="flex gap-2 flex-wrap items-center">
+          <span className="text-xs text-slate-400 font-medium shrink-0">หมวดหมู่:</span>
+          <button onClick={() => setFilterCategory('all')}
+            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border
+              ${filterCategory === 'all' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+            ทั้งหมด
+          </button>
+          {allBusinessTypes.map(bt => (
+            <button key={bt} onClick={() => setFilterCategory(filterCategory === bt ? 'all' : bt)}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border
+                ${filterCategory === bt ? 'bg-slate-700 text-white border-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+              {bt} <span className="ml-1 opacity-60">{countByCategory[bt] || 0}</span>
+            </button>
+          ))}
+          {filterCategory !== 'all' && (
+            <button onClick={() => setFilterCategory('all')} className="text-xs text-slate-400 hover:text-slate-700 px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors">✕</button>
+          )}
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
