@@ -7,29 +7,35 @@ import { useProfile } from '@/lib/profile-context'
 import { EmptyState } from './TableState'
 import { showToast } from './Toast'
 
+const TODAY = new Date().toISOString().split('T')[0]
+const TODAY_MS = new Date(TODAY).getTime()
+const SOON_DAYS = 3
+
 export default function Dashboard() {
   const [products, setProducts] = useState<any[]>([])
   const [sales, setSales] = useState<any[]>([])
   const [contents, setContents] = useState<any[]>([])
   const [ads, setAds] = useState<any[]>([])
+  const [profiles, setProfiles] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [expandedPerson, setExpandedPerson] = useState<string | null>(null)
   const profile = useProfile()
   const supabase = createClient()
 
   async function load(silent = false) {
     if (!silent) setRefreshing(true)
     setLoadError('')
-    const [p, s, c, a] = await Promise.all([
+    const [p, s, c, a, pr] = await Promise.all([
       supabase.from('products').select('id, product_id, name, brand, status, owner_id'),
       supabase.from('sales').select('product_id, sales_target_amount, actual_sales'),
-      supabase.from('contents').select('product_id, status, assigned_to_id'),
-      supabase.from('ads').select('budget_total, budget_spent, leads, managed_by_id'),
+      supabase.from('contents').select('id, product_id, seq, title, status, assigned_to_id, assigned_to, deadline'),
+      supabase.from('ads').select('id, campaign_name, product_id, month, budget_total, budget_spent, leads, managed_by_id, managed_by'),
+      supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
     ])
-    // Surface first error encountered
-    const err = p.error || s.error || c.error || a.error
+    const err = p.error || s.error || c.error || a.error || pr.error
     if (err) {
       setLoadError(err.message)
       setRefreshing(false)
@@ -40,6 +46,7 @@ export default function Dashboard() {
     setSales(s.data || [])
     setContents(c.data || [])
     setAds(a.data || [])
+    setProfiles(pr.data || [])
     setLastUpdated(new Date())
     setLoading(false)
     setRefreshing(false)
@@ -48,7 +55,6 @@ export default function Dashboard() {
 
   useEffect(() => { load(true) }, [])
 
-  // O(1) lookup maps
   const salesByProduct = useMemo(
     () => new Map(sales.map(s => [s.product_id, s])),
     [sales],
@@ -64,14 +70,73 @@ export default function Dashboard() {
   )
 
   // KPI aggregations
-  const totalBudget  = useMemo(() => ads.reduce((s, r) => s + Number(r.budget_total ?? 0), 0), [ads])
-  const totalSpent   = useMemo(() => ads.reduce((s, r) => s + Number(r.budget_spent), 0), [ads])
-  const totalTarget  = useMemo(() => sales.reduce((s, r) => s + Number(r.sales_target_amount), 0), [sales])
-  const totalActual  = useMemo(() => sales.reduce((s, r) => s + Number(r.actual_sales), 0), [sales])
-  const totalLeads   = useMemo(() => ads.reduce((s, r) => s + Number(r.leads), 0), [ads])
-  const contentDone  = useMemo(() => contents.filter(c => c.status === 'โพสต์แล้ว').length, [contents])
-  const contentWait  = useMemo(() => contents.filter(c => c.status === 'รอผลิต').length, [contents])
+  const totalBudget = useMemo(() => ads.reduce((s, r) => s + Number(r.budget_total ?? 0), 0), [ads])
+  const totalSpent  = useMemo(() => ads.reduce((s, r) => s + Number(r.budget_spent), 0), [ads])
+  const totalTarget = useMemo(() => sales.reduce((s, r) => s + Number(r.sales_target_amount), 0), [sales])
+  const totalActual = useMemo(() => sales.reduce((s, r) => s + Number(r.actual_sales), 0), [sales])
+  const totalLeads  = useMemo(() => ads.reduce((s, r) => s + Number(r.leads), 0), [ads])
+  const contentDone = useMemo(() => contents.filter(c => c.status === 'โพสต์แล้ว').length, [contents])
+  const contentWait = useMemo(() => contents.filter(c => c.status === 'รอผลิต').length, [contents])
   const pct = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0
+
+  // ── Per-person work tracking ──────────────────────────────────
+  const teamWorkload = useMemo(() => {
+    // Build map: profileId → { person info, contents[], ads[], products[] }
+    const map = new Map<string, {
+      id: string; name: string; role: string
+      contents: any[]; ads: any[]; products: any[]
+    }>()
+
+    function ensure(id: string, name: string, role: string) {
+      if (!map.has(id)) map.set(id, { id, name, role, contents: [], ads: [], products: [] })
+      return map.get(id)!
+    }
+
+    contents.forEach(c => {
+      if (!c.assigned_to_id) return
+      const prof = profiles.find(p => p.id === c.assigned_to_id)
+      const entry = ensure(c.assigned_to_id, c.assigned_to || prof?.name || '?', prof?.role || '')
+      entry.contents.push(c)
+    })
+
+    ads.forEach(a => {
+      if (!a.managed_by_id) return
+      const prof = profiles.find(p => p.id === a.managed_by_id)
+      const entry = ensure(a.managed_by_id, a.managed_by || prof?.name || '?', prof?.role || '')
+      entry.ads.push(a)
+    })
+
+    products.forEach(p => {
+      if (!p.owner_id) return
+      const prof = profiles.find(pr => pr.id === p.owner_id)
+      const entry = ensure(p.owner_id, prof?.name || '?', prof?.role || '')
+      entry.products.push(p)
+    })
+
+    // Compute deadline stats per person
+    return Array.from(map.values()).map(person => {
+      const activeContents = person.contents.filter(c => c.status !== 'โพสต์แล้ว')
+      const overdueContents = activeContents.filter(c => c.deadline && c.deadline < TODAY)
+      const soonContents = activeContents.filter(c => {
+        if (!c.deadline || c.deadline < TODAY) return false
+        const days = Math.round((new Date(c.deadline).getTime() - TODAY_MS) / 86400000)
+        return days <= SOON_DAYS
+      })
+      const doneContents = person.contents.filter(c => c.status === 'โพสต์แล้ว')
+      return {
+        ...person,
+        totalTasks: person.contents.length + person.ads.length + person.products.length,
+        overdueCount: overdueContents.length,
+        soonCount: soonContents.length,
+        doneCount: doneContents.length,
+        activeCount: activeContents.length,
+        overdueContents,
+        soonContents,
+        activeContents,
+        doneContents,
+      }
+    }).sort((a, b) => b.overdueCount - a.overdueCount || b.totalTasks - a.totalTasks)
+  }, [contents, ads, products, profiles])
 
   // "งานของฉัน"
   const myTasks = useMemo(() => {
@@ -94,6 +159,15 @@ export default function Dashboard() {
     'เตรียมเปิดตัว': 'bg-amber-50 text-amber-700',
     'กำลังพัฒนา':   'bg-blue-50 text-blue-700',
     'หยุดขาย':       'bg-slate-100 text-slate-400',
+  }
+
+  const contentStatusStyle: Record<string, string> = {
+    'รอผลิต':      'bg-slate-100 text-slate-500',
+    'ผลิตอยู่':     'bg-blue-50 text-blue-700',
+    'รออนุมัติ':   'bg-amber-50 text-amber-700',
+    'อนุมัติแล้ว': 'bg-purple-50 text-purple-700',
+    'กำหนดโพสต์': 'bg-orange-50 text-orange-700',
+    'โพสต์แล้ว':  'bg-emerald-50 text-emerald-700',
   }
 
   const updatedLabel = lastUpdated
@@ -152,16 +226,211 @@ export default function Dashboard() {
           accent="violet" icon="edit" />
       </div>
 
+      {/* ── Team Workload ─────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">ภาระงานทีม</h2>
+            <p className="text-xs text-slate-400 mt-0.5">กดที่ชื่อเพื่อดูรายละเอียดงาน</p>
+          </div>
+          <span className="text-xs text-slate-400">{teamWorkload.length} คน</span>
+        </div>
+
+        {teamWorkload.length === 0 ? (
+          <div className="px-5 py-8 text-center text-sm text-slate-400">ยังไม่มีการมอบหมายงาน</div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {teamWorkload.map(person => {
+              const isExpanded = expandedPerson === person.id
+              const hasOverdue = person.overdueCount > 0
+              const hasSoon = person.soonCount > 0
+
+              return (
+                <div key={person.id}>
+                  {/* Person row */}
+                  <button
+                    type="button"
+                    onClick={() => setExpandedPerson(isExpanded ? null : person.id)}
+                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors text-left"
+                  >
+                    {/* Avatar */}
+                    <span className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0
+                      ${hasOverdue ? 'bg-red-100 text-red-600' : hasSoon ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                      {person.name[0].toUpperCase()}
+                    </span>
+
+                    {/* Name + role */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-slate-900">{person.name}</span>
+                        <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">{person.role}</span>
+                        {hasOverdue && (
+                          <span className="text-xs font-semibold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
+                            เกิน deadline {person.overdueCount} ชิ้น
+                          </span>
+                        )}
+                        {!hasOverdue && hasSoon && (
+                          <span className="text-xs font-semibold bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full">
+                            ใกล้ deadline {person.soonCount} ชิ้น
+                          </span>
+                        )}
+                      </div>
+                      {/* Mini progress bar — done/total contents */}
+                      {person.contents.length > 0 && (
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <div className="w-24 h-1.5 rounded-full overflow-hidden bg-slate-100">
+                            <div className="h-full rounded-full bg-emerald-500"
+                              style={{ width: `${Math.min(person.doneCount / person.contents.length * 100, 100)}%` }} />
+                          </div>
+                          <span className="text-xs text-slate-400">
+                            Content {person.doneCount}/{person.contents.length} เสร็จ
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Task count badges */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {person.contents.length > 0 && (
+                        <span className="text-xs text-violet-600 bg-violet-50 px-2 py-1 rounded-lg font-medium">
+                          {person.contents.length} content
+                        </span>
+                      )}
+                      {person.ads.length > 0 && (
+                        <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-lg font-medium">
+                          {person.ads.length} ads
+                        </span>
+                      )}
+                      {person.products.length > 0 && (
+                        <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-medium">
+                          {person.products.length} product
+                        </span>
+                      )}
+                      {/* Chevron */}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        strokeWidth="2.5" strokeLinecap="round"
+                        className={`text-slate-300 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </div>
+                  </button>
+
+                  {/* Expanded detail */}
+                  {isExpanded && (
+                    <div className="bg-slate-50/60 border-t border-slate-100 px-5 py-4 space-y-4">
+
+                      {/* Active contents with deadline */}
+                      {person.contents.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Content</p>
+                          <div className="space-y-2">
+                            {person.contents
+                              .slice()
+                              .sort((a: any, b: any) => {
+                                // overdue first, then by deadline asc, then no deadline last
+                                const aOver = a.deadline && a.deadline < TODAY ? -1 : 0
+                                const bOver = b.deadline && b.deadline < TODAY ? -1 : 0
+                                if (aOver !== bOver) return aOver - bOver
+                                if (!a.deadline && b.deadline) return 1
+                                if (a.deadline && !b.deadline) return -1
+                                return (a.deadline || '').localeCompare(b.deadline || '')
+                              })
+                              .map((c: any) => {
+                                const done = c.status === 'โพสต์แล้ว'
+                                const overdue = !done && c.deadline && c.deadline < TODAY
+                                const daysUntil = !done && c.deadline
+                                  ? Math.round((new Date(c.deadline).getTime() - TODAY_MS) / 86400000)
+                                  : null
+                                const soon = !overdue && daysUntil !== null && daysUntil >= 0 && daysUntil <= SOON_DAYS
+                                const daysLate = overdue ? Math.round((TODAY_MS - new Date(c.deadline).getTime()) / 86400000) : 0
+
+                                return (
+                                  <Link
+                                    key={c.id}
+                                    href={`/contents?product=${c.product_id}`}
+                                    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl border transition-colors hover:border-indigo-200 hover:bg-white
+                                      ${overdue ? 'bg-red-50 border-red-100' : soon ? 'bg-amber-50 border-amber-100' : 'bg-white border-slate-100'}`}
+                                  >
+                                    {/* Status dot */}
+                                    <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-md ${contentStatusStyle[c.status] || 'bg-slate-100 text-slate-500'}`}>
+                                      {c.status}
+                                    </span>
+                                    {/* Product + title */}
+                                    <span className="font-mono text-xs text-slate-400 shrink-0">{c.product_id}</span>
+                                    <span className="text-sm text-slate-700 flex-1 truncate">{c.title}</span>
+                                    {/* Deadline */}
+                                    <span className="shrink-0 text-xs font-medium ml-auto pl-3 whitespace-nowrap">
+                                      {done ? (
+                                        <span className="text-emerald-600">✓ เสร็จแล้ว</span>
+                                      ) : overdue ? (
+                                        <span className="text-red-600">เลย {daysLate} วัน</span>
+                                      ) : c.deadline ? (
+                                        <span className={soon ? 'text-amber-600' : 'text-slate-400'}>
+                                          {soon ? `⚡ อีก ${daysUntil} วัน` : `${new Date(c.deadline).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}`}
+                                        </span>
+                                      ) : (
+                                        <span className="text-slate-300">ไม่มี deadline</span>
+                                      )}
+                                    </span>
+                                  </Link>
+                                )
+                              })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Ads */}
+                      {person.ads.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Ads</p>
+                          <div className="space-y-2">
+                            {person.ads.map((a: any) => (
+                              <Link key={a.id} href="/ads"
+                                className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl border border-slate-100 bg-white hover:border-indigo-200 transition-colors">
+                                <span className="font-mono text-xs text-slate-400 shrink-0">{a.product_id}</span>
+                                <span className="text-sm text-slate-700 flex-1 truncate">{a.campaign_name}</span>
+                                <span className="text-xs text-slate-400 shrink-0">{a.month}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Products */}
+                      {person.products.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Product</p>
+                          <div className="space-y-2">
+                            {person.products.map((p: any) => (
+                              <Link key={p.id} href="/products"
+                                className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl border border-slate-100 bg-white hover:border-indigo-200 transition-colors">
+                                <span className="font-mono text-xs text-slate-400 shrink-0">{p.product_id}</span>
+                                <span className="text-sm text-slate-700 flex-1">{p.name}</span>
+                                <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${statusStyle[p.status] || 'bg-slate-100 text-slate-400'}`}>{p.status}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Products summary table */}
-      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm" style={{ borderColor: 'var(--color-border)' }}>
-        <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--color-border)' }}>
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-900">สถานะทุก Product</h2>
           <span className="text-xs text-slate-400">{products.length} รายการ</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b" style={{ borderColor: 'var(--color-border)' }}>
+              <tr className="border-b border-slate-100">
                 <th className="text-left px-5 py-3 text-xs font-medium text-slate-400">Product ID</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-slate-400">ชื่อสินค้า</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-slate-400">แบรนด์</th>
@@ -183,9 +452,8 @@ export default function Dashboard() {
                 const rowPct = target > 0 ? Math.round((actual / target) * 100) : 0
                 const barColor = rowPct >= 80 ? 'bg-emerald-500' : rowPct >= 40 ? 'bg-amber-400' : 'bg-blue-500'
                 return (
-                  <tr key={p.id} className="border-b hover:bg-slate-50 transition-colors last:border-0" style={{ borderColor: 'var(--color-border-soft)' }}>
+                  <tr key={p.id} className="border-b border-slate-100/60 hover:bg-slate-50 transition-colors last:border-0">
                     <td className="px-5 py-3 font-mono text-xs text-slate-400">{p.product_id}</td>
-                    {/* title tooltip on truncated name */}
                     <td className="px-4 py-3 font-medium text-slate-900 max-w-[200px] truncate" title={p.name}>{p.name}</td>
                     <td className="px-4 py-3 text-sm text-slate-500">{p.brand}</td>
                     <td className="px-4 py-3">
@@ -197,14 +465,13 @@ export default function Dashboard() {
                     <td className="px-4 py-3 text-right text-sm font-medium text-slate-900">฿{actual.toLocaleString()}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <div className="w-14 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#f1f5f9' }}>
+                        <div className="w-14 h-1.5 rounded-full overflow-hidden bg-slate-100">
                           <div className={`h-full rounded-full ${barColor}`}
                             style={{ width: `${Math.min(rowPct, 100)}%` }} />
                         </div>
                         <span className="text-xs text-slate-500 w-10 text-right tabular-nums">{rowPct}%</span>
                       </div>
                     </td>
-                    {/* Click content count → Contents filtered by product */}
                     <td className="px-5 py-3 text-right">
                       <Link href={`/contents?product=${p.product_id}`}
                         className="text-xs text-slate-400 hover:text-indigo-600 hover:underline transition-colors">
@@ -220,14 +487,13 @@ export default function Dashboard() {
       </div>
 
       {/* My Tasks */}
-      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm" style={{ borderColor: 'var(--color-border)' }}>
-        <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--color-border)' }}>
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-900">งานของฉัน</h2>
           <span className="text-xs text-slate-400">{myTasks.totalTasks} รายการ</span>
         </div>
         <div className="grid grid-cols-3 gap-3 p-4">
-          {/* Content cell — drill-down to Contents filtered by me */}
-          <Link href="/contents" className="p-5 rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all block" style={{ backgroundColor: '#f5f3ff' }}>
+          <Link href="/contents" className="p-5 rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all block bg-violet-50">
             <p className="text-xs text-slate-400 mb-2">Content ที่รับผิดชอบ</p>
             <p className="text-2xl font-semibold text-slate-900 leading-none">{myTasks.myContents.length}</p>
             <div className="flex gap-3 mt-3 flex-wrap">
@@ -236,20 +502,19 @@ export default function Dashboard() {
               <span className="text-xs text-slate-400">รอผลิต {myTasks.myWaiting}</span>
             </div>
           </Link>
-          {/* Ads cell */}
-          <Link href="/ads" className="p-5 rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all block" style={{ backgroundColor: '#fffbeb' }}>
+          <Link href="/ads" className="p-5 rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all block bg-amber-50">
             <p className="text-xs text-slate-400 mb-2">แคมเปญ Ads ที่ดูแล</p>
             <p className="text-2xl font-semibold text-slate-900 leading-none">{myTasks.myAds.length}</p>
             <p className="text-xs text-slate-400 mt-3">campaigns</p>
           </Link>
-          {/* Products cell */}
-          <Link href="/products" className="p-5 rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all block" style={{ backgroundColor: '#ecfdf5' }}>
+          <Link href="/products" className="p-5 rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all block bg-emerald-50">
             <p className="text-xs text-slate-400 mb-2">Product ที่ดูแล</p>
             <p className="text-2xl font-semibold text-slate-900 leading-none">{myTasks.myProducts.length}</p>
             <p className="text-xs text-slate-400 mt-3">products</p>
           </Link>
         </div>
       </div>
+
     </div>
   )
 }
@@ -258,7 +523,6 @@ function KPICard({ label, value, sub, pct, href, accent, icon }: {
   label: string; value: string; sub: string; pct?: number; href: string
   accent: 'emerald' | 'amber' | 'blue' | 'violet'; icon: 'baht' | 'ads' | 'trending' | 'edit'
 }) {
-  // Accent color system per card type
   const accentMap = {
     emerald: { bar: '#10b981', bg: '#ecfdf5', fg: '#059669' },
     amber:   { bar: '#f59e0b', bg: '#fffbeb', fg: '#d97706' },
@@ -272,13 +536,10 @@ function KPICard({ label, value, sub, pct, href, accent, icon }: {
 
   return (
     <Link href={href}
-      className="bg-white rounded-2xl border border-slate-100 p-5 hover:shadow-md hover:-translate-y-0.5 transition-all block relative overflow-hidden"
-      style={{ borderColor: 'var(--color-border)' }}>
-      {/* Top accent bar */}
+      className="bg-white rounded-2xl border border-slate-100 p-5 hover:shadow-md hover:-translate-y-0.5 transition-all block relative overflow-hidden">
       <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: a.bar }} />
       <div className="flex items-center justify-between mb-3 mt-1">
         <p className="text-xs text-slate-400">{label}</p>
-        {/* Colored icon circle */}
         <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: a.bg }}>
           {icon === 'baht' && <span className="text-xs font-bold" style={{ color: a.fg }}>฿</span>}
           {icon === 'ads' && (
@@ -302,7 +563,7 @@ function KPICard({ label, value, sub, pct, href, accent, icon }: {
       <p className="text-xs text-slate-400 mt-2">{sub}</p>
       {pct !== undefined && (
         <div className="mt-3">
-          <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#f1f5f9' }}>
+          <div className="w-full h-1.5 rounded-full overflow-hidden bg-slate-100">
             <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: barColor }} />
           </div>
           <p className="text-xs text-slate-400 mt-1.5">{pct}% ของเป้า</p>
@@ -321,7 +582,9 @@ function Loading() {
         ))}
       </div>
       <div className="bg-white rounded-2xl h-64 animate-pulse border border-slate-100" />
+      <div className="bg-white rounded-2xl h-64 animate-pulse border border-slate-100" />
       <div className="bg-white rounded-2xl h-28 animate-pulse border border-slate-100" />
     </div>
   )
 }
+
