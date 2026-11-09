@@ -7,75 +7,65 @@ import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
 import { useIsAdmin, type Profile } from '@/lib/profile-context'
 
-// SVG icon components — inline, no external dependency
+// ─── Icons ────────────────────────────────────────────────────────────────────
+
 function IconDashboard() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="14" width="7" height="7" rx="1" />
-      <rect x="3" y="14" width="7" height="7" rx="1" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" />
     </svg>
   )
 }
 function IconBox() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
     </svg>
   )
 }
 function IconFileText() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-      <polyline points="10 9 9 9 8 9" />
+      <line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
     </svg>
   )
 }
 function IconBarChart() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="20" x2="18" y2="10" />
-      <line x1="12" y1="20" x2="12" y2="4" />
-      <line x1="6" y1="20" x2="6" y2="14" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
     </svg>
   )
 }
 function IconTrendingUp() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-      <polyline points="17 6 23 6 23 12" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" />
     </svg>
   )
 }
 function IconUserPlus() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="8.5" cy="7" r="4" />
-      <line x1="20" y1="8" x2="20" y2="14" />
-      <line x1="23" y1="11" x2="17" y2="11" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" />
+      <line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" />
     </svg>
   )
 }
 function IconUsers() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   )
 }
 function IconCheckSquare() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="9 11 12 14 22 4" />
       <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
     </svg>
@@ -85,13 +75,27 @@ function IconLogOut() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <polyline points="16 17 21 12 16 7" />
-      <line x1="21" y1="12" x2="9" y2="12" />
+      <polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  )
+}
+function IconChevronLeft() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  )
+}
+function IconChevronRight() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <polyline points="9 18 15 12 9 6" />
     </svg>
   )
 }
 
-// Role badge styles
+// ─── Role badge ───────────────────────────────────────────────────────────────
+
 const roleStyle: Record<string, string> = {
   admin:   'bg-purple-50 text-purple-700',
   manager: 'bg-blue-50 text-blue-700',
@@ -99,15 +103,35 @@ const roleStyle: Record<string, string> = {
   viewer:  'bg-slate-100 text-slate-500',
 }
 
-export default function Sidebar({ user, profile }: { user: User | null; profile: Profile | null }) {
-  const pathname = usePathname()
-  const supabase = createClient()
-  const isAdmin = useIsAdmin()
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+
+export default function Sidebar({
+  user, profile, onCollapse,
+}: {
+  user: User | null
+  profile: Profile | null
+  onCollapse?: (collapsed: boolean) => void
+}) {
+  const pathname  = usePathname()
+  const supabase  = createClient()
+  const isAdmin   = useIsAdmin()
+
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('sidebar-collapsed') === '1'
+  })
   const [pendingCount, setPendingCount] = useState(0)
   const [myTaskCount, setMyTaskCount]   = useState(0)
   const [confirmLogout, setConfirmLogout] = useState(false)
 
-  // Fetch pending user count for admin badge
+  // Notify parent layout of collapse state
+  useEffect(() => {
+    onCollapse?.(collapsed)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0')
+    }
+  }, [collapsed])
+
   useEffect(() => {
     if (!isAdmin) return
     supabase
@@ -117,7 +141,6 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
       .then(({ count }: { count: number | null }) => setPendingCount(count ?? 0))
   }, [supabase, isAdmin])
 
-  // Fetch my unacknowledged task count (contents where I am producer/approver/assigned_to and not acknowledged)
   useEffect(() => {
     if (!profile?.id) return
     supabase
@@ -129,8 +152,7 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
       .then(({ count }: { count: number | null }) => setMyTaskCount(count ?? 0))
   }, [supabase, profile?.id])
 
-  // Base nav items — visible to all approved users
-  const nav: { path: string; label: string; Icon: () => React.ReactElement; adminOnly?: boolean }[] = [
+  const nav = [
     { path: '/dashboard', label: 'Dashboard',  Icon: IconDashboard },
     { path: '/products',  label: 'Products',   Icon: IconBox },
     { path: '/contents',  label: 'Content',    Icon: IconFileText },
@@ -139,88 +161,157 @@ export default function Sidebar({ user, profile }: { user: User | null; profile:
     { path: '/leads',     label: 'Leads',      Icon: IconUserPlus },
     { path: '/sales',     label: 'Sales',      Icon: IconTrendingUp },
     { path: '/team',      label: 'ทีม',        Icon: IconUsers, adminOnly: true },
-  ]
+  ] as const
 
   const visibleNav = useMemo(
-    () => nav.filter(item => !item.adminOnly || isAdmin),
+    () => nav.filter(item => !('adminOnly' in item) || !item.adminOnly || isAdmin),
     [isAdmin], // eslint-disable-line react-hooks/exhaustive-deps
   )
 
-  return (
-    <aside className="w-52 bg-white border-r flex flex-col h-screen shrink-0" style={{ borderColor: 'var(--color-border)' }}>
+  const initials = (profile?.name?.[0] || user?.email?.[0] || '?').toUpperCase()
 
-      {/* Logo → Dashboard */}
-      <div className="px-5 py-5 border-b" style={{ borderColor: 'var(--color-border)' }}>
-        <Link href="/dashboard" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-            <span className="text-white font-bold text-sm tracking-tight">N</span>
+  return (
+    <aside
+      className="relative flex flex-col h-screen shrink-0 bg-white border-r border-slate-200 transition-[width] duration-200 ease-in-out"
+      style={{ width: collapsed ? '64px' : '208px' }}
+    >
+      {/* ── Collapse toggle ── */}
+      <button
+        onClick={() => setCollapsed(v => !v)}
+        title={collapsed ? 'ขยาย sidebar' : 'ย่อ sidebar'}
+        className="absolute -right-3 top-6 z-10 w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+      >
+        {collapsed ? <IconChevronRight /> : <IconChevronLeft />}
+      </button>
+
+      {/* ── Logo ── */}
+      <div className={`border-b border-slate-200 transition-all duration-200 ${collapsed ? 'px-3 py-4' : 'px-4 py-4'}`}>
+        <Link href="/dashboard" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity min-w-0">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+            <span className="text-white font-bold text-sm">N</span>
           </div>
-          <div>
-            <p className="font-semibold text-slate-900 text-sm leading-none">Nexo PMS</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">v1.0</p>
-          </div>
+          {!collapsed && (
+            <div className="min-w-0 overflow-hidden">
+              <p className="font-semibold text-slate-900 text-sm leading-none whitespace-nowrap">Nexo PMS</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">v1.0</p>
+            </div>
+          )}
         </Link>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-3 space-y-1">
+      {/* ── Nav ── */}
+      <nav className={`flex-1 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden ${collapsed ? 'px-2' : 'px-2'}`}>
         {visibleNav.map(({ path, label, Icon }) => {
           const active = pathname === path
+          const badge =
+            path === '/team'     && pendingCount > 0 ? pendingCount :
+            path === '/my-tasks' && myTaskCount  > 0 ? myTaskCount  : 0
+
           return (
-            <Link
-              key={path}
-              href={path}
-              prefetch={true}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
-                ${active
-                  ? 'bg-indigo-50 text-indigo-700 shadow-sm'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
-            >
-              <Icon />
-              {label}
-              {path === '/team' && pendingCount > 0 && (
-                <span className="ml-auto bg-amber-100 text-amber-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums">
-                  {pendingCount}
+            <div key={path} className="relative group/nav">
+              <Link
+                href={path}
+                prefetch={true}
+                className={`flex items-center gap-2.5 rounded-xl text-sm font-medium transition-all
+                  ${collapsed ? 'px-2.5 py-2.5 justify-center' : 'px-3 py-2.5'}
+                  ${active
+                    ? 'bg-indigo-50 text-indigo-700 shadow-sm'
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
+              >
+                {/* Icon — always visible */}
+                <span className="shrink-0 relative">
+                  <Icon />
+                  {/* Badge on icon when collapsed */}
+                  {collapsed && badge > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-indigo-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+                      {badge > 9 ? '9+' : badge}
+                    </span>
+                  )}
                 </span>
+
+                {/* Label + badge — only when expanded */}
+                {!collapsed && (
+                  <>
+                    <span className="truncate">{label}</span>
+                    {badge > 0 && (
+                      <span className={`ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums
+                        ${path === '/team' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                        {badge}
+                      </span>
+                    )}
+                  </>
+                )}
+              </Link>
+
+              {/* Tooltip — only when collapsed */}
+              {collapsed && (
+                <div className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50
+                  opacity-0 group-hover/nav:opacity-100 transition-opacity duration-100">
+                  <div className="bg-slate-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">
+                    {label}
+                    {badge > 0 && (
+                      <span className="ml-1.5 bg-indigo-400 text-white text-[9px] font-bold px-1 py-0.5 rounded-full">
+                        {badge}
+                      </span>
+                    )}
+                  </div>
+                  {/* Arrow */}
+                  <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800" />
+                </div>
               )}
-              {path === '/my-tasks' && myTaskCount > 0 && (
-                <span className="ml-auto bg-indigo-100 text-indigo-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums">
-                  {myTaskCount}
-                </span>
-              )}
-            </Link>
+            </div>
           )
         })}
       </nav>
 
-      {/* User */}
-      <div className="px-3 py-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
-        <div className="flex items-center gap-2 px-3 py-2 mb-1">
-          <div className="w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs shrink-0" style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)', color: '#4f46e5' }}>
-            {profile?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase()}
+      {/* ── User ── */}
+      <div className={`border-t border-slate-200 py-3 ${collapsed ? 'px-2' : 'px-2'}`}>
+        {/* Avatar row */}
+        <div className={`flex items-center gap-2 rounded-xl px-2 py-2 mb-1 ${collapsed ? 'justify-center' : ''}`}>
+          <div className="w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs shrink-0"
+            style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)', color: '#4f46e5' }}>
+            {initials}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-slate-900 truncate">{profile?.name || user?.email}</p>
-            {profile && (
-              <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${roleStyle[profile.role] || 'bg-slate-100 text-slate-500'}`}>
-                {profile.role}
-              </span>
-            )}
-          </div>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-slate-900 truncate">{profile?.name || user?.email}</p>
+              {profile && (
+                <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${roleStyle[profile.role] || 'bg-slate-100 text-slate-500'}`}>
+                  {profile.role}
+                </span>
+              )}
+            </div>
+          )}
         </div>
-        {confirmLogout ? (
-          <div className="flex items-center gap-1.5 px-3 py-2">
-            <span className="text-[11px] text-red-500 flex-1">ออกจากระบบ?</span>
+
+        {/* Logout */}
+        {collapsed ? (
+          <div className="relative group/logout">
             <button
               onClick={() => supabase.auth.signOut()}
-              className="text-[11px] bg-red-500 text-white px-2 py-0.5 rounded-md hover:bg-red-600 transition-colors font-medium"
+              className="w-full flex justify-center p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+              title="ออกจากระบบ"
             >
+              <IconLogOut />
+            </button>
+            <div className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50
+              opacity-0 group-hover/logout:opacity-100 transition-opacity duration-100">
+              <div className="bg-slate-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">
+                ออกจากระบบ
+              </div>
+              <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800" />
+            </div>
+          </div>
+        ) : confirmLogout ? (
+          <div className="flex items-center gap-1.5 px-3 py-2">
+            <span className="text-[11px] text-red-500 flex-1">ออกจากระบบ?</span>
+            <button onClick={() => supabase.auth.signOut()}
+              className="text-[11px] bg-red-500 text-white px-2 py-0.5 rounded-md hover:bg-red-600 transition-colors font-medium">
               ยืนยัน
             </button>
-            <button
-              onClick={() => setConfirmLogout(false)}
-              className="text-[11px] text-slate-400 px-2 py-0.5 rounded-md hover:bg-slate-100 transition-colors"
-            >
+            <button onClick={() => setConfirmLogout(false)}
+              className="text-[11px] text-slate-400 px-2 py-0.5 rounded-md hover:bg-slate-100 transition-colors">
               ยกเลิก
             </button>
           </div>

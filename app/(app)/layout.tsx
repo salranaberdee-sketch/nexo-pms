@@ -14,6 +14,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const router = useRouter()
   const supabase = createClient()
   // Prevent concurrent calls to init() from overwriting each other
@@ -96,8 +97,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <ProfileProvider profile={profile}>
       <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--color-canvas)' }}>
-        <Sidebar user={user} profile={profile} />
-        <main className="flex-1 overflow-y-auto">
+        <Sidebar user={user} profile={profile} onCollapse={setSidebarCollapsed} />
+        <main className="flex-1 overflow-y-auto min-w-0">
           {children}
         </main>
       </div>
