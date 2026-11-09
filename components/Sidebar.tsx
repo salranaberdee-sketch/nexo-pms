@@ -175,17 +175,8 @@ export default function Sidebar({
       className="relative flex flex-col h-screen shrink-0 bg-white border-r border-slate-200 transition-[width] duration-200 ease-in-out"
       style={{ width: collapsed ? '64px' : '208px' }}
     >
-      {/* ── Collapse toggle ── */}
-      <button
-        onClick={() => setCollapsed(v => !v)}
-        title={collapsed ? 'ขยาย sidebar' : 'ย่อ sidebar'}
-        className="absolute -right-3 top-6 z-10 w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
-      >
-        {collapsed ? <IconChevronRight /> : <IconChevronLeft />}
-      </button>
-
       {/* ── Logo ── */}
-      <div className={`border-b border-slate-200 transition-all duration-200 ${collapsed ? 'px-3 py-4' : 'px-4 py-4'}`}>
+      <div className={`border-b border-slate-200 transition-all duration-200 flex items-center ${collapsed ? 'px-3 py-4 justify-center' : 'px-4 py-4 justify-between'}`}>
         <Link href="/dashboard" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity min-w-0">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
             style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
@@ -198,7 +189,28 @@ export default function Sidebar({
             </div>
           )}
         </Link>
+        {/* Collapse button — inside header, right side when expanded */}
+        {!collapsed && (
+          <button
+            onClick={() => setCollapsed(true)}
+            title="ย่อ sidebar"
+            className="shrink-0 ml-2 w-6 h-6 rounded-lg flex items-center justify-center text-slate-300 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+          >
+            <IconChevronLeft />
+          </button>
+        )}
       </div>
+
+      {/* Expand button — shown at top of nav when collapsed */}
+      {collapsed && (
+        <button
+          onClick={() => setCollapsed(false)}
+          title="ขยาย sidebar"
+          className="mx-auto mt-3 mb-1 w-9 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+        >
+          <IconChevronRight />
+        </button>
+      )}
 
       {/* ── Nav ── */}
       <nav className={`flex-1 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden ${collapsed ? 'px-2' : 'px-2'}`}>
