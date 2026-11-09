@@ -197,13 +197,13 @@ export default function Sales() {
   }
 
   async function updateStatus(id: number, status: string) {
-    const old = sales.find(s => s.id === id)?.status
-    setSales(prev => prev.map(s => s.id === id ? { ...s, status } : s))
+    // Call DB first — only update local state on success (project convention)
     const { error: updErr } = await supabase.from('sales').update({ status }).eq('id', id)
     if (updErr) {
-      setSales(prev => prev.map(s => s.id === id ? { ...s, status: old } : s))
       showToast(updErr.message, 'error')
+      return
     }
+    setSales(prev => prev.map(s => s.id === id ? { ...s, status } : s))
   }
 
   const productMap = useMemo(
@@ -254,8 +254,8 @@ export default function Sales() {
       const catIds = products.filter(p => p.business_type === filterCategory).map(p => p.product_id)
       list = list.filter(s => catIds.includes(s.product_id))
     }
-    if (dateFrom) list = list.filter(s => s.created_at && s.created_at >= dateFrom)
-    if (dateTo)   list = list.filter(s => s.created_at && s.created_at <= dateTo + 'T23:59:59')
+    if (dateFrom) list = list.filter(s => s.period_start && s.period_start >= dateFrom)
+    if (dateTo)   list = list.filter(s => s.period_end && s.period_end <= dateTo)
     if (!search) return list
     const q = search.toLowerCase()
     return list.filter(s => {

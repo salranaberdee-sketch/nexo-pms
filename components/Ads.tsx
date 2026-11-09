@@ -84,7 +84,7 @@ export default function Ads() {
     const [a, p, pr] = await Promise.all([
       supabase
         .from('ads')
-        .select('id, product_id, month, campaign_name, channel, managed_by, managed_by_id, budget_allocated, budget_spent, budget_total, budget_remaining, reach, clicks, leads, cpl, roas, sales_amount, result_notes, created_at')
+        .select('id, product_id, month, campaign_name, channel, content_ref, managed_by, managed_by_id, budget_approved, budget_adjustment, budget_allocated, budget_spent, budget_total, budget_remaining, reach, clicks, leads, cpl, roas, sales_amount, result_notes, next_action, start_date, end_date, created_at')
         .order('month', { ascending: false }).order('product_id'),
       supabase.from('products').select('product_id, name'),
       supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),

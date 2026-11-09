@@ -11,7 +11,7 @@ const TODAY = new Date().toISOString().split('T')[0]
 const TODAY_MS = new Date(TODAY).getTime()
 const SOON_DAYS = 3
 
-type PanelType = 'sales' | 'ads' | 'leads' | 'contents' | 'product' | null
+type PanelType = 'sales' | 'ads' | 'leads' | 'contents' | 'product' | 'roi' | null
 
 export default function Dashboard() {
   const [products, setProducts] = useState<any[]>([])
@@ -19,6 +19,7 @@ export default function Dashboard() {
   const [contents, setContents] = useState<any[]>([])
   const [ads, setAds] = useState<any[]>([])
   const [profiles, setProfiles] = useState<any[]>([])
+  const [roiData, setRoiData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [loadError, setLoadError] = useState('')
@@ -47,12 +48,13 @@ export default function Dashboard() {
   async function load(silent = false) {
     if (!silent) setRefreshing(true)
     setLoadError('')
-    const [p, s, c, a, pr] = await Promise.all([
+    const [p, s, c, a, pr, roi] = await Promise.all([
       supabase.from('products').select('id, product_id, name, brand, status, owner_id'),
       supabase.from('sales').select('product_id, sales_target_amount, actual_sales, actual_received, status, period_start, period_end'),
       supabase.from('contents').select('id, product_id, seq, title, status, assigned_to_id, assigned_to, deadline'),
       supabase.from('ads').select('id, campaign_name, product_id, month, budget_total, budget_allocated, budget_spent, budget_remaining, leads, clicks, reach, cpl, roas, managed_by_id, managed_by'),
       supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
+      supabase.from('v_content_roi').select('content_id, product_id, seq, title, type, production_cost, ad_cost_share, total_cost, total_leads, closed_leads, deal_revenue, roi, roi_pct, conversion_rate').order('deal_revenue', { ascending: false }).limit(20),
     ])
     const err = p.error || s.error || c.error || a.error || pr.error
     if (err) { setLoadError(err.message); setRefreshing(false); setLoading(false); return }
@@ -61,6 +63,8 @@ export default function Dashboard() {
     setContents(c.data || [])
     setAds(a.data || [])
     setProfiles(pr.data || [])
+    // roi view may not exist yet (before migration) — ignore error gracefully
+    if (!roi.error) setRoiData(roi.data || [])
     setLastUpdated(new Date())
     setLoading(false)
     setRefreshing(false)
@@ -85,6 +89,13 @@ export default function Dashboard() {
   const contentDone = useMemo(() => contents.filter(c => c.status === 'โพสต์แล้ว').length, [contents])
   const contentWait = useMemo(() => contents.filter(c => c.status === 'รอผลิต').length, [contents])
   const pct = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0
+
+  // ROI aggregates from v_content_roi
+  const totalDealRevenue   = useMemo(() => roiData.reduce((s, r) => s + Number(r.deal_revenue || 0), 0), [roiData])
+  const totalProductionCost = useMemo(() => roiData.reduce((s, r) => s + Number(r.production_cost || 0), 0), [roiData])
+  const totalAdCostShare   = useMemo(() => roiData.reduce((s, r) => s + Number(r.ad_cost_share || 0), 0), [roiData])
+  const totalROI           = useMemo(() => totalDealRevenue - totalProductionCost - totalAdCostShare, [totalDealRevenue, totalProductionCost, totalAdCostShare])
+  const topROIContent      = useMemo(() => roiData.filter(r => Number(r.deal_revenue) > 0).slice(0, 5), [roiData])
 
   const teamWorkload = useMemo(() => {
     const map = new Map<string, { id: string; name: string; role: string; contents: any[]; ads: any[]; products: any[] }>()
@@ -428,6 +439,104 @@ export default function Dashboard() {
         </div>
       )
     }
+    if (activePanel === 'roi') {
+      const hasData = roiData.some(r => Number(r.deal_revenue) > 0 || Number(r.total_leads) > 0)
+      return (
+        <div className="space-y-4">
+          {/* Formula note */}
+          <div className="bg-slate-50 rounded-xl p-3.5 text-xs text-slate-500 space-y-1">
+            <p className="font-semibold text-slate-700 mb-1.5">สูตร (First-touch Attribution)</p>
+            <p>💰 ROI = Revenue – ต้นทุนผลิต – ส่วนแบ่งงบ Ads</p>
+            <p>📊 Revenue = leads ที่ปิดการขายที่ link มาจาก content นี้</p>
+            <p>🎯 ส่วนแบ่งงบ Ads = budget_spent × attribution_pct จาก ad_contents</p>
+          </div>
+
+          {/* Summary */}
+          {totalDealRevenue > 0 && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-emerald-50 rounded-xl p-3.5">
+                <p className="text-xs text-slate-500 mb-1">Revenue รวม</p>
+                <p className="text-xl font-bold text-emerald-700">฿{totalDealRevenue.toLocaleString()}</p>
+              </div>
+              <div className={`rounded-xl p-3.5 ${totalROI >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                <p className="text-xs text-slate-500 mb-1">ROI รวม</p>
+                <p className={`text-xl font-bold ${totalROI >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                  {totalROI >= 0 ? '+' : ''}฿{totalROI.toLocaleString()}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Leaderboard */}
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+              {hasData ? 'Content ที่ทำเงินสูงสุด' : 'Content ทั้งหมด (ยังไม่มี lead data)'}
+            </p>
+            {roiData.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-8">
+                รัน migration แล้วเพิ่ม Lead เพื่อดูข้อมูล ROI
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {(hasData ? topROIContent : roiData.slice(0, 8)).map((r, i) => {
+                  const roi = Number(r.roi || 0)
+                  const isPositive = roi > 0
+                  const roiPct = r.roi_pct !== null ? Number(r.roi_pct) : null
+                  return (
+                    <div key={r.content_id} className="bg-white rounded-xl border border-slate-100 p-3.5">
+                      <div className="flex items-start gap-2.5">
+                        {/* Rank */}
+                        <span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold
+                          ${i === 0 ? 'bg-amber-100 text-amber-700' : i === 1 ? 'bg-slate-100 text-slate-600' : i === 2 ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>
+                          {i + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono text-xs text-slate-400">{r.product_id}</span>
+                            <span className="text-sm font-semibold text-slate-900 truncate">{r.title}</span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                            {Number(r.deal_revenue) > 0 && (
+                              <span className="text-xs text-emerald-600 font-medium">
+                                ฿{Number(r.deal_revenue).toLocaleString()} revenue
+                              </span>
+                            )}
+                            {Number(r.total_leads) > 0 && (
+                              <span className="text-xs text-blue-500">
+                                {r.total_leads} leads ({r.closed_leads} ปิด)
+                              </span>
+                            )}
+                            {Number(r.production_cost) > 0 && (
+                              <span className="text-xs text-slate-400">
+                                ต้นทุน ฿{Number(r.production_cost).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {/* ROI badge */}
+                        {Number(r.total_cost) > 0 && (
+                          <div className="shrink-0 text-right">
+                            <span className={`text-sm font-bold ${isPositive ? 'text-emerald-600' : roi < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                              {roi > 0 ? '+' : ''}฿{roi.toLocaleString()}
+                            </span>
+                            {roiPct !== null && (
+                              <p className={`text-xs font-medium ${isPositive ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                {roiPct > 0 ? '+' : ''}{roiPct}%
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+
     return null
   }
 
@@ -436,6 +545,7 @@ export default function Dashboard() {
     ads:      'งบโฆษณา',
     leads:    'Leads & ROI',
     contents: 'Content Pipeline',
+    roi:      'Leaderboard ROI ต่อ Content',
     product:  panelProduct?.name || activePanelProduct || '',
   }
 
@@ -481,6 +591,82 @@ export default function Dashboard() {
             <KPICard label="งบ Ads คงเหลือ" value={`฿${(totalBudget - totalSpent).toLocaleString()}`} sub={`ใช้ไป ฿${totalSpent.toLocaleString()}`} accent="amber" icon="ads" active={activePanel === 'ads'} onClick={() => openPanel(activePanel === 'ads' ? null : 'ads')} />
             <KPICard label="Leads รวม" value={totalLeads.toLocaleString()} sub={`${ads.length} campaigns`} accent="blue" icon="trending" active={activePanel === 'leads'} onClick={() => openPanel(activePanel === 'leads' ? null : 'leads')} />
             <KPICard label="Content โพสต์แล้ว" value={`${contentDone} / ${contents.length}`} sub={`รอผลิตอีก ${contentWait} ชิ้น`} accent="violet" icon="edit" active={activePanel === 'contents'} onClick={() => openPanel(activePanel === 'contents' ? null : 'contents')} />
+          </div>
+
+          {/* ROI Leaderboard — compact table */}
+          <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">ROI ต่อ Content</h2>
+                <p className="text-xs text-slate-400 mt-0.5">First-touch attribution · กดเพื่อดู Leaderboard เต็ม</p>
+              </div>
+              <button onClick={() => openPanel(activePanel === 'roi' ? null : 'roi')}
+                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors
+                  ${activePanel === 'roi' ? 'bg-indigo-600 text-white' : 'text-indigo-600 hover:bg-indigo-50'}`}>
+                {activePanel === 'roi' ? 'ปิด ✕' : 'ดูทั้งหมด →'}
+              </button>
+            </div>
+            {roiData.length === 0 ? (
+              <div className="px-5 py-8 text-center text-sm text-slate-400">
+                รัน migration แล้วเพิ่ม Lead พร้อมระบุ content เพื่อดูข้อมูล ROI
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100">
+                      <th className="text-left px-5 py-3 text-xs font-medium text-slate-400">#</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-slate-400">Content</th>
+                      <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">Leads</th>
+                      <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">Revenue</th>
+                      <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">ต้นทุนรวม</th>
+                      <th className="text-right px-5 py-3 text-xs font-medium text-slate-400">ROI</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {roiData.slice(0, 5).map((r, i) => {
+                      const roi = Number(r.roi || 0)
+                      const roiPct = r.roi_pct !== null ? Number(r.roi_pct) : null
+                      const isPositive = roi > 0
+                      return (
+                        <tr key={r.content_id} className="border-b border-slate-100/60 hover:bg-indigo-50/20 last:border-0">
+                          <td className="px-5 py-3 text-xs text-slate-400 tabular-nums">{i + 1}</td>
+                          <td className="px-4 py-3 max-w-[200px]">
+                            <div className="truncate font-medium text-slate-900" title={r.title}>{r.title}</div>
+                            <div className="text-xs text-slate-400">{r.product_id} · {r.type}</div>
+                          </td>
+                          <td className="px-4 py-3 text-right text-sm tabular-nums text-slate-600">
+                            {Number(r.total_leads) > 0 ? (
+                              <span>{r.closed_leads}<span className="text-slate-300">/{r.total_leads}</span></span>
+                            ) : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right text-sm tabular-nums font-medium text-emerald-600">
+                            {Number(r.deal_revenue) > 0 ? `฿${Number(r.deal_revenue).toLocaleString()}` : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right text-sm tabular-nums text-slate-500">
+                            {Number(r.total_cost) > 0 ? `฿${Number(r.total_cost).toLocaleString()}` : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-5 py-3 text-right tabular-nums">
+                            {Number(r.total_cost) > 0 ? (
+                              <div>
+                                <span className={`text-sm font-bold ${isPositive ? 'text-emerald-600' : roi < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                                  {roi > 0 ? '+' : ''}฿{roi.toLocaleString()}
+                                </span>
+                                {roiPct !== null && (
+                                  <p className={`text-xs ${isPositive ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                    {roiPct > 0 ? '+' : ''}{roiPct}%
+                                  </p>
+                                )}
+                              </div>
+                            ) : <span className="text-slate-300 text-sm">—</span>}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Team Workload */}
@@ -713,8 +899,9 @@ export default function Dashboard() {
               )}
               {activePanel === 'sales'    && <Link href="/sales"    className="text-xs text-indigo-600 hover:underline">ดูทั้งหมด →</Link>}
               {activePanel === 'ads'      && <Link href="/ads"      className="text-xs text-indigo-600 hover:underline">ดูทั้งหมด →</Link>}
-              {activePanel === 'leads'    && <Link href="/ads"      className="text-xs text-indigo-600 hover:underline">ดูทั้งหมด →</Link>}
+              {activePanel === 'leads'    && <Link href="/leads"    className="text-xs text-indigo-600 hover:underline">ดูทั้งหมด →</Link>}
               {activePanel === 'contents' && <Link href="/contents" className="text-xs text-indigo-600 hover:underline">ดูทั้งหมด →</Link>}
+              {activePanel === 'roi'      && <Link href="/leads"    className="text-xs text-indigo-600 hover:underline">ดู Leads →</Link>}
               <button onClick={closePanel} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 transition-colors ml-1">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>

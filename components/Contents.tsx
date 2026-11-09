@@ -72,6 +72,7 @@ const EMPTY_ADD_FORM = {
   producer: '', producer_id: '',
   approver: '', approver_id: '',
   deadline: '', status: 'รอผลิต',
+  production_cost: '',
 }
 
 const EMPTY_EDIT_FORM = {
@@ -82,6 +83,7 @@ const EMPTY_EDIT_FORM = {
   producer: '', producer_id: '',
   approver: '', approver_id: '',
   status: 'รอผลิต',
+  production_cost: '',
 }
 
 export default function Contents() {
@@ -130,7 +132,7 @@ export default function Contents() {
     const [c, p, pr] = await Promise.all([
       supabase
         .from('contents')
-        .select('id, product_id, seq, type, title, objective, hook, format_size, assigned_to, assigned_to_id, producer, producer_id, approver, approver_id, deadline, status, acknowledged_at, assigned_date, created_at')
+        .select('id, product_id, seq, type, title, objective, hook, format_size, assigned_to, assigned_to_id, producer, producer_id, approver, approver_id, deadline, status, production_cost, acknowledged_at, assigned_date, created_at')
         .order('product_id').order('seq'),
       supabase.from('products').select('product_id, name, brand'),
       supabase.from('profiles').select('id, name, role, brand_access').eq('approval_status', 'approved').order('name'),
@@ -205,6 +207,7 @@ export default function Contents() {
       approver_id:     addForm.approver_id || null,
       deadline:        addForm.deadline || null,
       status:          addForm.status,
+      production_cost: Number(addForm.production_cost) || 0,
     }]).select('id').single()
     if (insErr) { setAddError(insErr.message); setSaving(false); return }
     // Log assignments
@@ -242,6 +245,7 @@ export default function Contents() {
       approver:       c.approver || '',
       approver_id:    c.approver_id || '',
       status:         c.status || 'รอผลิต',
+      production_cost: String(c.production_cost ?? 0),
     })
     setEditError('')
   }
@@ -276,6 +280,7 @@ export default function Contents() {
       approver:       editForm.approver || null,
       approver_id:    editForm.approver_id || null,
       status:         editForm.status,
+      production_cost: Number(editForm.production_cost) || 0,
       // Clear acknowledgement when producer reassigned (new person hasn't seen it yet)
       ...(producerChanged ? { acknowledged_at: null, acknowledged_by: null } : {}),
     }).eq('id', editingRow.id)
@@ -296,6 +301,7 @@ export default function Contents() {
     setContents(prev => prev.map(c => c.id === editingRow.id ? {
       ...c, ...editForm,
       seq: Number(editForm.seq) || editingRow.seq,
+      production_cost: Number(editForm.production_cost) || 0,
       ...(producerChanged ? { acknowledged_at: null } : {}),
     } : c))
     setEditingRow(null)
@@ -367,7 +373,7 @@ export default function Contents() {
   )
 
   const hasFilters = filterProduct !== 'all' || filterStatus !== 'all' || search !== '' || !!dateFrom || !!dateTo
-  const headers = ['#', 'Product', 'ประเภท', 'ชื่อ Content', 'ผู้รับผิดชอบ', 'กำหนดส่ง', 'สถานะ', 'วันที่เพิ่ม', '']
+  const headers = ['#', 'Product', 'ประเภท', 'ชื่อ Content', 'ผู้รับผิดชอบ', 'ต้นทุน', 'กำหนดส่ง', 'สถานะ', 'วันที่เพิ่ม', '']
 
   // Pagination — reset when filters change
   const [visibleCount, setVisibleCount] = useState(10)
@@ -496,6 +502,11 @@ export default function Contents() {
                       <InlinePersonPicker value={c.assigned_to_id || ''} display={c.assigned_to || ''}
                         profiles={profileOptions} disabled={!canUpdate}
                         onChange={(id, name) => updateAssignee(c.id, id, name)} />
+                    </td>
+                    <td className="px-5 py-4 text-sm tabular-nums text-slate-500 whitespace-nowrap">
+                      {Number(c.production_cost) > 0
+                        ? <span>฿{Number(c.production_cost).toLocaleString()}</span>
+                        : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
                       {c.deadline ? (
@@ -642,6 +653,12 @@ export default function Contents() {
               {STATUSES.map(s => <option key={s}>{s}</option>)}
             </select>
           </Field>
+          <Field label="ต้นทุนผลิต (฿)" hint="ค่าจ้างผู้ผลิต / ค่าตัดต่อ / ฯลฯ">
+            <input type="number" min="0" placeholder="0"
+              value={addForm.production_cost}
+              onChange={e => setAddForm({ ...addForm, production_cost: e.target.value })}
+              className={inputCls} />
+          </Field>
         </div>
         {addError && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{addError}</p>}
         <div className="flex gap-2 mt-6">
@@ -717,6 +734,12 @@ export default function Contents() {
             <select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))} className={selectCls}>
               {STATUSES.map(s => <option key={s}>{s}</option>)}
             </select>
+          </Field>
+          <Field label="ต้นทุนผลิต (฿)" hint="ค่าจ้างผู้ผลิต / ค่าตัดต่อ / ฯลฯ">
+            <input type="number" min="0" placeholder="0"
+              value={editForm.production_cost}
+              onChange={e => setEditForm(f => ({ ...f, production_cost: e.target.value }))}
+              className={inputCls} />
           </Field>
         </div>
         {editError && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{editError}</p>}

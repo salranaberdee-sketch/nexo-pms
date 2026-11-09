@@ -33,6 +33,8 @@ const PERMISSION_MATRIX: Record<string, Record<string, string[]>> = {
   sales:          { insert: ['admin', 'manager'],                    update: ['admin', 'manager'],                    delete: ['admin'] },
   product_briefs: { insert: ['admin', 'manager', 'editor'],         update: ['admin', 'manager', 'editor'],         delete: ['admin', 'manager'] },
   profiles:       { insert: [],                                       update: ['admin'],                                delete: ['admin'] },
+  ad_contents:    { insert: ['admin', 'manager'],                    update: ['admin', 'manager'],                    delete: ['admin'] },
+  leads:          { insert: ['admin', 'manager'],                    update: ['admin', 'manager'],                    delete: ['admin'] },
 }
 
 // Returns true if the current user's role allows the given action on the given table.
