@@ -7,64 +7,60 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.18"
   }
   public: {
     Tables: {
-      content_assets: {
+      ad_contents: {
         Row: {
-          asset_type: string
+          ad_id: number
+          attribution_pct: number | null
           content_id: number
-          created_at: string
-          file_size: number | null
+          created_at: string | null
           id: number
-          label: string | null
-          mime_type: string | null
-          sort_order: number
-          storage_path: string | null
-          uploaded_by: string | null
-          url: string
+          note: string | null
         }
         Insert: {
-          asset_type?: string
+          ad_id: number
+          attribution_pct?: number | null
           content_id: number
-          created_at?: string
-          file_size?: number | null
+          created_at?: string | null
           id?: number
-          label?: string | null
-          mime_type?: string | null
-          sort_order?: number
-          storage_path?: string | null
-          uploaded_by?: string | null
-          url: string
+          note?: string | null
         }
         Update: {
-          asset_type?: string
+          ad_id?: number
+          attribution_pct?: number | null
           content_id?: number
-          created_at?: string
-          file_size?: number | null
+          created_at?: string | null
           id?: number
-          label?: string | null
-          mime_type?: string | null
-          sort_order?: number
-          storage_path?: string | null
-          uploaded_by?: string | null
-          url?: string
+          note?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "content_assets_content_id_fkey"
+            foreignKeyName: "ad_contents_ad_id_fkey"
+            columns: ["ad_id"]
+            isOneToOne: false
+            referencedRelation: "ads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_contents_content_id_fkey"
             columns: ["content_id"]
+            isOneToOne: false
             referencedRelation: "contents"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "content_assets_uploaded_by_fkey"
-            columns: ["uploaded_by"]
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          }
+            foreignKeyName: "ad_contents_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "v_content_roi"
+            referencedColumns: ["content_id"]
+          },
         ]
       }
       ads: {
@@ -169,8 +165,163 @@ export type Database = {
           },
         ]
       }
+      categories: {
+        Row: {
+          created_at: string | null
+          id: number
+          name: string
+          sort_order: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          name: string
+          sort_order?: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          name?: string
+          sort_order?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      content_assets: {
+        Row: {
+          asset_type: string
+          content_id: number
+          created_at: string
+          file_size: number | null
+          id: number
+          label: string | null
+          mime_type: string | null
+          sort_order: number
+          storage_path: string | null
+          uploaded_by: string | null
+          url: string
+        }
+        Insert: {
+          asset_type?: string
+          content_id: number
+          created_at?: string
+          file_size?: number | null
+          id?: number
+          label?: string | null
+          mime_type?: string | null
+          sort_order?: number
+          storage_path?: string | null
+          uploaded_by?: string | null
+          url: string
+        }
+        Update: {
+          asset_type?: string
+          content_id?: number
+          created_at?: string
+          file_size?: number | null
+          id?: number
+          label?: string | null
+          mime_type?: string | null
+          sort_order?: number
+          storage_path?: string | null
+          uploaded_by?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_assets_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "contents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_assets_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "v_content_roi"
+            referencedColumns: ["content_id"]
+          },
+          {
+            foreignKeyName: "content_assets_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_assignment_log: {
+        Row: {
+          assigned_at: string
+          assigned_by_id: string | null
+          assigned_by_name: string | null
+          assigned_to_id: string | null
+          assigned_to_name: string | null
+          content_id: number
+          id: number
+          note: string | null
+          role: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by_id?: string | null
+          assigned_by_name?: string | null
+          assigned_to_id?: string | null
+          assigned_to_name?: string | null
+          content_id: number
+          id?: number
+          note?: string | null
+          role: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by_id?: string | null
+          assigned_by_name?: string | null
+          assigned_to_id?: string | null
+          assigned_to_name?: string | null
+          content_id?: number
+          id?: number
+          note?: string | null
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_assignment_log_assigned_by_id_fkey"
+            columns: ["assigned_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_assignment_log_assigned_to_id_fkey"
+            columns: ["assigned_to_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_assignment_log_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "contents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_assignment_log_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "v_content_roi"
+            referencedColumns: ["content_id"]
+          },
+        ]
+      }
       contents: {
         Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
           actual_post_date: string | null
           actual_submit_date: string | null
           approved_at: string | null
@@ -197,6 +348,7 @@ export type Database = {
           producer: string | null
           producer_id: string | null
           product_id: string
+          production_cost: number | null
           scheduled_post_date: string | null
           seq: number
           status: string | null
@@ -205,6 +357,8 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
           actual_post_date?: string | null
           actual_submit_date?: string | null
           approved_at?: string | null
@@ -231,6 +385,7 @@ export type Database = {
           producer?: string | null
           producer_id?: string | null
           product_id: string
+          production_cost?: number | null
           scheduled_post_date?: string | null
           seq: number
           status?: string | null
@@ -239,6 +394,8 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
           actual_post_date?: string | null
           actual_submit_date?: string | null
           approved_at?: string | null
@@ -265,6 +422,7 @@ export type Database = {
           producer?: string | null
           producer_id?: string | null
           product_id?: string
+          production_cost?: number | null
           scheduled_post_date?: string | null
           seq?: number
           status?: string | null
@@ -273,6 +431,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "contents_acknowledged_by_fkey"
+            columns: ["acknowledged_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "contents_approver_id_fkey"
             columns: ["approver_id"]
@@ -303,6 +468,108 @@ export type Database = {
           },
           {
             foreignKeyName: "contents_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["product_id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          ad_id: number | null
+          channel_in: string
+          closed_at: string | null
+          consent_at: string | null
+          consent_given: boolean
+          content_id: number | null
+          created_at: string | null
+          deal_amount: number | null
+          id: number
+          notes: string | null
+          owner_id: string | null
+          owner_name: string | null
+          product_id: string
+          status: string
+          updated_at: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+        }
+        Insert: {
+          ad_id?: number | null
+          channel_in?: string
+          closed_at?: string | null
+          consent_at?: string | null
+          consent_given?: boolean
+          content_id?: number | null
+          created_at?: string | null
+          deal_amount?: number | null
+          id?: number
+          notes?: string | null
+          owner_id?: string | null
+          owner_name?: string | null
+          product_id: string
+          status?: string
+          updated_at?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Update: {
+          ad_id?: number | null
+          channel_in?: string
+          closed_at?: string | null
+          consent_at?: string | null
+          consent_given?: boolean
+          content_id?: number | null
+          created_at?: string | null
+          deal_amount?: number | null
+          id?: number
+          notes?: string | null
+          owner_id?: string | null
+          owner_name?: string | null
+          product_id?: string
+          status?: string
+          updated_at?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_ad_id_fkey"
+            columns: ["ad_id"]
+            isOneToOne: false
+            referencedRelation: "ads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "contents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "v_content_roi"
+            referencedColumns: ["content_id"]
+          },
+          {
+            foreignKeyName: "leads_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
@@ -579,10 +846,40 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_content_roi: {
+        Row: {
+          ad_cost_share: number | null
+          assigned_to: string | null
+          channel: string | null
+          closed_leads: number | null
+          content_id: number | null
+          content_status: string | null
+          conversion_rate: number | null
+          deal_revenue: number | null
+          product_id: string | null
+          production_cost: number | null
+          roi: number | null
+          roi_pct: number | null
+          seq: number | null
+          title: string | null
+          total_cost: number | null
+          total_leads: number | null
+          type: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contents_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["product_id"]
+          },
+        ]
+      }
     }
     Functions: {
-      [_ in never]: never
+      get_my_approval_status: { Args: never; Returns: string }
+      get_my_role: { Args: never; Returns: string }
     }
     Enums: {
       [_ in never]: never
@@ -715,3 +1012,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

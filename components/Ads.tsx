@@ -39,9 +39,18 @@ function IconTrash() {
   )
 }
 
+const EMPTY_ADD_FORM = {
+  product_id: '', month: '', campaign_name: '', channel: 'Facebook',
+  budget_approved: '', budget_allocated: '', content_ref: '',
+  content_id: '',
+  managed_by: '', managed_by_id: '', start_date: '', end_date: '', result_notes: '',
+}
+
 export default function Ads() {
   const [ads, setAds]               = useState<any[]>([])
   const [products, setProducts]     = useState<any[]>([])
+  const [contents, setContents]     = useState<any[]>([])
+  const [adContentsMap, setAdContentsMap] = useState<Map<number, number[]>>(new Map()) // ad_id → content_ids[]
   const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([])
   const [loading, setLoading]       = useState(true)
   const [loadError, setLoadError]   = useState('')
@@ -52,11 +61,7 @@ export default function Ads() {
   const [showAdd, setShowAdd] = useState(false)
   const [saving, setSaving]   = useState(false)
   const [addError, setAddError] = useState('')
-  const [addForm, setAddForm] = useState({
-    product_id: '', month: '', campaign_name: '', channel: 'Facebook',
-    budget_approved: '', budget_allocated: '', content_ref: '',
-    managed_by: '', managed_by_id: '', start_date: '', end_date: '', result_notes: '',
-  })
+  const [addForm, setAddForm] = useState({ ...EMPTY_ADD_FORM })
 
   // Edit modal
   const [editingRow, setEditingRow] = useState<any | null>(null)
@@ -65,7 +70,8 @@ export default function Ads() {
   const [editVal, setEditVal] = useState({
     product_id: '', month: '', campaign_name: '', channel: '',
     budget_approved: '', budget_adjustment: '', budget_allocated: '',
-    content_ref: '', managed_by: '', managed_by_id: '',
+    content_ref: '', content_id: '',
+    managed_by: '', managed_by_id: '',
     start_date: '', end_date: '', next_action: '',
     reach: '', clicks: '', leads: '', budget_spent: '', sales_amount: '', result_notes: '',
   })
@@ -81,17 +87,28 @@ export default function Ads() {
 
   async function load() {
     setLoadError('')
-    const [a, p, pr] = await Promise.all([
+    const [a, p, c, ac, pr] = await Promise.all([
       supabase
         .from('ads')
         .select('id, product_id, month, campaign_name, channel, content_ref, managed_by, managed_by_id, budget_approved, budget_adjustment, budget_allocated, budget_spent, budget_total, budget_remaining, reach, clicks, leads, cpl, roas, sales_amount, result_notes, next_action, start_date, end_date, created_at')
         .order('month', { ascending: false }).order('product_id'),
       supabase.from('products').select('product_id, name'),
+      supabase.from('contents').select('id, product_id, seq, title, status').order('product_id').order('seq'),
+      supabase.from('ad_contents').select('ad_id, content_id'),
       supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
     ])
     if (a.error) { setLoadError(a.error.message); setLoading(false); return }
     setAds(a.data || [])
     setProducts(p.data || [])
+    setContents(c.data || [])
+    // Build ad_id → content_ids map
+    const map = new Map<number, number[]>()
+    for (const row of (ac.data || [])) {
+      const list = map.get(row.ad_id) || []
+      list.push(row.content_id)
+      map.set(row.ad_id, list)
+    }
+    setAdContentsMap(map)
     setProfileOptions(pr.data || [])
     setLoading(false)
   }
@@ -101,23 +118,34 @@ export default function Ads() {
   // ── Add ──────────────────────────────────────────────────────
   async function saveAdd() {
     setSaving(true); setAddError('')
-    const { error: insErr } = await supabase.from('ads').insert([{
+    const { data: newAd, error: insErr } = await supabase.from('ads').insert([{
       product_id:      addForm.product_id,
       month:           addForm.month,
       campaign_name:   addForm.campaign_name,
       channel:         addForm.channel,
       budget_approved: Number(addForm.budget_approved) || 0,
       budget_allocated: Number(addForm.budget_allocated) || 0,
+      // Keep content_ref as legacy display; ad_contents is the FK source of truth
       content_ref:     addForm.content_ref,
       managed_by:      addForm.managed_by,
       managed_by_id:   addForm.managed_by_id || null,
       start_date:      addForm.start_date || null,
       end_date:        addForm.end_date || null,
       result_notes:    addForm.result_notes,
-    }])
-    if (insErr) { setAddError(insErr.message); setSaving(false); return }
+    }]).select('id').single()
+    if (insErr || !newAd) { setAddError(insErr?.message || 'เพิ่มไม่สำเร็จ'); setSaving(false); return }
+
+    // Link content via ad_contents if a content was selected
+    if (addForm.content_id) {
+      await supabase.from('ad_contents').insert([{
+        ad_id: newAd.id,
+        content_id: Number(addForm.content_id),
+        attribution_pct: 100,
+      }])
+    }
+
     setShowAdd(false)
-    setAddForm({ product_id: '', month: '', campaign_name: '', channel: 'Facebook', budget_approved: '', budget_allocated: '', content_ref: '', managed_by: '', managed_by_id: '', start_date: '', end_date: '', result_notes: '' })
+    setAddForm({ ...EMPTY_ADD_FORM })
     await load()
     setSaving(false)
     showToast('เพิ่มแคมเปญแล้ว')
@@ -125,6 +153,10 @@ export default function Ads() {
 
   // ── Edit ─────────────────────────────────────────────────────
   function openEdit(a: any) {
+    // Find linked content (first one if multiple)
+    const linkedContentIds = adContentsMap.get(a.id) || []
+    const linkedContentId = linkedContentIds.length > 0 ? String(linkedContentIds[0]) : ''
+
     setEditingRow(a)
     setEditVal({
       product_id:       a.product_id || '',
@@ -135,6 +167,7 @@ export default function Ads() {
       budget_adjustment: String(a.budget_adjustment ?? 0),
       budget_allocated: String(a.budget_allocated ?? 0),
       content_ref:      a.content_ref || '',
+      content_id:       linkedContentId,
       managed_by:       a.managed_by || '',
       managed_by_id:    a.managed_by_id || '',
       start_date:       a.start_date || '',
@@ -154,6 +187,11 @@ export default function Ads() {
   async function saveEdit() {
     if (!editingRow) return
     setSavingEdit(true); setEditError('')
+
+    // Find the linked content from contents list (for content_ref display name)
+    const linkedContent = editVal.content_id ? contents.find(c => c.id === Number(editVal.content_id)) : null
+    const contentRefDisplay = linkedContent ? `#${linkedContent.seq} ${linkedContent.title}` : editVal.content_ref
+
     const { error: updErr } = await supabase.from('ads').update({
       product_id:        editVal.product_id,
       month:             editVal.month,
@@ -162,7 +200,7 @@ export default function Ads() {
       budget_approved:   Number(editVal.budget_approved) || 0,
       budget_adjustment: Number(editVal.budget_adjustment) || 0,
       budget_allocated:  Number(editVal.budget_allocated) || 0,
-      content_ref:       editVal.content_ref,
+      content_ref:       contentRefDisplay,
       managed_by:        editVal.managed_by,
       managed_by_id:     editVal.managed_by_id || null,
       start_date:        editVal.start_date || null,
@@ -175,8 +213,22 @@ export default function Ads() {
       sales_amount:      Number(editVal.sales_amount) || 0,
       result_notes:      editVal.result_notes,
     }).eq('id', editingRow.id)
+
+    if (updErr) { setEditError(updErr.message); setSavingEdit(false); return }
+
+    // Sync ad_contents: remove old links and add new one
+    if (editVal.content_id !== undefined) {
+      await supabase.from('ad_contents').delete().eq('ad_id', editingRow.id)
+      if (editVal.content_id) {
+        await supabase.from('ad_contents').insert([{
+          ad_id: editingRow.id,
+          content_id: Number(editVal.content_id),
+          attribution_pct: 100,
+        }])
+      }
+    }
+
     setSavingEdit(false)
-    if (updErr) { setEditError(updErr.message); return }
     setEditingRow(null)
     await load()   // reload to get updated generated cols (budget_remaining, cpl, roas)
     showToast('บันทึกแคมเปญแล้ว')
@@ -195,11 +247,12 @@ export default function Ads() {
 
   // ── Inline manager ────────────────────────────────────────────
   async function updateManager(id: number, managed_by_id: string, managed_by: string) {
-    setAds(prev => prev.map(a => a.id === id ? { ...a, managed_by_id, managed_by } : a))
+    // Call supabase first, then update state
     const { error: updErr } = await supabase.from('ads').update({
       managed_by_id: managed_by_id || null, managed_by,
     }).eq('id', id)
-    if (updErr) { showToast(updErr.message, 'error'); await load() }
+    if (updErr) { showToast(updErr.message, 'error'); return }
+    setAds(prev => prev.map(a => a.id === id ? { ...a, managed_by_id, managed_by } : a))
   }
 
   // ── Aggregates ────────────────────────────────────────────────
@@ -234,11 +287,24 @@ export default function Ads() {
     )
   }, [ads, search, filterMonth, dateFrom, dateTo])
 
-  const headers = ['Product', 'เดือน', 'Campaign', 'ช่องทาง', 'ผู้ดูแล', 'งบจัดสรร', 'ใช้จริง', 'คงเหลือ', 'Reach', 'Leads', 'CPL', 'ROAS', 'วันที่เพิ่ม', '']
+  const headers = ['Product', 'เดือน', 'Campaign', 'ช่องทาง', 'Content', 'ผู้ดูแล', 'งบจัดสรร', 'ใช้จริง', 'คงเหลือ', 'Reach', 'Leads', 'CPL', 'ROAS', 'วันที่เพิ่ม', '']
 
   // Pagination — reset when filters change
   const [visibleCount, setVisibleCount] = useState(10)
   useEffect(() => { setVisibleCount(10) }, [search, filterMonth, dateFrom, dateTo])
+
+  // Content dropdown filtered by product
+  const addFilteredContents = useMemo(
+    () => contents.filter(c => !addForm.product_id || c.product_id === addForm.product_id),
+    [contents, addForm.product_id],
+  )
+  const editFilteredContents = useMemo(
+    () => contents.filter(c => !editVal.product_id || c.product_id === editVal.product_id),
+    [contents, editVal.product_id],
+  )
+
+  // Content map for display in table
+  const contentMap = useMemo(() => new Map(contents.map(c => [c.id, c])), [contents])
 
   return (
     <div className="p-6 space-y-5">
@@ -250,7 +316,7 @@ export default function Ads() {
           <p className="text-sm text-slate-400 mt-0.5">ติดตามแคมเปญโฆษณาและ ROI</p>
         </div>
         {canInsert && (
-          <button onClick={() => { setAddForm({ product_id: '', month: '', campaign_name: '', channel: 'Facebook', budget_approved: '', budget_allocated: '', content_ref: '', managed_by: '', managed_by_id: '', start_date: '', end_date: '', result_notes: '' }); setAddError(''); setShowAdd(true) }}
+          <button onClick={() => { setAddForm({ ...EMPTY_ADD_FORM }); setAddError(''); setShowAdd(true) }}
             className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-500 transition-colors shadow-sm">
             <IconPlus />เพิ่มแคมเปญ
           </button>
@@ -323,6 +389,12 @@ export default function Ads() {
                 const over = spent > allocated
                 const roas = Number(a.roas || 0)
                 const roasColor = roas >= 2 ? 'text-emerald-600 font-semibold' : roas >= 1 ? 'text-slate-900' : roas > 0 ? 'text-red-500' : 'text-slate-300'
+                // Find linked content
+                const linkedContentIds = adContentsMap.get(a.id) || []
+                const linkedContent = linkedContentIds.length > 0 ? contentMap.get(linkedContentIds[0]) : null
+                const contentDisplay = linkedContent
+                  ? `#${linkedContent.seq} ${linkedContent.title}`
+                  : a.content_ref || null
                 return (
                   <tr key={a.id} className="border-b border-slate-100/60 hover:bg-indigo-50/20 transition-colors last:border-0">
                     <td className="px-5 py-4">
@@ -331,6 +403,19 @@ export default function Ads() {
                     <td className="px-5 py-4 text-sm text-slate-500 whitespace-nowrap">{a.month}</td>
                     <td className="px-5 py-4 font-semibold text-slate-900 max-w-[160px] truncate" title={a.campaign_name}>{a.campaign_name}</td>
                     <td className="px-5 py-4 text-sm text-slate-500">{a.channel}</td>
+                    <td className="px-5 py-4 max-w-[140px]">
+                      {contentDisplay
+                        ? <span className="text-xs text-indigo-600 truncate block" title={contentDisplay}>{contentDisplay}</span>
+                        : <span className="text-slate-300 text-xs">—</span>}
+                      {linkedContent && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium mt-0.5 inline-block
+                          ${linkedContent.status === 'โพสต์แล้ว' ? 'bg-emerald-50 text-emerald-600'
+                            : linkedContent.status === 'รอผลิต' ? 'bg-slate-100 text-slate-400'
+                            : 'bg-blue-50 text-blue-600'}`}>
+                          {linkedContent.status}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-5 py-4">
                       <InlinePersonPicker value={a.managed_by_id || ''} display={a.managed_by || ''}
                         profiles={profileOptions} disabled={!canUpdate}
@@ -350,7 +435,6 @@ export default function Ads() {
                     <td className={`px-5 py-4 text-sm tabular-nums ${roasColor}`}>
                       {roas > 0 ? `${roas.toFixed(2)}×` : '—'}
                     </td>
-                    {/* Created at */}
                     <td className="px-5 py-4 text-xs text-slate-400 whitespace-nowrap">
                       {a.created_at
                         ? new Date(a.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -406,7 +490,9 @@ export default function Ads() {
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="เพิ่มแคมเปญโฆษณาใหม่" width="max-w-2xl">
         <div className="grid grid-cols-2 gap-4">
           <Field label="Product" required>
-            <select value={addForm.product_id} onChange={e => setAddForm({ ...addForm, product_id: e.target.value })} className={selectCls}>
+            <select value={addForm.product_id}
+              onChange={e => setAddForm({ ...addForm, product_id: e.target.value, content_id: '' })}
+              className={selectCls}>
               <option value="">เลือก Product</option>
               {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
             </select>
@@ -428,8 +514,13 @@ export default function Ads() {
           <Field label="งบจัดสรร (฿)">
             <input type="number" placeholder="0" value={addForm.budget_allocated} onChange={e => setAddForm({ ...addForm, budget_allocated: e.target.value })} className={inputCls} />
           </Field>
-          <Field label="อ้างอิง Content">
-            <input placeholder="ชื่อ content ที่ใช้" value={addForm.content_ref} onChange={e => setAddForm({ ...addForm, content_ref: e.target.value })} className={inputCls} />
+          <Field label="Content ที่ใช้" hint="เลือก content ที่โฆษณาชิ้นนี้ใช้ (สำหรับ ROI tracking)">
+            <select value={addForm.content_id} onChange={e => setAddForm({ ...addForm, content_id: e.target.value })} className={selectCls}>
+              <option value="">— ไม่ระบุ</option>
+              {addFilteredContents.map(c => (
+                <option key={c.id} value={c.id}>#{c.seq} {c.title}</option>
+              ))}
+            </select>
           </Field>
           <Field label="ผู้ดูแล">
             <ProfilePicker value={addForm.managed_by_id} profiles={profileOptions}
@@ -442,7 +533,7 @@ export default function Ads() {
             <input type="date" value={addForm.end_date} onChange={e => setAddForm({ ...addForm, end_date: e.target.value })} className={inputCls} />
           </Field>
           <div className="col-span-2">
-            <Field label="หมายเหตุผล">
+            <Field label="หมายเหตุ">
               <input placeholder="หมายเหตุเพิ่มเติม" value={addForm.result_notes} onChange={e => setAddForm({ ...addForm, result_notes: e.target.value })} className={inputCls} />
             </Field>
           </div>
@@ -462,7 +553,9 @@ export default function Ads() {
         <div className="grid grid-cols-2 gap-4">
           {/* ── ข้อมูลแคมเปญ ── */}
           <Field label="Product" required>
-            <select value={editVal.product_id} onChange={e => setEditVal(v => ({ ...v, product_id: e.target.value }))} className={selectCls}>
+            <select value={editVal.product_id}
+              onChange={e => setEditVal(v => ({ ...v, product_id: e.target.value, content_id: '' }))}
+              className={selectCls}>
               <option value="">เลือก Product</option>
               {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
             </select>
@@ -478,8 +571,13 @@ export default function Ads() {
           <Field label="ช่องทาง">
             <input placeholder="Facebook, Instagram ฯลฯ" value={editVal.channel} onChange={e => setEditVal(v => ({ ...v, channel: e.target.value }))} className={inputCls} />
           </Field>
-          <Field label="อ้างอิง Content">
-            <input placeholder="ชื่อ content ที่ใช้" value={editVal.content_ref} onChange={e => setEditVal(v => ({ ...v, content_ref: e.target.value }))} className={inputCls} />
+          <Field label="Content ที่ใช้" hint="เลือก content เพื่อ track ROI">
+            <select value={editVal.content_id} onChange={e => setEditVal(v => ({ ...v, content_id: e.target.value }))} className={selectCls}>
+              <option value="">— ไม่ระบุ</option>
+              {editFilteredContents.map(c => (
+                <option key={c.id} value={c.id}>#{c.seq} {c.title}</option>
+              ))}
+            </select>
           </Field>
           <Field label="งบที่อนุมัติ (฿)">
             <input type="number" placeholder="0" value={editVal.budget_approved} onChange={e => setEditVal(v => ({ ...v, budget_approved: e.target.value }))} className={inputCls} />
@@ -524,7 +622,7 @@ export default function Ads() {
             <input placeholder="แผนการดำเนินงานถัดไป" value={editVal.next_action} onChange={e => setEditVal(v => ({ ...v, next_action: e.target.value }))} className={inputCls} />
           </Field>
           <div className="col-span-2">
-            <Field label="หมายเหตุผล">
+            <Field label="หมายเหตุ">
               <input placeholder="หมายเหตุเพิ่มเติม" value={editVal.result_notes} onChange={e => setEditVal(v => ({ ...v, result_notes: e.target.value }))} className={inputCls} />
             </Field>
           </div>

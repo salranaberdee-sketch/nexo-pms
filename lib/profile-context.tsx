@@ -27,14 +27,17 @@ export function useProfile(): Profile {
 // Role × operation matrix — mirrors the RLS policies in the database.
 // Used for client-side UI gating (RLS remains the source of truth at the DB level).
 const PERMISSION_MATRIX: Record<string, Record<string, string[]>> = {
-  products:       { insert: ['admin', 'manager'],                    update: ['admin', 'manager'],                    delete: ['admin'] },
-  contents:       { insert: ['admin', 'manager', 'editor'],         update: ['admin', 'manager', 'editor'],         delete: ['admin', 'manager'] },
-  ads:            { insert: ['admin', 'manager'],                    update: ['admin', 'manager'],                    delete: ['admin'] },
-  sales:          { insert: ['admin', 'manager'],                    update: ['admin', 'manager'],                    delete: ['admin'] },
-  product_briefs: { insert: ['admin', 'manager', 'editor'],         update: ['admin', 'manager', 'editor'],         delete: ['admin', 'manager'] },
-  profiles:       { insert: [],                                       update: ['admin'],                                delete: ['admin'] },
-  ad_contents:    { insert: ['admin', 'manager'],                    update: ['admin', 'manager'],                    delete: ['admin'] },
-  leads:          { insert: ['admin', 'manager'],                    update: ['admin', 'manager'],                    delete: ['admin'] },
+  products:               { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
+  contents:               { insert: ['admin', 'manager', 'editor'],     update: ['admin', 'manager', 'editor'],     delete: ['admin', 'manager'] },
+  ads:                    { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
+  sales:                  { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
+  product_briefs:         { insert: ['admin', 'manager', 'editor'],     update: ['admin', 'manager', 'editor'],     delete: ['admin', 'manager'] },
+  profiles:               { insert: [],                                   update: ['admin'],                           delete: ['admin'] },
+  ad_contents:            { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
+  leads:                  { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
+  categories:             { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
+  content_assets:         { insert: ['admin', 'manager', 'editor'],     update: ['admin', 'manager', 'editor'],     delete: ['admin', 'manager'] },
+  content_assignment_log: { insert: ['admin', 'manager'],                update: [],                                  delete: [] },
 }
 
 // Returns true if the current user's role allows the given action on the given table.

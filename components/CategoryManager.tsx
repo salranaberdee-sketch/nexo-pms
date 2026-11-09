@@ -42,7 +42,7 @@ export default function CategoryManager({ onClose }: { onClose?: () => void }) {
   const [draggingId, setDraggingId] = useState<number | null>(null)
   const [dragOverId, setDragOverId] = useState<number | null>(null)
 
-  const canManage  = useCan('insert', 'products') // admin/manager
+  const canManage  = useCan('insert', 'categories') // admin/manager
   const isAdmin    = useIsAdmin()
   const supabase   = createClient()
 
