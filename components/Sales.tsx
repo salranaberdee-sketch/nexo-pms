@@ -9,6 +9,7 @@ import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
 import { useCategories } from './CategoryManager'
 import StatusSelect from './StatusSelect'
+import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, thRightCls, tdCls, tdRightCls, tableWrapCls } from '@/lib/cx'
 
 const SALES_STATUS_OPTIONS = ['ยังไม่เปิดขาย', 'ยังไม่เริ่ม', 'กำลังขาย', 'ปิดเป้า']
 
@@ -21,9 +22,6 @@ const salesStatusStyle: Record<string, string> = {
 
 const TODAY = todayStr()
 const TODAY_MS = new Date(TODAY).getTime()
-
-const inputCls = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-slate-400 bg-white'
-const selectCls = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white'
 
 function IconPlus() {
   return (
@@ -278,8 +276,6 @@ export default function Sales() {
     return filterStatus === 'all' ? filtered : filtered.filter(s => s.status === filterStatus)
   }, [filtered, filterStatus])
 
-  const headers = ['Product', 'ชื่อสินค้า', 'ผู้รับผิดชอบ', 'หมวดหมู่', 'ช่วงเวลา', 'เป้ายอดขาย', 'เป้าจำนวน', 'ยอดจริง', 'รับเงินจริง', 'ยังขาด', '% สำเร็จ', 'ต้องขาย/วัน', 'สถานะ', '']
-
   // Pagination — reset when filters change
   const [visibleCount, setVisibleCount] = useState(10)
   useEffect(() => { setVisibleCount(10) }, [search, filterCategory, filterStatus, dateFrom, dateTo])
@@ -295,41 +291,41 @@ export default function Sales() {
         </div>
         {canInsert && (
           <button onClick={() => { setAddForm({ product_id: '', period_start: '', period_end: '', sales_target_amount: '', sales_target_count: '', status: 'ยังไม่เปิดขาย' }); setAddError(''); setShowAdd(true) }}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-500 transition-colors shadow-sm">
+            className={btnPrimary}>
             <IconPlus />เพิ่มเป้ายอดขาย
           </button>
         )}
       </div>
 
       {loadError && (
-        <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600">
-          โหลดข้อมูลไม่สำเร็จ: {loadError}
-          <button onClick={load} className="ml-3 underline text-red-500 hover:text-red-700">ลองใหม่</button>
+        <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600 flex items-center gap-3">
+          <span className="flex-1">โหลดข้อมูลไม่สำเร็จ: {loadError}</span>
+          <button onClick={load} className="text-red-600 underline underline-offset-2 hover:no-underline shrink-0">ลองใหม่</button>
         </div>
       )}
 
-      {/* Summary cards */}
+      {/* ── Summary cards ─────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-indigo-500" />
-          <p className="text-xs text-slate-400 mb-3 mt-1">ยอดขายรวม</p>
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-indigo-500" />
+          <p className="text-xs text-slate-400 mb-2.5 mt-1">ยอดขายรวม</p>
           <p className="text-2xl font-semibold text-slate-900 leading-none">฿{totalActual.toLocaleString()}</p>
           <div className="mt-3">
-            <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#f1f5f9' }}>
+            <div className="w-full h-1.5 rounded-full overflow-hidden bg-slate-100">
               <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${Math.min(overallPct, 100)}%` }} />
             </div>
             <p className="text-xs text-slate-400 mt-1.5">{overallPct}% ของเป้า ฿{totalTarget.toLocaleString()}</p>
           </div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-red-400" />
-          <p className="text-xs text-slate-400 mb-3 mt-1">ยังขาดอยู่</p>
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-red-400" />
+          <p className="text-xs text-slate-400 mb-2.5 mt-1">ยังขาดอยู่</p>
           <p className="text-2xl font-semibold text-red-500 leading-none">฿{gap.toLocaleString()}</p>
           <p className="text-xs text-slate-400 mt-2">ต้องขายเพิ่ม ฿{perDay.toLocaleString()}/วัน</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-amber-400" />
-          <p className="text-xs text-slate-400 mb-3 mt-1">วันที่คงเหลือ</p>
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-amber-400" />
+          <p className="text-xs text-slate-400 mb-2.5 mt-1">วันที่คงเหลือ</p>
           <p className="text-2xl font-semibold text-slate-900 leading-none">{daysLeft} วัน</p>
           <p className="text-xs text-slate-400 mt-2">
             สิ้นสุด {periodEnd.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -337,72 +333,84 @@ export default function Sales() {
         </div>
       </div>
 
-      {/* Category summary cards */}
+      {/* ── Category summary cards ────────────────────────────── */}
       {categoryStats.length > 0 && (
         <div className={`grid gap-3 ${categoryStats.length <= 2 ? 'grid-cols-2' : categoryStats.length === 3 ? 'grid-cols-3' : 'grid-cols-2 lg:grid-cols-4'}`}>
           {categoryStats.map(({ cat, target, actual, pct }, i) => {
-            const colors = ['#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#3b82f6', '#f43f5e']
-            const color = colors[i % colors.length]
+            // Tailwind-safe color pairs [accent-bar, progress-bar, text]
+            const colorPairs = [
+              { bar: 'bg-indigo-500', prog: 'bg-indigo-500', ring: 'border-indigo-300 ring-indigo-100' },
+              { bar: 'bg-emerald-500', prog: 'bg-emerald-500', ring: 'border-emerald-300 ring-emerald-100' },
+              { bar: 'bg-amber-500',  prog: 'bg-amber-500',  ring: 'border-amber-300 ring-amber-100' },
+              { bar: 'bg-violet-500', prog: 'bg-violet-500', ring: 'border-violet-300 ring-violet-100' },
+              { bar: 'bg-blue-500',   prog: 'bg-blue-500',   ring: 'border-blue-300 ring-blue-100' },
+              { bar: 'bg-rose-500',   prog: 'bg-rose-500',   ring: 'border-rose-300 ring-rose-100' },
+            ]
+            const cp = colorPairs[i % colorPairs.length]
             const isActive = filterCategory === cat
             return (
               <button key={cat} type="button"
                 onClick={() => setFilterCategory(isActive ? 'all' : cat)}
                 className={`text-left bg-white rounded-2xl border p-4 shadow-sm relative overflow-hidden transition-all hover:shadow-md
-                  ${isActive ? 'border-indigo-300 ring-2 ring-indigo-100' : 'border-slate-100'}`}>
-                <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: color }} />
+                  ${isActive ? `${cp.ring} ring-2` : 'border-slate-100'}`}>
+                <div className={`absolute top-0 left-0 right-0 h-0.5 ${cp.bar}`} />
                 <p className="text-xs text-slate-400 mb-2 mt-0.5 truncate">{cat}</p>
-                <p className="text-xl font-bold text-slate-900 leading-none">฿{actual.toLocaleString()}</p>
+                <p className="text-2xl font-semibold text-slate-900 leading-none">฿{actual.toLocaleString()}</p>
                 <div className="mt-2.5">
                   <div className="w-full h-1.5 rounded-full overflow-hidden bg-slate-100">
-                    <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: color }} />
+                    <div className={`h-full rounded-full transition-all ${cp.prog}`}
+                      style={{ width: `${Math.min(pct, 100)}%` }} />
                   </div>
                   <p className="text-xs text-slate-400 mt-1">{pct}% ของเป้า ฿{target.toLocaleString()}</p>
                 </div>
-                {isActive && <p className="text-[10px] mt-1.5" style={{ color }}>กำลังกรอง ✓</p>}
+                {isActive && <p className="text-[10px] mt-1.5 text-indigo-500">กำลังกรอง ✓</p>}
               </button>
             )
           })}
         </div>
       )}
 
-      {/* Category filter bar (เมื่อมีหมวดหมู่) */}
+      {/* ── Category filter bar ───────────────────────────────── */}
       {allCategories.length > 1 && (
         <div className="flex gap-2 flex-wrap items-center">
           <span className="text-xs text-slate-400 font-medium shrink-0">หมวดหมู่:</span>
           <button onClick={() => setFilterCategory('all')}
-            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border
-              ${filterCategory === 'all' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+            className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors
+              ${filterCategory === 'all' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300'}`}>
             ทั้งหมด
           </button>
           {allCategories.map(cat => (
             <button key={cat} onClick={() => setFilterCategory(filterCategory === cat ? 'all' : cat)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border
-                ${filterCategory === cat ? 'bg-slate-700 text-white border-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+              className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors
+                ${filterCategory === cat ? 'bg-slate-700 text-white border-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300'}`}>
               {cat}
             </button>
           ))}
         </div>
       )}
 
-      {/* Status filter pills */}
+      {/* ── Status filter pills ───────────────────────────────── */}
       <div className="flex gap-2 flex-wrap items-center">
         <button onClick={() => setFilterStatus('all')}
-          className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors border
-            ${filterStatus === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-          ทั้งหมด <span className="ml-1 opacity-60">{sales.length}</span>
+          className={filterStatus === 'all'
+            ? 'px-3.5 py-1.5 rounded-lg text-sm font-medium border bg-indigo-600 text-white border-indigo-600 transition-colors'
+            : 'px-3.5 py-1.5 rounded-lg text-sm font-medium border bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-colors'}>
+          ทั้งหมด <span className="ml-1 opacity-60 tabular-nums">{sales.length}</span>
         </button>
         {SALES_STATUS_OPTIONS.map(s => (
           <button key={s} onClick={() => setFilterStatus(filterStatus === s ? 'all' : s)}
-            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors border
-              ${filterStatus === s ? salesStatusStyle[s] + ' border-current/20' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium border transition-colors
+              ${filterStatus === s
+                ? (salesStatusStyle[s] || '') + ' border-current/20'
+                : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300'}`}>
             {s} <span className="ml-1 tabular-nums opacity-60">{countByStatus[s] || 0}</span>
           </button>
         ))}
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+      {/* ── Table ─────────────────────────────────────────────── */}
+      <div className={tableWrapCls}>
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาด้วย Product ID หรือชื่อสินค้า..." />
             <div className="flex items-center gap-1.5 shrink-0">
@@ -418,20 +426,31 @@ export default function Sales() {
               )}
             </div>
           </div>
-          <span className="text-xs text-slate-400 whitespace-nowrap">{filteredAndSearched.length} รายการ</span>
+          <span className="text-xs text-slate-400 whitespace-nowrap tabular-nums">{filteredAndSearched.length} รายการ</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100">
-                {headers.map(h => (
-                  <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 whitespace-nowrap uppercase tracking-wide">{h}</th>
-                ))}
+              <tr className="bg-slate-50/60 border-b border-slate-100">
+                <th className={thCls}>Product</th>
+                <th className={thCls}>ชื่อสินค้า</th>
+                <th className={thCls}>ผู้รับผิดชอบ</th>
+                <th className={thCls}>หมวดหมู่</th>
+                <th className={thCls}>ช่วงเวลา</th>
+                <th className={thRightCls}>เป้ายอดขาย</th>
+                <th className={thRightCls}>เป้าจำนวน</th>
+                <th className={thRightCls}>ยอดจริง</th>
+                <th className={thRightCls}>รับเงินจริง</th>
+                <th className={thRightCls}>ยังขาด</th>
+                <th className={thCls}>% สำเร็จ</th>
+                <th className={thRightCls}>ต้องขาย/วัน</th>
+                <th className={thCls}>สถานะ</th>
+                <th className={thCls}></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100/60">
               {loading ? (
-                <TableSkeleton cols={headers.length} />
+                <TableSkeleton cols={14} />
               ) : filteredAndSearched.length === 0 ? (
                 <EmptyState message="ยังไม่มีเป้ายอดขาย" />
               ) : filteredAndSearched.slice(0, visibleCount).map(s => {
@@ -442,43 +461,40 @@ export default function Sales() {
                 const rowGap  = Math.max(0, target - actual)
                 const pct     = target > 0 ? Math.round((actual / target) * 100) : 0
                 const colPct  = actual > 0 ? Math.round((received / actual) * 100) : 0
-                // Per-row days left and per-day required
                 const rowDaysLeft = s.period_end ? Math.max(0, Math.round((new Date(s.period_end).getTime() - TODAY_MS) / 86400000)) : 0
                 const rowPerDay   = rowDaysLeft > 0 && rowGap > 0 ? Math.round(rowGap / rowDaysLeft) : 0
                 return (
-                  <tr key={s.id} className="border-b border-slate-100/60 hover:bg-indigo-50/20 transition-colors last:border-0">
-                    <td className="px-5 py-4 font-mono text-xs font-medium text-slate-500">{s.product_id}</td>
-                    <td className="px-5 py-4 font-semibold text-slate-900 max-w-[160px] truncate">{product?.name}</td>
-                    {/* Owner from products join */}
-                    <td className="px-5 py-4 text-sm text-slate-500">
+                  <tr key={s.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className={`${tdCls} font-mono text-xs font-medium text-slate-500`}>{s.product_id}</td>
+                    <td className={`${tdCls} font-semibold text-slate-900 max-w-[160px]`}>
+                      <span className="truncate block">{product?.name}</span>
+                    </td>
+                    <td className={tdCls}>
                       {product?.owner
                         ? <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md font-medium">{product.owner}</span>
                         : <span className="text-slate-300 text-xs">—</span>}
                     </td>
-                    {/* Category */}
-                    <td className="px-5 py-4">
-                      {product?.business_type ? (
-                        <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{product.business_type}</span>
-                      ) : <span className="text-xs text-slate-300">—</span>}
+                    <td className={tdCls}>
+                      {product?.business_type
+                        ? <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{product.business_type}</span>
+                        : <span className="text-xs text-slate-300">—</span>}
                     </td>
-                    {/* Period */}
-                    <td className="px-5 py-4 whitespace-nowrap">
+                    <td className={`${tdCls} whitespace-nowrap`}>
                       <div className="text-xs text-slate-500">
                         {s.period_start && new Date(s.period_start).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}
                         {' – '}
                         {s.period_end && new Date(s.period_end).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-sm text-slate-500 tabular-nums">฿{target.toLocaleString()}</td>
-                    {/* เป้าจำนวนชิ้น */}
-                    <td className="px-5 py-4 text-sm text-slate-500 tabular-nums">
+                    <td className={`${tdRightCls} text-sm text-slate-500`}>฿{target.toLocaleString()}</td>
+                    <td className={`${tdRightCls} text-sm text-slate-500`}>
                       {Number(s.sales_target_count) > 0
                         ? <span>{Number(s.sales_target_count).toLocaleString()} ชิ้น</span>
                         : <span className="text-slate-300">—</span>}
                     </td>
-                    <td className="px-5 py-4 text-sm font-semibold text-slate-900 tabular-nums">฿{actual.toLocaleString()}</td>
-                    <td className="px-5 py-4 tabular-nums">
-                      <div className="flex flex-col">
+                    <td className={`${tdRightCls} text-sm font-semibold text-slate-900`}>฿{actual.toLocaleString()}</td>
+                    <td className={tdRightCls}>
+                      <div className="flex flex-col items-end">
                         <span className="text-sm text-slate-600">฿{received.toLocaleString()}</span>
                         {actual > 0 && (
                           <span className={`text-xs ${colPct >= 80 ? 'text-emerald-600' : colPct >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
@@ -487,45 +503,37 @@ export default function Sales() {
                         )}
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-sm text-red-500 tabular-nums font-medium">฿{rowGap.toLocaleString()}</td>
-                    <td className="px-5 py-4">
+                    <td className={`${tdRightCls} text-sm text-red-500 font-medium`}>฿{rowGap.toLocaleString()}</td>
+                    <td className={tdCls}>
                       <div className="flex items-center gap-2">
-                        <div className="w-16 h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#f1f5f9' }}>
+                        <div className="w-16 h-2 rounded-full overflow-hidden bg-slate-100">
                           <div className={`h-full rounded-full ${pct >= 80 ? 'bg-emerald-500' : pct >= 40 ? 'bg-amber-400' : 'bg-blue-500'}`}
                             style={{ width: `${Math.min(pct, 100)}%` }} />
                         </div>
                         <span className="text-sm text-slate-600 tabular-nums font-medium">{pct}%</span>
                       </div>
                     </td>
-                    {/* ต้องขาย/วัน per-row */}
-                    <td className="px-5 py-4 text-sm tabular-nums">
+                    <td className={`${tdRightCls} text-sm`}>
                       {rowPerDay > 0
                         ? <span className="text-amber-600 font-medium">฿{rowPerDay.toLocaleString()}</span>
                         : rowGap === 0
                           ? <span className="text-emerald-600 font-medium">ปิดเป้าแล้ว</span>
                           : <span className="text-slate-300">—</span>}
                     </td>
-                    <td className="px-5 py-4">
-                      <StatusSelect
-                        value={s.status}
-                        options={SALES_STATUS_OPTIONS}
-                        styleMap={salesStatusStyle}
-                        disabled={!canUpdate}
-                        onChange={v => updateStatus(s.id, v)}
-                      />
+                    <td className={tdCls}>
+                      <StatusSelect value={s.status} options={SALES_STATUS_OPTIONS} styleMap={salesStatusStyle}
+                        disabled={!canUpdate} onChange={v => updateStatus(s.id, v)} />
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
+                    <td className={`${tdCls} whitespace-nowrap`}>
                       <div className="flex items-center gap-1">
                         {canUpdate && (
-                          <button onClick={() => openEdit(s)} title="แก้ไข"
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 rounded-lg transition-colors">
+                          <button onClick={() => openEdit(s)} title="แก้ไข" className={btnSecondary}>
                             <IconPencil />แก้ไข
                           </button>
                         )}
                         {canDelete && (
-                          <button onClick={() => setConfirmDelete(s.id)} title="ลบ"
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors">
-                            <IconTrash />ลบ
+                          <button onClick={() => setConfirmDelete(s.id)} title="ลบ" className={btnDanger}>
+                            <IconTrash />
                           </button>
                         )}
                         {!canUpdate && !canDelete && <span className="text-xs text-slate-300">—</span>}
@@ -537,7 +545,7 @@ export default function Sales() {
             </tbody>
           </table>
           {visibleCount < filteredAndSearched.length && (
-            <div className="px-5 py-4 border-t border-slate-100 text-center">
+            <div className="px-4 py-4 border-t border-slate-100 text-center">
               <button onClick={() => setVisibleCount(v => v + 10)}
                 className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
                 ดูเพิ่มเติม ({filteredAndSearched.length - visibleCount} รายการ)

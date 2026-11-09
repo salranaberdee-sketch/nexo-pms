@@ -11,6 +11,7 @@ import InlinePersonPicker, { type ProfileOption } from './InlinePersonPicker'
 import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
 import CategoryManager, { useCategories } from './CategoryManager'
+import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, tdCls, tableWrapCls } from '@/lib/cx'
 
 const STATUS_OPTIONS = ['กำลังพัฒนา', 'เตรียมเปิดตัว', 'เปิดขาย', 'หยุดขาย']
 
@@ -27,10 +28,6 @@ const EMPTY_FORM = {
   product_id: '', name: '', business_type: '', product_type: '',
   brand: '', owner: '', owner_id: '', status: 'กำลังพัฒนา', notes: '', start_date: '',
 }
-
-// Shared input class
-const inputCls = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-slate-400 bg-white'
-const selectCls = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white'
 
 function IconPlus() {
   return (
@@ -212,7 +209,6 @@ export default function Products() {
   }, [products, search, filterStatus, filterCategory, dateFrom, dateTo])
 
   const deleteTarget = confirmDelete !== null ? products.find(p => p.id === confirmDelete) : null
-  const headers = ['Product ID', 'ชื่อสินค้า', 'ประเภทธุรกิจ', 'ประเภทสินค้า', 'แบรนด์', 'ผู้รับผิดชอบ', 'วันที่เริ่มต้น', 'สถานะ', 'หมายเหตุ', '']
 
   // Pagination — reset when filters change
   const [visibleCount, setVisibleCount] = useState(10)
@@ -231,15 +227,14 @@ export default function Products() {
         {canInsert && (
           <div className="flex items-center gap-2">
             <button onClick={() => setShowCategoryManager(true)}
-              className="flex items-center gap-2 border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors">
+              className={btnSecondary}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
                 <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
               </svg>
               หมวดหมู่
             </button>
-            <button onClick={openAdd}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-500 transition-colors shadow-sm">
+            <button onClick={openAdd} className={btnPrimary}>
               <IconPlus />เพิ่มสินค้า
             </button>
           </div>
@@ -247,42 +242,45 @@ export default function Products() {
       </div>
 
       {loadError && (
-        <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600">
-          โหลดข้อมูลไม่สำเร็จ: {loadError}
-          <button onClick={load} className="ml-3 underline text-red-500 hover:text-red-700">ลองใหม่</button>
+        <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600 flex items-center gap-3">
+          <span className="flex-1">โหลดข้อมูลไม่สำเร็จ: {loadError}</span>
+          <button onClick={load} className="text-red-600 underline underline-offset-2 hover:no-underline shrink-0">ลองใหม่</button>
         </div>
       )}
 
-      {/* Status filter pills */}
+      {/* ── Status filter pills ───────────────────────────────── */}
       <div className="flex gap-2 flex-wrap">
         <button onClick={() => setFilterStatus('all')}
-          className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors border
-            ${filterStatus === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-          ทั้งหมด <span className="ml-1 opacity-60">{products.length}</span>
+          className={filterStatus === 'all'
+            ? 'px-3.5 py-1.5 rounded-lg text-sm font-medium border bg-indigo-600 text-white border-indigo-600 transition-colors'
+            : 'px-3.5 py-1.5 rounded-lg text-sm font-medium border bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-colors'}>
+          ทั้งหมด <span className="ml-1 opacity-60 tabular-nums">{products.length}</span>
         </button>
         {STATUS_OPTIONS.map(s => (
           <button key={s} onClick={() => setFilterStatus(filterStatus === s ? 'all' : s)}
-            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors border
-              ${filterStatus === s ? statusStyle[s] + ' border-current/20' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium border transition-colors
+              ${filterStatus === s
+                ? (statusStyle[s] || '') + ' border-current/20'
+                : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300'}`}>
             {s} <span className="ml-1 tabular-nums opacity-60">{countByStatus[s] || 0}</span>
           </button>
         ))}
       </div>
 
-      {/* Category (business_type) filter pills */}
+      {/* ── Category filter pills ─────────────────────────────── */}
       {allBusinessTypes.length > 0 && (
         <div className="flex gap-2 flex-wrap items-center">
           <span className="text-xs text-slate-400 font-medium shrink-0">หมวดหมู่:</span>
           <button onClick={() => setFilterCategory('all')}
-            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border
-              ${filterCategory === 'all' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+            className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors
+              ${filterCategory === 'all' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300'}`}>
             ทั้งหมด
           </button>
           {allBusinessTypes.map(bt => (
             <button key={bt} onClick={() => setFilterCategory(filterCategory === bt ? 'all' : bt)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors border
-                ${filterCategory === bt ? 'bg-slate-700 text-white border-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-              {bt} <span className="ml-1 opacity-60">{countByCategory[bt] || 0}</span>
+              className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors
+                ${filterCategory === bt ? 'bg-slate-700 text-white border-slate-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300'}`}>
+              {bt} <span className="ml-1 opacity-60 tabular-nums">{countByCategory[bt] || 0}</span>
             </button>
           ))}
           {filterCategory !== 'all' && (
@@ -291,9 +289,9 @@ export default function Products() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+      {/* ── Table ─────────────────────────────────────────────── */}
+      <div className={tableWrapCls}>
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             <SearchInput value={search} onChange={setSearch} placeholder="ค้นหา Product ID, ชื่อ, แบรนด์, ผู้รับผิดชอบ..." />
             <div className="flex items-center gap-1.5 shrink-0">
@@ -309,26 +307,33 @@ export default function Products() {
               )}
             </div>
           </div>
-          <span className="text-xs text-slate-400 whitespace-nowrap">{filtered.length} / {products.length} รายการ</span>
+          <span className="text-xs text-slate-400 whitespace-nowrap tabular-nums">{filtered.length} / {products.length} รายการ</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100">
-                {headers.map(h => (
-                  <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 whitespace-nowrap uppercase tracking-wide">{h}</th>
-                ))}
+              <tr className="bg-slate-50/60 border-b border-slate-100">
+                <th className={thCls}>Product ID</th>
+                <th className={thCls}>ชื่อสินค้า</th>
+                <th className={thCls}>ประเภทธุรกิจ</th>
+                <th className={thCls}>ประเภทสินค้า</th>
+                <th className={thCls}>แบรนด์</th>
+                <th className={thCls}>ผู้รับผิดชอบ</th>
+                <th className={thCls}>วันที่เริ่มต้น</th>
+                <th className={thCls}>สถานะ</th>
+                <th className={thCls}>หมายเหตุ</th>
+                <th className={thCls}></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100/60">
               {loading ? (
-                <TableSkeleton cols={headers.length} />
+                <TableSkeleton cols={10} />
               ) : filtered.length === 0 ? (
                 <EmptyState message="ยังไม่มี Product ที่ตรงเงื่อนไข" />
               ) : paginated.map(p => (
-                <tr key={p.id} className="border-b border-slate-100/60 hover:bg-indigo-50/20 transition-colors last:border-0 group">
+                <tr key={p.id} className="hover:bg-slate-50/60 transition-colors group">
                   {/* Product ID + copy */}
-                  <td className="px-5 py-4">
+                  <td className={tdCls}>
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs font-medium text-slate-500">{p.product_id}</span>
                       <button onClick={() => copyId(p.product_id)} title="คัดลอก"
@@ -337,41 +342,39 @@ export default function Products() {
                       </button>
                     </div>
                   </td>
-                  <td className="px-5 py-4 font-semibold text-slate-900 max-w-[200px] truncate" title={p.name}>{p.name}</td>
-                  <td className="px-5 py-4 text-sm text-slate-500">{p.business_type || '—'}</td>
-                  <td className="px-5 py-4 text-sm text-slate-500">{p.product_type || '—'}</td>
-                  <td className="px-5 py-4 text-sm text-slate-500">{p.brand || '—'}</td>
-                  <td className="px-5 py-4">
+                  <td className={`${tdCls} font-semibold text-slate-900 max-w-[200px]`}>
+                    <span className="truncate block" title={p.name}>{p.name}</span>
+                  </td>
+                  <td className={`${tdCls} text-sm text-slate-500`}>{p.business_type || '—'}</td>
+                  <td className={`${tdCls} text-sm text-slate-500`}>{p.product_type || '—'}</td>
+                  <td className={`${tdCls} text-sm text-slate-500`}>{p.brand || '—'}</td>
+                  <td className={tdCls}>
                     <InlinePersonPicker value={p.owner_id || ''} display={p.owner || ''}
                       profiles={profileOptions} disabled={!canUpdate}
                       onChange={(id, name) => updateOwner(p.id, id, name)} />
                   </td>
-                  {/* Start date */}
-                  <td className="px-5 py-4 text-xs text-slate-400 whitespace-nowrap">
+                  <td className={`${tdCls} text-xs text-slate-400 whitespace-nowrap`}>
                     {p.start_date
                       ? new Date(p.start_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })
                       : '—'}
                   </td>
-                  <td className="px-5 py-4">
+                  <td className={tdCls}>
                     <StatusSelect value={p.status} options={STATUS_OPTIONS} styleMap={statusStyle}
                       disabled={!canUpdate} onChange={v => updateStatus(p.id, v)} />
                   </td>
-                  <td className="px-5 py-4 text-sm text-slate-400 max-w-[180px] truncate" title={p.notes || ''}>{p.notes || '—'}</td>
-                  {/* Action buttons — always visible, sized properly */}
-                  <td className="px-5 py-4 whitespace-nowrap">
+                  <td className={`${tdCls} text-sm text-slate-400 max-w-[180px]`}>
+                    <span className="truncate block" title={p.notes || ''}>{p.notes || '—'}</span>
+                  </td>
+                  <td className={`${tdCls} whitespace-nowrap`}>
                     <div className="flex items-center gap-1">
                       {canUpdate && (
-                        <button onClick={() => startEdit(p)}
-                          title="แก้ไข"
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 rounded-lg transition-colors">
+                        <button onClick={() => startEdit(p)} title="แก้ไข" className={btnSecondary}>
                           <IconPencil />แก้ไข
                         </button>
                       )}
                       {canDelete && (
-                        <button onClick={() => setConfirmDelete(p.id)}
-                          title="ลบ"
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors">
-                          <IconTrash />ลบ
+                        <button onClick={() => setConfirmDelete(p.id)} title="ลบ" className={btnDanger}>
+                          <IconTrash />
                         </button>
                       )}
                       {!canUpdate && !canDelete && <span className="text-xs text-slate-300">—</span>}
@@ -382,7 +385,7 @@ export default function Products() {
             </tbody>
           </table>
           {visibleCount < filtered.length && (
-            <div className="px-5 py-4 border-t border-slate-100 text-center">
+            <div className="px-4 py-4 border-t border-slate-100 text-center">
               <button onClick={() => setVisibleCount(v => v + 10)}
                 className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
                 ดูเพิ่มเติม ({filtered.length - visibleCount} รายการ)

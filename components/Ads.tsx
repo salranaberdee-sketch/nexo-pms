@@ -9,9 +9,7 @@ import { TableSkeleton, EmptyState } from './TableState'
 import InlinePersonPicker, { type ProfileOption } from './InlinePersonPicker'
 import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
-
-const inputCls = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-slate-400 bg-white'
-const selectCls = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white'
+import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, thRightCls, tdCls, tdRightCls, tableWrapCls, sectionLabelCls } from '@/lib/cx'
 
 function IconPlus() {
   return (
@@ -263,13 +261,6 @@ export default function Ads() {
   const totalReach  = useMemo(() => ads.reduce((s, r) => s + Number(r.reach), 0), [ads])
   const spentPct    = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0
 
-  const summaryCards = useMemo(() => [
-    { label: 'งบทั้งหมด',   value: `฿${totalBudget.toLocaleString()}`, meta: `${ads.length} campaigns`, accent: '#6366f1' },
-    { label: 'ใช้จ่ายแล้ว', value: `฿${totalSpent.toLocaleString()}`,  meta: `${spentPct}% ของงบ`,    accent: '#f59e0b' },
-    { label: 'Reach รวม',   value: totalReach.toLocaleString(),         meta: 'impressions',              accent: '#3b82f6' },
-    { label: 'Leads รวม',   value: totalLeads.toLocaleString(),         meta: 'leads',                    accent: '#8b5cf6' },
-  ], [totalBudget, totalSpent, spentPct, totalReach, totalLeads, ads.length])
-
   // Date range filter
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo]     = useState('')
@@ -292,8 +283,6 @@ export default function Ads() {
   // Pagination — reset when filters change
   const [visibleCount, setVisibleCount] = useState(10)
   useEffect(() => { setVisibleCount(10) }, [search, filterMonth, dateFrom, dateTo])
-
-  // Content dropdown filtered by product
   const addFilteredContents = useMemo(
     () => contents.filter(c => !addForm.product_id || c.product_id === addForm.product_id),
     [contents, addForm.product_id],
@@ -303,13 +292,13 @@ export default function Ads() {
     [contents, editVal.product_id],
   )
 
-  // Content map for display in table
+  // Content dropdown filtered by product
   const contentMap = useMemo(() => new Map(contents.map(c => [c.id, c])), [contents])
 
   return (
     <div className="p-6 space-y-5">
 
-      {/* Header */}
+      {/* ── Page header ───────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Ads</h1>
@@ -317,39 +306,47 @@ export default function Ads() {
         </div>
         {canInsert && (
           <button onClick={() => { setAddForm({ ...EMPTY_ADD_FORM }); setAddError(''); setShowAdd(true) }}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-500 transition-colors shadow-sm">
+            className={btnPrimary}>
             <IconPlus />เพิ่มแคมเปญ
           </button>
         )}
       </div>
 
       {loadError && (
-        <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600">
-          โหลดข้อมูลไม่สำเร็จ: {loadError}
-          <button onClick={load} className="ml-3 underline text-red-500 hover:text-red-700">ลองใหม่</button>
+        <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600 flex items-center gap-3">
+          <span className="flex-1">โหลดข้อมูลไม่สำเร็จ: {loadError}</span>
+          <button onClick={load} className="text-red-600 underline underline-offset-2 hover:no-underline shrink-0">ลองใหม่</button>
         </div>
       )}
 
-      {/* Summary cards */}
+      {/* ── Summary cards ─────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {summaryCards.map(({ label, value, meta, accent }) => (
+        {(
+          [
+            { label: 'งบทั้งหมด',   value: `฿${totalBudget.toLocaleString()}`, meta: `${ads.length} campaigns`, color: 'bg-indigo-500' },
+            { label: 'ใช้จ่ายแล้ว', value: `฿${totalSpent.toLocaleString()}`,  meta: `${spentPct}% ของงบ`,    color: 'bg-amber-500' },
+            { label: 'Reach รวม',   value: totalReach.toLocaleString(),         meta: 'impressions',              color: 'bg-blue-500' },
+            { label: 'Leads รวม',   value: totalLeads.toLocaleString(),         meta: 'leads',                    color: 'bg-violet-500' },
+          ] as const
+        ).map(({ label, value, meta, color }) => (
           <div key={label} className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: accent }} />
-            <p className="text-xs text-slate-400 mb-3 mt-1">{label}</p>
+            <div className={`absolute top-0 left-0 right-0 h-0.5 ${color}`} />
+            <p className="text-xs text-slate-400 mb-2.5 mt-1">{label}</p>
             <p className="text-2xl font-semibold text-slate-900 leading-none">{value}</p>
             <p className="text-xs text-slate-400 mt-2">{meta}</p>
           </div>
         ))}
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+      {/* ── Table ─────────────────────────────────────────────── */}
+      <div className={tableWrapCls}>
+        {/* Toolbar */}
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาแคมเปญ, Product, ช่องทาง..." />
             {months.length > 0 && (
               <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
-                className="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700 shrink-0">
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700 shrink-0">
                 <option value="all">ทุกเดือน</option>
                 {months.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
@@ -367,20 +364,35 @@ export default function Ads() {
               )}
             </div>
           </div>
-          <span className="text-xs text-slate-400 whitespace-nowrap">{filtered.length} รายการ</span>
+          <span className="text-xs text-slate-400 whitespace-nowrap tabular-nums">{filtered.length} รายการ</span>
         </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100">
-                {headers.map(h => (
-                  <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 whitespace-nowrap uppercase tracking-wide">{h}</th>
-                ))}
+              <tr className="bg-slate-50/60 border-b border-slate-100">
+                <th className={thCls}>Product</th>
+                <th className={thCls}>เดือน</th>
+                <th className={thCls}>Campaign</th>
+                <th className={thCls}>ช่องทาง</th>
+                <th className={thCls}>Content</th>
+                <th className={thCls}>ผู้ดูแล</th>
+                <th className={thRightCls}>งบอนุมัติ</th>
+                <th className={thRightCls}>งบจัดสรร</th>
+                <th className={thRightCls}>ใช้จริง</th>
+                <th className={thRightCls}>คงเหลือ</th>
+                <th className={thRightCls}>Reach</th>
+                <th className={thRightCls}>Clicks</th>
+                <th className={thRightCls}>Leads</th>
+                <th className={thRightCls}>CPL</th>
+                <th className={thRightCls}>ROAS</th>
+                <th className={thRightCls}>ยอดขาย Ads</th>
+                <th className={thCls}></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100/60">
               {loading ? (
-                <TableSkeleton cols={headers.length} />
+                <TableSkeleton cols={17} />
               ) : filtered.length === 0 ? (
                 <EmptyState message="ยังไม่มีแคมเปญ" />
               ) : filtered.slice(0, visibleCount).map(a => {
@@ -389,21 +401,22 @@ export default function Ads() {
                 const over = spent > allocated
                 const roas = Number(a.roas || 0)
                 const roasColor = roas >= 2 ? 'text-emerald-600 font-semibold' : roas >= 1 ? 'text-slate-900' : roas > 0 ? 'text-red-500' : 'text-slate-300'
-                // Find linked content
                 const linkedContentIds = adContentsMap.get(a.id) || []
                 const linkedContent = linkedContentIds.length > 0 ? contentMap.get(linkedContentIds[0]) : null
                 const contentDisplay = linkedContent
                   ? `#${linkedContent.seq} ${linkedContent.title}`
                   : a.content_ref || null
                 return (
-                  <tr key={a.id} className="border-b border-slate-100/60 hover:bg-indigo-50/20 transition-colors last:border-0">
-                    <td className="px-5 py-4">
+                  <tr key={a.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className={tdCls}>
                       <span className="font-mono text-xs font-medium bg-slate-100 text-slate-600 px-2 py-1 rounded-md">{a.product_id}</span>
                     </td>
-                    <td className="px-5 py-4 text-sm text-slate-500 whitespace-nowrap">{a.month}</td>
-                    <td className="px-5 py-4 font-semibold text-slate-900 max-w-[160px] truncate" title={a.campaign_name}>{a.campaign_name}</td>
-                    <td className="px-5 py-4 text-sm text-slate-500">{a.channel}</td>
-                    <td className="px-5 py-4 max-w-[140px]">
+                    <td className={`${tdCls} text-sm text-slate-500 whitespace-nowrap`}>{a.month}</td>
+                    <td className={`${tdCls} font-semibold text-slate-900 max-w-[160px]`}>
+                      <span className="truncate block" title={a.campaign_name}>{a.campaign_name}</span>
+                    </td>
+                    <td className={`${tdCls} text-sm text-slate-500`}>{a.channel}</td>
+                    <td className={`${tdCls} max-w-[140px]`}>
                       {contentDisplay
                         ? <span className="text-xs text-indigo-600 truncate block" title={contentDisplay}>{contentDisplay}</span>
                         : <span className="text-slate-300 text-xs">—</span>}
@@ -416,42 +429,40 @@ export default function Ads() {
                         </span>
                       )}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className={tdCls}>
                       <InlinePersonPicker value={a.managed_by_id || ''} display={a.managed_by || ''}
                         profiles={profileOptions} disabled={!canUpdate}
                         onChange={(id, name) => updateManager(a.id, id, name)} />
                     </td>
-                    <td className="px-5 py-4 text-sm text-slate-500 tabular-nums">฿{Number(a.budget_total ?? 0).toLocaleString()}</td>
-                    <td className="px-5 py-4 text-sm text-slate-600 tabular-nums">฿{allocated.toLocaleString()}</td>
-                    <td className={`px-5 py-4 tabular-nums ${over ? 'bg-red-50/60' : ''}`}>
-                      <div className="flex items-center gap-1.5">
+                    <td className={`${tdRightCls} text-sm text-slate-500`}>฿{Number(a.budget_total ?? 0).toLocaleString()}</td>
+                    <td className={`${tdRightCls} text-sm text-slate-600`}>฿{allocated.toLocaleString()}</td>
+                    <td className={`${tdRightCls} ${over ? 'bg-red-50/50' : ''}`}>
+                      <div className="flex items-center justify-end gap-1.5">
                         <span className={`text-sm ${over ? 'text-red-600 font-semibold' : 'text-slate-600'}`}>฿{spent.toLocaleString()}</span>
                         {over && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-md font-medium">เกินงบ</span>}
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-sm text-emerald-600 tabular-nums font-medium">฿{Number(a.budget_remaining).toLocaleString()}</td>
-                    <td className="px-5 py-4 text-sm text-slate-500 tabular-nums">{Number(a.reach).toLocaleString()}</td>
-                    <td className="px-5 py-4 text-sm text-slate-500 tabular-nums">{Number(a.clicks).toLocaleString()}</td>
-                    <td className="px-5 py-4 text-sm font-semibold text-slate-900 tabular-nums">{Number(a.leads).toLocaleString()}</td>
-                    <td className="px-5 py-4 text-sm text-slate-500 tabular-nums">฿{Number(a.cpl).toLocaleString()}</td>
-                    <td className={`px-5 py-4 text-sm tabular-nums ${roasColor}`}>
+                    <td className={`${tdRightCls} text-sm text-emerald-600 font-medium`}>฿{Number(a.budget_remaining).toLocaleString()}</td>
+                    <td className={`${tdRightCls} text-sm text-slate-500`}>{Number(a.reach).toLocaleString()}</td>
+                    <td className={`${tdRightCls} text-sm text-slate-500`}>{Number(a.clicks).toLocaleString()}</td>
+                    <td className={`${tdRightCls} text-sm font-semibold text-slate-900`}>{Number(a.leads).toLocaleString()}</td>
+                    <td className={`${tdRightCls} text-sm text-slate-500`}>฿{Number(a.cpl).toLocaleString()}</td>
+                    <td className={`${tdRightCls} text-sm ${roasColor}`}>
                       {roas > 0 ? `${roas.toFixed(2)}×` : '—'}
                     </td>
-                    <td className="px-5 py-4 text-sm text-emerald-700 tabular-nums font-medium">
+                    <td className={`${tdRightCls} text-sm text-emerald-700 font-medium`}>
                       {Number(a.sales_amount) > 0 ? `฿${Number(a.sales_amount).toLocaleString()}` : <span className="text-slate-300">—</span>}
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
+                    <td className={`${tdCls} whitespace-nowrap`}>
                       <div className="flex items-center gap-1">
                         {canUpdate && (
-                          <button onClick={() => openEdit(a)} title="บันทึกผล"
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 rounded-lg transition-colors">
+                          <button onClick={() => openEdit(a)} title="บันทึกผล" className={btnSecondary}>
                             <IconPencil />บันทึกผล
                           </button>
                         )}
                         {canDelete && (
-                          <button onClick={() => setConfirmDelete(a.id)} title="ลบ"
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors">
-                            <IconTrash />ลบ
+                          <button onClick={() => setConfirmDelete(a.id)} title="ลบ" className={btnDanger}>
+                            <IconTrash />
                           </button>
                         )}
                         {!canUpdate && !canDelete && <span className="text-xs text-slate-300">—</span>}
@@ -463,7 +474,7 @@ export default function Ads() {
             </tbody>
           </table>
           {visibleCount < filtered.length && (
-            <div className="px-5 py-4 border-t border-slate-100 text-center">
+            <div className="px-4 py-4 border-t border-slate-100 text-center">
               <button onClick={() => setVisibleCount(v => v + 10)}
                 className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
                 ดูเพิ่มเติม ({filtered.length - visibleCount} รายการ)

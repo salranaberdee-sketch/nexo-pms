@@ -12,6 +12,7 @@ import InlinePersonPicker, { type ProfileOption } from './InlinePersonPicker'
 import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
 import ContentAssets, { type ContentAsset } from './ContentAssets'
+import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, tdCls, tableWrapCls } from '@/lib/cx'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,9 +39,6 @@ const DONE_STATUS = 'โพสต์แล้ว'
 const TODAY = todayStr()
 const TODAY_MS = new Date(TODAY).getTime()
 const SOON_DAYS = 3
-
-const inputCls = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-slate-400 bg-white'
-const selectCls = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white'
 
 function IconChevron() {
   return (
@@ -466,7 +464,6 @@ export default function Contents() {
   )
 
   const hasFilters = filterProduct !== 'all' || filterStatus !== 'all' || search !== '' || !!dateFrom || !!dateTo
-  const headers = ['expand', '#', 'Product', 'ประเภท', 'ชื่อ Content', 'ช่องทาง', 'ผู้รับผิดชอบ', 'ผู้อนุมัติ', 'ต้นทุน', 'กำหนดส่ง', 'สถานะ', 'โพสต์', 'actions']
 
   // Pagination — reset when filters change
   const [visibleCount, setVisibleCount] = useState(10)
@@ -475,7 +472,7 @@ export default function Contents() {
   return (
     <div className="p-6 space-y-5">
 
-      {/* Header */}
+      {/* ── Page header ───────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Content</h1>
@@ -483,44 +480,46 @@ export default function Contents() {
         </div>
         {canInsert && (
           <button onClick={() => { setAddForm({ ...EMPTY_ADD_FORM }); setAddError(''); setShowAdd(true) }}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-500 transition-colors shadow-sm">
+            className={btnPrimary}>
             <IconPlus />เพิ่ม Content
           </button>
         )}
       </div>
 
       {loadError && (
-        <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600">
-          โหลดข้อมูลไม่สำเร็จ: {loadError}
-          <button onClick={load} className="ml-3 underline text-red-500 hover:text-red-700">ลองใหม่</button>
+        <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600 flex items-center gap-3">
+          <span className="flex-1">โหลดข้อมูลไม่สำเร็จ: {loadError}</span>
+          <button onClick={load} className="text-red-600 underline underline-offset-2 hover:no-underline shrink-0">ลองใหม่</button>
         </div>
       )}
 
-      {/* Status filter pills */}
+      {/* ── Status filter pills ───────────────────────────────── */}
       <div className="flex gap-2 flex-wrap">
         <button onClick={() => setFilterStatus('all')}
-          className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors border
-            ${filterStatus === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-          ทั้งหมด <span className="ml-1 opacity-60">{contents.length}</span>
+          className={filterStatus === 'all'
+            ? 'px-3.5 py-1.5 rounded-lg text-sm font-medium border bg-indigo-600 text-white border-indigo-600 transition-colors'
+            : 'px-3.5 py-1.5 rounded-lg text-sm font-medium border bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-colors'}>
+          ทั้งหมด <span className="ml-1 opacity-60 tabular-nums">{contents.length}</span>
         </button>
         {STATUSES.map(s => (
           <button key={s} onClick={() => setFilterStatus(filterStatus === s ? 'all' : s)}
-            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors border
-              ${filterStatus === s ? statusStyle[s] + ' border-current/20' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium border transition-colors
+              ${filterStatus === s
+                ? (statusStyle[s] || '') + ' border-current/20'
+                : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300'}`}>
             {s} <span className="ml-1 tabular-nums opacity-60">{countByStatus[s] || 0}</span>
           </button>
         ))}
       </div>
 
-      {/* Search + product filter */}
+      {/* ── Search + filters ──────────────────────────────────── */}
       <div className="flex gap-2 flex-wrap items-center">
         <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาชื่อ, Hook, Product, ผู้รับผิดชอบ..." />
         <select value={filterProduct} onChange={e => setFilterProduct(e.target.value)}
-          className="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700">
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700">
           <option value="all">ทุก Product</option>
           {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
         </select>
-        {/* Date range */}
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="text-xs text-slate-400 whitespace-nowrap">จาก</span>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
@@ -531,31 +530,39 @@ export default function Contents() {
         </div>
         {hasFilters && (
           <button onClick={() => { setFilterProduct('all'); setFilterStatus('all'); setSearch(''); setDateFrom(''); setDateTo('') }}
-            className="text-sm text-slate-400 hover:text-slate-700 px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap">
+            className="text-sm text-slate-400 hover:text-slate-700 px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap border border-transparent hover:border-slate-200">
             ล้างตัวกรอง ✕
           </button>
         )}
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
-          <span className="text-sm text-slate-400">{filtered.length} / {contents.length} รายการ</span>
+      {/* ── Table ─────────────────────────────────────────────── */}
+      <div className={tableWrapCls}>
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+          <span className="text-sm text-slate-400 tabular-nums">{filtered.length} / {contents.length} รายการ</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100">
-                {headers.map(h => (
-                  <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 whitespace-nowrap uppercase tracking-wide">
-                    {h === 'expand' || h === 'actions' ? '' : h}
-                  </th>
-                ))}
+              <tr className="bg-slate-50/60 border-b border-slate-100">
+                <th className={thCls}></th>
+                <th className={thCls}>#</th>
+                <th className={thCls}>Product</th>
+                <th className={thCls}>ประเภท</th>
+                <th className={thCls}>ชื่อ Content</th>
+                <th className={thCls}>ช่องทาง</th>
+                <th className={thCls}>ผู้รับผิดชอบ</th>
+                <th className={thCls}>ผู้อนุมัติ</th>
+                <th className={thCls}>ต้นทุน</th>
+                <th className={thCls}>กำหนดส่ง</th>
+                <th className={thCls}>สถานะ</th>
+                <th className={thCls}>โพสต์</th>
+                <th className={thCls}></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100/60">
               {loading ? (
-                <TableSkeleton cols={headers.length} />
+                <TableSkeleton cols={13} />
               ) : filtered.length === 0 ? (
                 <EmptyState message="ไม่พบ Content ที่ตรงเงื่อนไข" />
               ) : filtered.slice(0, visibleCount).map(c => {
@@ -570,72 +577,62 @@ export default function Contents() {
                 ) && c.status !== DONE_STATUS
                 const isExpanded = expandedId === c.id
                 const assets = assetsMap[c.id] || []
-                // Use live count from expanded assets if loaded, else use pre-loaded count
                 const assetCount = assetsMap[c.id] !== undefined ? assets.length : (assetCounts[c.id] || 0)
 
                 return (
                   <React.Fragment key={c.id}>
-                    <tr className={`border-b border-slate-100/60 transition-colors last:border-0 ${rowBg} ${isExpanded ? 'bg-indigo-50/30' : 'hover:bg-indigo-50/20'}`}>
-                      {/* Expand button */}
-                      <td className="px-3 py-4 w-8">
-                        <button
-                          onClick={() => handleExpandRow(c.id)}
+                    <tr className={`transition-colors ${rowBg} ${isExpanded ? 'bg-indigo-50/30' : 'hover:bg-slate-50/60'}`}>
+                      {/* Expand */}
+                      <td className="px-3 py-3.5 w-8">
+                        <button onClick={() => handleExpandRow(c.id)}
                           title={isExpanded ? 'ซ่อนรายละเอียด' : 'ดูรายละเอียด / assets'}
-                          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 ${isExpanded ? 'bg-indigo-100 text-indigo-600 rotate-180' : ''}`}
-                        >
+                          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 ${isExpanded ? 'bg-indigo-100 text-indigo-600 rotate-180' : ''}`}>
                           <IconChevron />
                         </button>
                       </td>
-                      <td className="px-5 py-4 text-sm text-slate-400 tabular-nums font-medium">{c.seq}</td>
-                      <td className="px-5 py-4">
+                      <td className={`${tdCls} text-sm text-slate-400 tabular-nums font-medium`}>{c.seq}</td>
+                      <td className={tdCls}>
                         <span className="font-mono text-xs font-medium bg-slate-100 text-slate-600 px-2 py-1 rounded-md">{c.product_id}</span>
                       </td>
-                      <td className="px-5 py-4">
-                        <span className={`text-xs font-semibold px-2 py-1 rounded-lg ${typeStyle[c.type] || 'bg-slate-100 text-slate-500'}`}>
+                      <td className={tdCls}>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${typeStyle[c.type] || 'bg-slate-100 text-slate-500'}`}>
                           {typeLabel[c.type] || c.type}
                         </span>
                       </td>
-                      <td className="px-5 py-4 max-w-[220px]">
+                      <td className={`${tdCls} max-w-[220px]`}>
                         <div className="flex items-center gap-1.5">
-                          {isNew && (
-                            <span className="shrink-0 text-[10px] font-bold bg-indigo-500 text-white px-1.5 py-0.5 rounded-full">ใหม่</span>
-                          )}
+                          {isNew && <span className="shrink-0 text-[10px] font-bold bg-indigo-500 text-white px-1.5 py-0.5 rounded-full">ใหม่</span>}
                           <span className="font-semibold text-slate-900 truncate block" title={c.title}>{c.title}</span>
                         </div>
                         {c.objective && <span className="text-xs text-slate-400 truncate block mt-0.5" title={c.objective}>{c.objective}</span>}
-                        {c.producer && (
-                          <span className="text-xs text-blue-500 mt-0.5 block">ผู้ผลิต: {c.producer}</span>
-                        )}
-                        {/* Asset badge */}
+                        {c.producer && <span className="text-xs text-blue-500 mt-0.5 block">ผู้ผลิต: {c.producer}</span>}
                         {assetCount > 0 && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full mt-1">
                             📎 {assetCount} ชิ้นงาน
                           </span>
                         )}
                       </td>
-                      {/* Channel */}
-                      <td className="px-5 py-4 text-xs text-slate-500 whitespace-nowrap">
+                      <td className={`${tdCls} text-xs text-slate-500 whitespace-nowrap`}>
                         {c.channel
                           ? <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">{c.channel}</span>
                           : <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="px-5 py-4 whitespace-nowrap">
+                      <td className={`${tdCls} whitespace-nowrap`}>
                         <InlinePersonPicker value={c.assigned_to_id || ''} display={c.assigned_to || ''}
                           profiles={profileOptions} disabled={!canUpdate}
                           onChange={(id, name) => updateAssignee(c.id, id, name)} />
                       </td>
-                      {/* Approver */}
-                      <td className="px-5 py-4 text-xs text-slate-500">
+                      <td className={`${tdCls} text-xs text-slate-500`}>
                         {c.approver
                           ? <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md font-medium">{c.approver}</span>
                           : <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="px-5 py-4 text-sm tabular-nums text-slate-500 whitespace-nowrap">
+                      <td className={`${tdCls} text-sm tabular-nums text-slate-500 whitespace-nowrap`}>
                         {Number(c.production_cost) > 0
                           ? <span>฿{Number(c.production_cost).toLocaleString()}</span>
                           : <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="px-5 py-4 whitespace-nowrap">
+                      <td className={`${tdCls} whitespace-nowrap`}>
                         {c.deadline ? (
                           <div className="flex flex-col">
                             <span className={`text-sm ${overdue ? 'text-red-600 font-semibold' : soon ? 'text-amber-600 font-medium' : 'text-slate-500'}`}>
@@ -646,12 +643,11 @@ export default function Contents() {
                           </div>
                         ) : <span className="text-sm text-slate-300">—</span>}
                       </td>
-                      <td className="px-5 py-4">
+                      <td className={tdCls}>
                         <StatusSelect value={c.status} options={STATUSES} styleMap={statusStyle}
                           disabled={!canUpdate} onChange={v => updateStatus(c.id, v)} />
                       </td>
-                      {/* Post link / actual post date */}
-                      <td className="px-5 py-4 whitespace-nowrap">
+                      <td className={`${tdCls} whitespace-nowrap`}>
                         {c.actual_post_date ? (
                           <div className="flex flex-col gap-0.5">
                             <span className="text-xs text-emerald-600 font-medium">
@@ -670,19 +666,16 @@ export default function Contents() {
                           </span>
                         ) : <span className="text-slate-300 text-xs">—</span>}
                       </td>
-                      <td className="px-5 py-4 whitespace-nowrap">
+                      <td className={`${tdCls} whitespace-nowrap`}>
                         <div className="flex items-center gap-1">
                           {canUpdate && (
-                            <button onClick={() => openEdit(c)}
-                              title="แก้ไข"
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 rounded-lg transition-colors">
+                            <button onClick={() => openEdit(c)} title="แก้ไข" className={btnSecondary}>
                               <IconPencil />แก้ไข
                             </button>
                           )}
                           {canDelete && (
-                            <button onClick={() => setConfirmDelete(c.id)} title="ลบ"
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors">
-                              <IconTrash />ลบ
+                            <button onClick={() => setConfirmDelete(c.id)} title="ลบ" className={btnDanger}>
+                              <IconTrash />
                             </button>
                           )}
                           {!canUpdate && !canDelete && <span className="text-xs text-slate-300">—</span>}
@@ -692,7 +685,7 @@ export default function Contents() {
                     {/* Assets panel — expanded row */}
                     {isExpanded && (
                       <tr className="bg-slate-50/60">
-                        <td colSpan={headers.length} className="px-6 pb-5 pt-3">
+                        <td colSpan={13} className="px-6 pb-5 pt-3">
                           <ContentAssets
                             contentId={c.id}
                             assets={assetsMap[c.id] || []}
@@ -712,7 +705,7 @@ export default function Contents() {
             </tbody>
           </table>
           {visibleCount < filtered.length && (
-            <div className="px-5 py-4 border-t border-slate-100 text-center">
+            <div className="px-4 py-4 border-t border-slate-100 text-center">
               <button onClick={() => setVisibleCount(v => v + 10)}
                 className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
                 ดูเพิ่มเติม ({filtered.length - visibleCount} รายการ)

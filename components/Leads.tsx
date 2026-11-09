@@ -10,6 +10,7 @@ import StatusSelect from './StatusSelect'
 import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
 import type { ProfileOption } from './InlinePersonPicker'
+import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, tdCls, tableWrapCls, sectionLabelCls } from '@/lib/cx'
 
 const LEAD_STATUSES = ['ใหม่', 'ติดต่อแล้ว', 'ผ่านเกณฑ์', 'ปิดการขาย', 'ไม่สำเร็จ']
 const CHANNELS = ['form', 'LINE', 'inbox', 'phone', 'other']
@@ -25,9 +26,6 @@ const leadStatusStyle: Record<string, string> = {
 const channelLabel: Record<string, string> = {
   form: 'Form', LINE: 'LINE', inbox: 'Inbox', phone: 'โทร', other: 'อื่นๆ',
 }
-
-const inputCls = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-slate-400 bg-white'
-const selectCls = 'w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white'
 
 function IconPlus() {
   return (
@@ -291,8 +289,6 @@ export default function Leads() {
   const editFilteredAds = useMemo(() => ads.filter(a => !editForm.product_id || a.product_id === editForm.product_id), [ads, editForm.product_id])
   const editFilteredContents = useMemo(() => contents.filter(c => !editForm.product_id || c.product_id === editForm.product_id), [contents, editForm.product_id])
 
-  const headers = ['#', 'Product', 'ช่องทาง', 'แคมเปญ', 'ผู้รับผิดชอบ', 'มูลค่า', 'ยินยอม', 'สถานะ', 'วันที่', '']
-
   function LeadForm({ form, setForm, adsOpts, contentsOpts }: {
     form: typeof EMPTY_FORM
     setForm: (f: typeof EMPTY_FORM) => void
@@ -408,7 +404,7 @@ export default function Leads() {
   return (
     <div className="p-6 space-y-5">
 
-      {/* Header */}
+      {/* ── Page header ───────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Leads</h1>
@@ -416,80 +412,91 @@ export default function Leads() {
         </div>
         {canInsert && (
           <button onClick={() => { setAddForm({ ...EMPTY_FORM }); setAddError(''); setShowAdd(true) }}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-500 transition-colors shadow-sm">
+            className={btnPrimary}>
             <IconPlus />เพิ่ม Lead
           </button>
         )}
       </div>
 
       {loadError && (
-        <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600">
-          โหลดข้อมูลไม่สำเร็จ: {loadError}
-          <button onClick={load} className="ml-3 underline">ลองใหม่</button>
+        <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600 flex items-center gap-3">
+          <span className="flex-1">โหลดข้อมูลไม่สำเร็จ: {loadError}</span>
+          <button onClick={load} className="text-red-600 underline underline-offset-2 hover:no-underline shrink-0">ลองใหม่</button>
         </div>
       )}
 
-      {/* Summary cards */}
+      {/* ── Summary cards ─────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Leads ทั้งหมด',   value: totalLeads.toLocaleString(),       meta: 'ทุก status',              accent: '#6366f1' },
-          { label: 'ปิดการขายแล้ว',  value: closedLeads.toLocaleString(),      meta: `${convRate}% conversion`,  accent: '#10b981' },
-          { label: 'มูลค่า Deal รวม', value: `฿${totalDeal.toLocaleString()}`,  meta: 'เฉพาะ ปิดการขาย',         accent: '#f59e0b' },
-          { label: 'รอติดตาม',        value: countByStatus['ใหม่'] + countByStatus['ติดต่อแล้ว'],
-            meta: 'ใหม่ + ติดต่อแล้ว', accent: '#8b5cf6' },
-        ].map(({ label, value, meta, accent }) => (
+        {(
+          [
+            { label: 'Leads ทั้งหมด',   value: totalLeads.toLocaleString(),      meta: 'ทุก status',              color: 'bg-indigo-500' },
+            { label: 'ปิดการขายแล้ว',  value: closedLeads.toLocaleString(),     meta: `${convRate}% conversion`, color: 'bg-emerald-500' },
+            { label: 'มูลค่า Deal รวม', value: `฿${totalDeal.toLocaleString()}`, meta: 'เฉพาะ ปิดการขาย',         color: 'bg-amber-500' },
+            { label: 'รอติดตาม',        value: String((countByStatus['ใหม่'] || 0) + (countByStatus['ติดต่อแล้ว'] || 0)), meta: 'ใหม่ + ติดต่อแล้ว', color: 'bg-violet-500' },
+          ] as const
+        ).map(({ label, value, meta, color }) => (
           <div key={label} className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: accent }} />
-            <p className="text-xs text-slate-400 mb-3 mt-1">{label}</p>
+            <div className={`absolute top-0 left-0 right-0 h-0.5 ${color}`} />
+            <p className="text-xs text-slate-400 mb-2.5 mt-1">{label}</p>
             <p className="text-2xl font-semibold text-slate-900 leading-none">{value}</p>
             <p className="text-xs text-slate-400 mt-2">{meta}</p>
           </div>
         ))}
       </div>
 
-      {/* Status filter pills */}
+      {/* ── Status filter pills ───────────────────────────────── */}
       <div className="flex gap-2 flex-wrap items-center">
         <button onClick={() => setFilterStatus('all')}
-          className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors border
-            ${filterStatus === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-          ทั้งหมด <span className="ml-1 opacity-60">{totalLeads}</span>
+          className={filterStatus === 'all'
+            ? 'px-3.5 py-1.5 rounded-lg text-sm font-medium border bg-indigo-600 text-white border-indigo-600 transition-colors'
+            : 'px-3.5 py-1.5 rounded-lg text-sm font-medium border bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-colors'}>
+          ทั้งหมด <span className="ml-1 opacity-60 tabular-nums">{totalLeads}</span>
         </button>
         {LEAD_STATUSES.map(s => (
           <button key={s} onClick={() => setFilterStatus(filterStatus === s ? 'all' : s)}
-            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors border
-              ${filterStatus === s ? leadStatusStyle[s] + ' border-current/20' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium border transition-colors
+              ${filterStatus === s
+                ? (leadStatusStyle[s] || '') + ' border-current/20'
+                : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300'}`}>
             {s} <span className="ml-1 tabular-nums opacity-60">{countByStatus[s] || 0}</span>
           </button>
         ))}
       </div>
 
-      {/* Search + product filter */}
+      {/* ── Search + product filter ───────────────────────────── */}
       <div className="flex gap-2 flex-wrap items-center">
         <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาแคมเปญ, ผู้รับผิดชอบ, utm..." />
         <select value={filterProduct} onChange={e => setFilterProduct(e.target.value)}
-          className="border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700">
+          className="border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700">
           <option value="all">ทุก Product</option>
           {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
         </select>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
-          <span className="text-sm text-slate-400">{filtered.length} รายการ</span>
+      {/* ── Table ─────────────────────────────────────────────── */}
+      <div className={tableWrapCls}>
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+          <span className="text-sm text-slate-400 tabular-nums">{filtered.length} รายการ</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100">
-                {headers.map(h => (
-                  <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 whitespace-nowrap uppercase tracking-wide">{h}</th>
-                ))}
+              <tr className="bg-slate-50/60 border-b border-slate-100">
+                <th className={thCls}>#</th>
+                <th className={thCls}>Product</th>
+                <th className={thCls}>ช่องทาง</th>
+                <th className={thCls}>แคมเปญ</th>
+                <th className={thCls}>ผู้รับผิดชอบ</th>
+                <th className={thCls}>มูลค่า</th>
+                <th className={thCls}>ยินยอม</th>
+                <th className={thCls}>สถานะ</th>
+                <th className={thCls}>วันที่</th>
+                <th className={thCls}></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100/60">
               {loading ? (
-                <TableSkeleton cols={headers.length} />
+                <TableSkeleton cols={10} />
               ) : filtered.length === 0 ? (
                 <EmptyState message="ยังไม่มี Lead" />
               ) : filtered.slice(0, visibleCount).map((l, i) => {
@@ -497,21 +504,19 @@ export default function Leads() {
                 const ad      = l.ad_id      ? adMap.get(l.ad_id)           : null
                 const content = l.content_id ? contentMap.get(l.content_id) : null
                 return (
-                  <tr key={l.id} className="border-b border-slate-100/60 hover:bg-indigo-50/20 transition-colors last:border-0">
-                    <td className="px-5 py-4 text-xs text-slate-400 tabular-nums">{i + 1}</td>
-                    <td className="px-5 py-4">
-                      <div>
-                        <span className="font-mono text-xs font-medium bg-slate-100 text-slate-600 px-2 py-1 rounded-md">{l.product_id}</span>
-                        {product && <p className="text-xs text-slate-400 mt-1 truncate max-w-[120px]">{product.name}</p>}
-                      </div>
+                  <tr key={l.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className={`${tdCls} text-xs text-slate-400 tabular-nums`}>{i + 1}</td>
+                    <td className={tdCls}>
+                      <span className="font-mono text-xs font-medium bg-slate-100 text-slate-600 px-2 py-1 rounded-md">{l.product_id}</span>
+                      {product && <p className="text-xs text-slate-400 mt-1 truncate max-w-[120px]">{product.name}</p>}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className={tdCls}>
                       <span className="text-xs font-medium bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md">
                         {channelLabel[l.channel_in] || l.channel_in}
                       </span>
                       {l.utm_source && <p className="text-xs text-slate-400 mt-1">{l.utm_source}</p>}
                     </td>
-                    <td className="px-5 py-4 max-w-[160px]">
+                    <td className={`${tdCls} max-w-[160px]`}>
                       {ad ? (
                         <div>
                           <span className="text-sm font-medium text-slate-700 truncate block" title={ad.campaign_name}>{ad.campaign_name}</span>
@@ -521,43 +526,41 @@ export default function Leads() {
                         <span className="text-xs text-slate-500 truncate block" title={l.utm_campaign}>{l.utm_campaign}</span>
                       ) : <span className="text-slate-300 text-sm">—</span>}
                       {content && (
-                        <p className="text-xs text-indigo-500 mt-1 truncate" title={content.title}>Content: {content.title}</p>
+                        <p className="text-xs text-indigo-500 mt-1 truncate" title={content.title}>↳ {content.title}</p>
                       )}
                     </td>
-                    <td className="px-5 py-4 text-sm text-slate-600 whitespace-nowrap">
+                    <td className={`${tdCls} text-sm text-slate-600 whitespace-nowrap`}>
                       {l.owner_name || <span className="text-slate-300">—</span>}
                     </td>
-                    <td className="px-5 py-4 tabular-nums">
+                    <td className={`${tdCls} tabular-nums`}>
                       {Number(l.deal_amount) > 0
                         ? <span className="text-sm font-semibold text-emerald-600">฿{Number(l.deal_amount).toLocaleString()}</span>
                         : <span className="text-slate-300 text-sm">—</span>}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className={tdCls}>
                       {l.consent_given
                         ? <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-md font-medium">ยินยอม ✓</span>
                         : <span className="text-xs bg-red-50 text-red-400 px-2 py-0.5 rounded-md">ยังไม่ยินยอม</span>}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className={tdCls}>
                       <StatusSelect value={l.status} options={LEAD_STATUSES} styleMap={leadStatusStyle}
                         disabled={!canUpdate} onChange={v => updateStatus(l.id, v)} />
                     </td>
-                    <td className="px-5 py-4 text-xs text-slate-400 whitespace-nowrap">
+                    <td className={`${tdCls} text-xs text-slate-400 whitespace-nowrap`}>
                       {l.created_at
                         ? new Date(l.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })
                         : '—'}
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
+                    <td className={`${tdCls} whitespace-nowrap`}>
                       <div className="flex items-center gap-1">
                         {canUpdate && (
-                          <button onClick={() => openEdit(l)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 rounded-lg transition-colors">
+                          <button onClick={() => openEdit(l)} className={btnSecondary}>
                             <IconPencil />แก้ไข
                           </button>
                         )}
                         {canDelete && (
-                          <button onClick={() => setConfirmDelete(l.id)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors">
-                            <IconTrash />ลบ
+                          <button onClick={() => setConfirmDelete(l.id)} className={btnDanger}>
+                            <IconTrash />
                           </button>
                         )}
                         {!canUpdate && !canDelete && <span className="text-xs text-slate-300">—</span>}
@@ -569,7 +572,7 @@ export default function Leads() {
             </tbody>
           </table>
           {visibleCount < filtered.length && (
-            <div className="px-5 py-4 border-t border-slate-100 text-center">
+            <div className="px-4 py-4 border-t border-slate-100 text-center">
               <button onClick={() => setVisibleCount(v => v + 15)}
                 className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
                 ดูเพิ่มเติม ({filtered.length - visibleCount} รายการ)

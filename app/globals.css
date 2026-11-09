@@ -39,3 +39,13 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #b0b6c8;
 }
+
+/* Table — clean dividers, no double borders */
+table {
+  border-collapse: collapse;
+}
+
+/* Page content area smooth transition */
+main {
+  transition: padding-left 0.2s ease-in-out;
+}

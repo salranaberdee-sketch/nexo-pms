@@ -8,6 +8,7 @@ import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState } from './TableState'
 import { showToast } from './Toast'
 import { ConfirmModal } from './Modal'
+import { btnDanger, thCls, tdCls, tableWrapCls } from '@/lib/cx'
 
 function IconTrash() {
   return (
@@ -210,20 +211,18 @@ export default function Team() {
         <p className="text-sm text-slate-400 mt-0.5">อนุมัติ ปฏิเสธ และกำหนดบทบาทของผู้ใช้ในระบบ</p>
       </div>
 
-      {/* Summary filter cards */}
+      {/* ── Summary cards ─────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { key: 'pending',  label: 'รออนุมัติ',   count: pendingCount,  color: 'text-amber-600',  ring: 'border-amber-300 ring-amber-100' },
-          { key: 'approved', label: 'อนุมัติแล้ว', count: approvedCount, color: 'text-emerald-600',  ring: 'border-emerald-300 ring-emerald-100' },
-          { key: 'rejected', label: 'ปฏิเสธ',      count: rejectedCount, color: 'text-red-500',    ring: 'border-red-300 ring-red-100' },
+          { key: 'pending',  label: 'รออนุมัติ',   count: pendingCount,  color: 'text-amber-600',   ring: 'border-amber-300 ring-amber-100' },
+          { key: 'approved', label: 'อนุมัติแล้ว', count: approvedCount, color: 'text-emerald-600', ring: 'border-emerald-300 ring-emerald-100' },
+          { key: 'rejected', label: 'ปฏิเสธ',      count: rejectedCount, color: 'text-red-500',     ring: 'border-red-300 ring-red-100' },
         ].map(({ key, label, count, color, ring }) => (
-          <button
-            key={key}
-            onClick={() => setFilter(filter === key ? 'all' : key)}
+          <button key={key} onClick={() => setFilter(filter === key ? 'all' : key)}
             className={`bg-white rounded-2xl border p-5 text-left transition-all shadow-sm ${filter === key ? `${ring} ring-2` : 'border-slate-100 hover:border-slate-200'}`}
           >
             <p className="text-xs text-slate-400 mb-3">{label}</p>
-            <p className={`text-2xl font-semibold leading-none ${color}`}>{count}</p>
+            <p className={`text-2xl font-semibold leading-none tabular-nums ${color}`}>{count}</p>
             <p className="text-xs text-slate-400 mt-2">คน</p>
           </button>
         ))}
@@ -259,9 +258,9 @@ export default function Team() {
         )
       })()}
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+      {/* ── Table ─────────────────────────────────────────────── */}
+      <div className={tableWrapCls}>
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาชื่อหรืออีเมล..." />
             <div className="flex items-center gap-1.5 shrink-0">
@@ -278,12 +277,9 @@ export default function Team() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs text-slate-400">{filtered.length} คน</span>
+            <span className="text-xs text-slate-400 tabular-nums">{filtered.length} คน</span>
             {filter !== 'all' && (
-              <button
-                onClick={() => setFilter('all')}
-                className="text-xs text-slate-400 hover:text-slate-900 transition-colors"
-              >
+              <button onClick={() => setFilter('all')} className="text-xs text-slate-400 hover:text-slate-900 transition-colors">
                 ดูทั้งหมด
               </button>
             )}
@@ -292,13 +288,13 @@ export default function Team() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100">
+              <tr className="bg-slate-50/60 border-b border-slate-100">
                 {['ชื่อ', 'อีเมล', 'บทบาท', 'สิทธิ์ Brand', 'สถานะ', 'วันที่สมัคร', ''].map(h => (
-                  <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 whitespace-nowrap uppercase tracking-wide">{h}</th>
+                  <th key={h} className={thCls}>{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100/60">
               {loading ? (
                 <TableSkeleton cols={7} />
               ) : filtered.length === 0 ? (
@@ -307,11 +303,12 @@ export default function Team() {
                 const isSelf = p.id === me.id
                 const displayApproval = approvalLabel[p.approval_status] || p.approval_status
                 return (
-                  <tr key={p.id} className="border-b border-slate-100/60 hover:bg-indigo-50/20 transition-colors last:border-0">
+                  <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
                     {/* Name + avatar */}
-                    <td className="px-5 py-4">
+                    <td className={tdCls}>
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center font-semibold text-xs shrink-0" style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)', color: '#4f46e5' }}>
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center font-semibold text-xs shrink-0"
+                          style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)', color: '#4f46e5' }}>
                           {p.name?.[0]?.toUpperCase()}
                         </div>
                         <span className="font-semibold text-slate-900">{p.name}</span>
@@ -321,16 +318,13 @@ export default function Team() {
                       </div>
                     </td>
                     {/* Email */}
-                    <td className="px-5 py-4 text-sm text-slate-400">{p.email}</td>
-                    {/* Role — inline styled select (already was; keep as-is) */}
-                    <td className="px-5 py-4">
+                    <td className={`${tdCls} text-sm text-slate-400`}>{p.email}</td>
+                    {/* Role */}
+                    <td className={tdCls}>
                       <div className="relative inline-flex">
-                        <select
-                          value={p.role}
-                          onChange={e => changeRole(p.id, e.target.value)}
+                        <select value={p.role} onChange={e => changeRole(p.id, e.target.value)}
                           disabled={isSelf}
-                          className={`appearance-none cursor-pointer text-xs font-medium pl-2 pr-6 py-1 rounded-lg border border-current/20 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${roleStyle[p.role] || 'bg-slate-100 text-slate-500'} ${isSelf ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
+                          className={`appearance-none cursor-pointer text-xs font-medium pl-2 pr-6 py-1 rounded-lg border border-current/20 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${roleStyle[p.role] || 'bg-slate-100 text-slate-500'} ${isSelf ? 'opacity-50 cursor-not-allowed' : ''}`}>
                           {ROLES.map(r => <option key={r} value={r} className="bg-white text-slate-700">{r}</option>)}
                         </select>
                         {!isSelf && (
@@ -340,25 +334,11 @@ export default function Team() {
                         )}
                       </div>
                     </td>
-                    {/* Approval status */}
-                    <td className="px-5 py-4">
-                      <StatusSelect
-                        value={displayApproval}
-                        options={APPROVAL_DISPLAY_OPTIONS}
-                        styleMap={approvalDisplayStyle}
-                        disabled={isSelf}
-                        onChange={v => changeApproval(p.id, v)}
-                      />
-                    </td>
-
-                    {/* Brand Access — only meaningful for editor role */}
-                    <td className="px-5 py-4">
+                    {/* Brand Access */}
+                    <td className={tdCls}>
                       {p.role === 'editor' ? (
-                        <button
-                          type="button"
-                          onClick={() => openBrandAccess(p.id, p.brand_access || [])}
-                          className="flex items-center gap-1.5"
-                        >
+                        <button type="button" onClick={() => openBrandAccess(p.id, p.brand_access || [])}
+                          className="flex items-center gap-1.5">
                           {(p.brand_access || []).length === 0 ? (
                             <span className="text-xs text-red-400 bg-red-50 border border-red-100 px-2 py-1 rounded-lg font-medium hover:bg-red-100 transition-colors">
                               ไม่มีสิทธิ์ — ตั้งค่า
@@ -374,21 +354,26 @@ export default function Team() {
                         <span className="text-xs text-slate-300">—</span>
                       )}
                     </td>
-
-                    <td className="px-5 py-4 text-sm text-slate-400 whitespace-nowrap">
+                    {/* Approval status */}
+                    <td className={tdCls}>
+                      <StatusSelect value={displayApproval} options={APPROVAL_DISPLAY_OPTIONS}
+                        styleMap={approvalDisplayStyle} disabled={isSelf}
+                        onChange={v => changeApproval(p.id, v)} />
+                    </td>
+                    <td className={`${tdCls} text-sm text-slate-400 whitespace-nowrap`}>
                       {p.created_at
                         ? new Date(p.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })
                         : '—'}
                     </td>
                     {/* Delete */}
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      {canDelete && !isSelf && (
-                        <button onClick={() => setConfirmDelete(p.id)} title="ลบสมาชิก"
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors">
-                          <IconTrash />ลบ
+                    <td className={`${tdCls} whitespace-nowrap`}>
+                      {canDelete && !isSelf ? (
+                        <button onClick={() => setConfirmDelete(p.id)} title="ลบสมาชิก" className={btnDanger}>
+                          <IconTrash />
                         </button>
+                      ) : (
+                        <span className="text-xs text-slate-300">—</span>
                       )}
-                      {(isSelf || !canDelete) && <span className="text-xs text-slate-300">—</span>}
                     </td>
                   </tr>
                 )
@@ -396,7 +381,7 @@ export default function Team() {
             </tbody>
           </table>
           {visibleCount < filtered.length && (
-            <div className="px-5 py-4 border-t border-slate-100 text-center">
+            <div className="px-4 py-4 border-t border-slate-100 text-center">
               <button onClick={() => setVisibleCount(v => v + 10)}
                 className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
                 ดูเพิ่มเติม ({filtered.length - visibleCount} คน)

@@ -629,7 +629,7 @@ export default function Dashboard() {
                       const roiPct = r.roi_pct !== null ? Number(r.roi_pct) : null
                       const isPositive = roi > 0
                       return (
-                        <tr key={r.content_id} className="border-b border-slate-100/60 hover:bg-indigo-50/20 last:border-0">
+                        <tr key={r.content_id} className="hover:bg-slate-50/60 transition-colors last:border-0 border-b border-slate-100/60">
                           <td className="px-5 py-3 text-xs text-slate-400 tabular-nums">{i + 1}</td>
                           <td className="px-4 py-3 max-w-[200px]">
                             <div className="truncate font-medium text-slate-900" title={r.title}>{r.title}</div>
