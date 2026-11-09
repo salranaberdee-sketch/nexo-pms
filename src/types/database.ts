@@ -17,9 +17,12 @@ export type Database = {
           asset_type: string
           content_id: number
           created_at: string
+          file_size: number | null
           id: number
           label: string | null
+          mime_type: string | null
           sort_order: number
+          storage_path: string | null
           uploaded_by: string | null
           url: string
         }
@@ -27,9 +30,12 @@ export type Database = {
           asset_type?: string
           content_id: number
           created_at?: string
+          file_size?: number | null
           id?: number
           label?: string | null
+          mime_type?: string | null
           sort_order?: number
+          storage_path?: string | null
           uploaded_by?: string | null
           url: string
         }
@@ -37,9 +43,12 @@ export type Database = {
           asset_type?: string
           content_id?: number
           created_at?: string
+          file_size?: number | null
           id?: number
           label?: string | null
+          mime_type?: string | null
           sort_order?: number
+          storage_path?: string | null
           uploaded_by?: string | null
           url?: string
         }

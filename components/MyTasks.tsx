@@ -4,9 +4,9 @@ import { useEffect, useState, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useProfile } from '@/lib/profile-context'
-import { TableSkeleton, todayStr } from './TableState'
+import { todayStr } from './TableState'
 import { showToast } from './Toast'
-// InlinePersonPicker import removed — using local ReassignPicker instead
+import ContentAssets, { type ContentAsset } from './ContentAssets'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -117,6 +117,7 @@ export default function MyTasks() {
   const [filterStatus, setFilterStatus] = useState('all')
   const [expandedId, setExpandedId]     = useState<string | null>(null) // `${id}-${role}`
   const [actioning, setActioning]       = useState<string | null>(null)  // `${id}-${action}`
+  const [assetsMap, setAssetsMap]       = useState<Record<number, ContentAsset[]>>({})
   const supabase = createClient()
 
   async function load() {
@@ -318,9 +319,19 @@ export default function MyTasks() {
     showToast('มอบหมายงานแล้ว')
   }
 
+  // ── Assets ────────────────────────────────────────────────────
+  async function loadAssets(contentId: number) {
+    if (assetsMap[contentId] !== undefined) return
+    const { data } = await supabase
+      .from('content_assets')
+      .select('id, content_id, asset_type, label, url, storage_path, file_size, mime_type, sort_order, uploaded_by, created_at')
+      .eq('content_id', contentId)
+      .order('sort_order').order('created_at')
+    setAssetsMap(prev => ({ ...prev, [contentId]: (data || []) as ContentAsset[] }))
+  }
+
   // ── Local state helper ────────────────────────────────────────
-  function updateLocalTask(id: number, role: MyTask['myRole'], patch: Partial<MyTask>) {
-    const patchFn = (prev: MyTask[]) =>
+  function updateLocalTask(id: number, role: MyTask['myRole'], patch: Partial<MyTask>) {    const patchFn = (prev: MyTask[]) =>
       prev.map(t => t.id === id && t.myRole === role ? { ...t, ...patch } : t)
     setTasks(patchFn)
     setTeamTasks(patchFn)
@@ -486,7 +497,13 @@ export default function MyTasks() {
                         myRole={task.myRole}
                         expandKey={`${task.id}-${task.myRole}`}
                         expanded={expandedId === `${task.id}-${task.myRole}`}
-                        onToggleExpand={() => setExpandedId(p => p === `${task.id}-${task.myRole}` ? null : `${task.id}-${task.myRole}`)}
+                        onToggleExpand={() => {
+                          const key = `${task.id}-${task.myRole}`
+                          setExpandedId(p => p === key ? null : key)
+                          loadAssets(task.id)
+                        }}
+                        assets={assetsMap[task.id] || []}
+                        onAssetsChange={updated => setAssetsMap(prev => ({ ...prev, [task.id]: updated }))}
                         actioning={actioning}
                         onAcknowledge={acknowledge}
                         onAdvance={advanceStatus}
@@ -542,7 +559,13 @@ export default function MyTasks() {
                         myRole={'producer'}
                         expandKey={`team-${task.id}-${task.myRole}`}
                         expanded={expandedId === `team-${task.id}-${task.myRole}`}
-                        onToggleExpand={() => setExpandedId(p => p === `team-${task.id}-${task.myRole}` ? null : `team-${task.id}-${task.myRole}`)}
+                        onToggleExpand={() => {
+                          const key = `team-${task.id}-${task.myRole}`
+                          setExpandedId(p => p === key ? null : key)
+                          loadAssets(task.id)
+                        }}
+                        assets={assetsMap[task.id] || []}
+                        onAssetsChange={updated => setAssetsMap(prev => ({ ...prev, [task.id]: updated }))}
                         actioning={actioning}
                         onAcknowledge={acknowledge}
                         onAdvance={advanceStatus}
@@ -569,6 +592,7 @@ function TaskRow({
   task, myRole, expandKey, expanded, onToggleExpand,
   actioning, onAcknowledge, onAdvance, onReject, onUpdateField, onReassign,
   profiles, canManage, showReassign,
+  assets, onAssetsChange,
 }: {
   task:            MyTask
   myRole:          MyTask['myRole']
@@ -584,6 +608,8 @@ function TaskRow({
   profiles:        { id: string; name: string; role: string }[]
   canManage:       boolean
   showReassign:    boolean
+  assets:          ContentAsset[]
+  onAssetsChange:  (updated: ContentAsset[]) => void
 }) {
   const TODAY_STR   = todayStr()
   const isDone      = task.status === DONE_STATUS
@@ -739,6 +765,17 @@ function TaskRow({
               onClick={e => e.stopPropagation()}>
               → ดูใน Contents
             </Link>
+          </div>
+
+          {/* ─── Assets panel ─── */}
+          <div className="border-t border-slate-100 pt-3" onClick={e => e.stopPropagation()}>
+            <ContentAssets
+              contentId={task.id}
+              assets={assets}
+              canWrite={myRole === 'producer' || myRole === 'assigned_to' || canManage}
+              canDelete={canManage}
+              onAssetsChange={onAssetsChange}
+            />
           </div>
 
           {/* ─── Actions by role ─── */}

@@ -1,6 +1,6 @@
   'use client'
 
-import React, { useEffect, useState, useMemo, useRef } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useCan, useProfile } from '@/lib/profile-context'
@@ -11,18 +11,9 @@ import StatusSelect from './StatusSelect'
 import InlinePersonPicker, { type ProfileOption } from './InlinePersonPicker'
 import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
+import ContentAssets, { type ContentAsset } from './ContentAssets'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type ContentAsset = {
-  id: number
-  content_id: number
-  asset_type: 'url' | 'image'
-  label: string | null
-  url: string
-  sort_order: number
-  uploaded_by: string | null
-  created_at: string
-}
 
 const STATUSES = ['รอผลิต', 'ผลิตอยู่', 'รออนุมัติ', 'อนุมัติแล้ว', 'กำหนดโพสต์', 'โพสต์แล้ว']
 const TYPES    = ['GRAPHIC', 'VIDEO', 'COPY']
@@ -60,316 +51,6 @@ function IconChevron() {
 }
 
 // ─── ContentAssetsPanel ───────────────────────────────────────────────────────
-
-function ContentAssetsPanel({
-  contentId, assets, canManage, canDelete, onAdd, onDelete, onUpdateLabel,
-}: {
-  contentId: number
-  assets: ContentAsset[]
-  canManage: boolean
-  canDelete: boolean
-  onAdd: (type: 'url' | 'image', url: string, label: string) => void
-  onDelete: (id: number) => void
-  onUpdateLabel: (id: number, label: string) => void
-}) {
-  const [addType, setAddType]   = useState<'url' | 'image'>('url')
-  const [addUrl, setAddUrl]     = useState('')
-  const [addLabel, setAddLabel] = useState('')
-  const [adding, setAdding]     = useState(false)
-  const [editingLabelId, setEditingLabelId] = useState<number | null>(null)
-  const [editLabelVal, setEditLabelVal]     = useState('')
-  const urlInputRef = useRef<HTMLInputElement>(null)
-
-  // Image preview inline
-  function isImageUrl(url: string) {
-    return /\.(jpg|jpeg|png|gif|webp|svg|avif)(\?.*)?$/i.test(url)
-  }
-
-  async function handleAdd() {
-    if (!addUrl.trim()) return
-    setAdding(true)
-    await onAdd(addType, addUrl.trim(), addLabel.trim())
-    setAddUrl('')
-    setAddLabel('')
-    setAdding(false)
-    urlInputRef.current?.focus()
-  }
-
-  const urlAssets   = assets.filter(a => a.asset_type === 'url')
-  const imageAssets = assets.filter(a => a.asset_type === 'image')
-
-  return (
-    <div className="space-y-4">
-      {/* Section header */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">ชิ้นงาน / Files & Links</span>
-        <span className="text-xs text-slate-400">({assets.length} รายการ)</span>
-      </div>
-
-      {/* Image previews grid */}
-      {imageAssets.length > 0 && (
-        <div>
-          <p className="text-[11px] font-semibold text-slate-400 mb-2 uppercase tracking-wide">รูปภาพชิ้นงาน</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {imageAssets.map(asset => (
-              <AssetImageCard
-                key={asset.id}
-                asset={asset}
-                canDelete={canDelete}
-                onDelete={() => onDelete(asset.id)}
-                onEditLabel={() => { setEditingLabelId(asset.id); setEditLabelVal(asset.label || '') }}
-                editingLabel={editingLabelId === asset.id}
-                editLabelVal={editLabelVal}
-                onEditLabelChange={setEditLabelVal}
-                onSaveLabel={() => { onUpdateLabel(asset.id, editLabelVal); setEditingLabelId(null) }}
-                onCancelLabel={() => setEditingLabelId(null)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* URL list */}
-      {urlAssets.length > 0 && (
-        <div>
-          <p className="text-[11px] font-semibold text-slate-400 mb-2 uppercase tracking-wide">ลิงก์ / URLs</p>
-          <div className="space-y-1.5">
-            {urlAssets.map(asset => (
-              <AssetUrlRow
-                key={asset.id}
-                asset={asset}
-                canDelete={canDelete}
-                onDelete={() => onDelete(asset.id)}
-                onEditLabel={() => { setEditingLabelId(asset.id); setEditLabelVal(asset.label || '') }}
-                editingLabel={editingLabelId === asset.id}
-                editLabelVal={editLabelVal}
-                onEditLabelChange={setEditLabelVal}
-                onSaveLabel={() => { onUpdateLabel(asset.id, editLabelVal); setEditingLabelId(null) }}
-                onCancelLabel={() => setEditingLabelId(null)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {assets.length === 0 && (
-        <p className="text-xs text-slate-400 py-2">ยังไม่มีชิ้นงาน — เพิ่มได้ด้านล่าง</p>
-      )}
-
-      {/* Add new asset */}
-      {canManage && (
-        <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-2.5">
-          <p className="text-xs font-semibold text-slate-600">เพิ่มชิ้นงาน</p>
-          {/* Type toggle */}
-          <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5 w-fit">
-            <button
-              onClick={() => setAddType('image')}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${addType === 'image' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
-            >
-              🖼 รูปภาพ (URL)
-            </button>
-            <button
-              onClick={() => setAddType('url')}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${addType === 'url' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
-            >
-              🔗 ลิงก์ / URL
-            </button>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <input
-              ref={urlInputRef}
-              value={addUrl}
-              onChange={e => setAddUrl(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAdd()}
-              placeholder={addType === 'image'
-                ? 'URL รูปภาพ เช่น https://drive.google.com/... หรือ https://i.imgur.com/...'
-                : 'URL ลิงก์ เช่น https://www.facebook.com/... หรือ https://docs.google.com/...'}
-              className="flex-1 min-w-0 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <input
-              value={addLabel}
-              onChange={e => setAddLabel(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAdd()}
-              placeholder="ชื่อ/label (ถ้ามี)"
-              className="w-36 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <button
-              onClick={handleAdd}
-              disabled={!addUrl.trim() || adding}
-              className="shrink-0 bg-indigo-600 text-white text-xs font-semibold px-4 py-1.5 rounded-lg hover:bg-indigo-500 disabled:opacity-40 transition-colors"
-            >
-              {adding ? '...' : '+ เพิ่ม'}
-            </button>
-          </div>
-          <p className="text-[10px] text-slate-400">
-            {addType === 'image'
-              ? 'รองรับ URL รูปภาพโดยตรง (.jpg .png .gif .webp) — จะแสดงเป็น thumbnail ได้ทันที'
-              : 'รองรับทุก URL — Google Drive, Dropbox, Facebook post, Notion, Figma ฯลฯ'}
-          </p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── AssetImageCard ──────────────────────────────────────────────────────────
-
-function AssetImageCard({
-  asset, canDelete, onDelete, onEditLabel,
-  editingLabel, editLabelVal, onEditLabelChange, onSaveLabel, onCancelLabel,
-}: {
-  asset: ContentAsset
-  canDelete: boolean
-  onDelete: () => void
-  onEditLabel: () => void
-  editingLabel: boolean
-  editLabelVal: string
-  onEditLabelChange: (v: string) => void
-  onSaveLabel: () => void
-  onCancelLabel: () => void
-}) {
-  const [imgError, setImgError] = useState(false)
-
-  return (
-    <div className="group relative bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-      {/* Image */}
-      <a href={asset.url} target="_blank" rel="noreferrer" className="block">
-        {!imgError ? (
-          <img
-            src={asset.url}
-            alt={asset.label || 'asset'}
-            onError={() => setImgError(true)}
-            className="w-full h-24 object-cover bg-slate-100"
-          />
-        ) : (
-          <div className="w-full h-24 bg-slate-100 flex items-center justify-center text-slate-400 text-xs">
-            🖼 เปิดลิงก์
-          </div>
-        )}
-      </a>
-
-      {/* Label */}
-      <div className="px-2 py-1.5">
-        {editingLabel ? (
-          <div className="flex gap-1 items-center">
-            <input
-              autoFocus
-              value={editLabelVal}
-              onChange={e => onEditLabelChange(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') onSaveLabel(); if (e.key === 'Escape') onCancelLabel() }}
-              className="flex-1 min-w-0 border border-indigo-300 rounded px-1.5 py-0.5 text-[10px] focus:outline-none"
-            />
-            <button onClick={onSaveLabel} className="text-emerald-600 text-[10px] font-bold">✓</button>
-          </div>
-        ) : (
-          <button
-            onClick={onEditLabel}
-            className="text-[10px] text-slate-500 hover:text-indigo-600 truncate w-full text-left transition-colors"
-            title={asset.label || 'คลิกเพื่อตั้งชื่อ'}
-          >
-            {asset.label || <span className="text-slate-300">+ ตั้งชื่อ</span>}
-          </button>
-        )}
-      </div>
-
-      {/* Delete overlay */}
-      {canDelete && (
-        <button
-          onClick={onDelete}
-          className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-          title="ลบ"
-        >
-          ✕
-        </button>
-      )}
-    </div>
-  )
-}
-
-// ─── AssetUrlRow ──────────────────────────────────────────────────────────────
-
-function AssetUrlRow({
-  asset, canDelete, onDelete, onEditLabel,
-  editingLabel, editLabelVal, onEditLabelChange, onSaveLabel, onCancelLabel,
-}: {
-  asset: ContentAsset
-  canDelete: boolean
-  onDelete: () => void
-  onEditLabel: () => void
-  editingLabel: boolean
-  editLabelVal: string
-  onEditLabelChange: (v: string) => void
-  onSaveLabel: () => void
-  onCancelLabel: () => void
-}) {
-  const domain = (() => {
-    try { return new URL(asset.url).hostname.replace('www.', '') } catch { return '' }
-  })()
-
-  const favicon = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : ''
-
-  return (
-    <div className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-xl px-3 py-2 group hover:border-indigo-200 transition-colors">
-      {/* Favicon */}
-      {favicon && (
-        <img src={favicon} alt="" className="w-4 h-4 shrink-0 rounded-sm" onError={e => (e.currentTarget.style.display = 'none')} />
-      )}
-
-      {/* URL + label */}
-      <div className="flex-1 min-w-0">
-        {editingLabel ? (
-          <div className="flex gap-1 items-center">
-            <input
-              autoFocus
-              value={editLabelVal}
-              onChange={e => onEditLabelChange(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') onSaveLabel(); if (e.key === 'Escape') onCancelLabel() }}
-              className="flex-1 min-w-0 border border-indigo-300 rounded px-2 py-0.5 text-xs focus:outline-none"
-              placeholder="ชื่อลิงก์..."
-            />
-            <button onClick={onSaveLabel} className="text-emerald-600 text-xs font-bold">✓</button>
-            <button onClick={onCancelLabel} className="text-slate-400 text-xs">✕</button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 min-w-0">
-            <a
-              href={asset.url}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-indigo-600 hover:underline truncate"
-              title={asset.url}
-            >
-              {asset.label || asset.url}
-            </a>
-            {asset.label && (
-              <span className="text-[10px] text-slate-400 truncate hidden sm:inline">{domain}</span>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Actions — visible on hover */}
-      <div className="shrink-0 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={onEditLabel}
-          className="text-[10px] text-slate-400 hover:text-indigo-600 px-1.5 py-0.5 rounded hover:bg-indigo-50 transition-colors"
-          title="ตั้งชื่อ"
-        >
-          ✏️
-        </button>
-        {canDelete && (
-          <button
-            onClick={onDelete}
-            className="text-[10px] text-slate-400 hover:text-red-600 px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors"
-            title="ลบ"
-          >
-            ✕
-          </button>
-        )}
-      </div>
-    </div>
-  )
-}
 
 function IconPlus() {
   return (
@@ -520,10 +201,10 @@ export default function Contents() {
 
   // ── Assets ────────────────────────────────────────────────────
   async function loadAssets(contentId: number) {
-    if (assetsMap[contentId]) return // already loaded
+    if (assetsMap[contentId]) return
     const { data, error } = await supabase
       .from('content_assets')
-      .select('id, content_id, asset_type, label, url, sort_order, uploaded_by, created_at')
+      .select('id, content_id, asset_type, label, url, storage_path, file_size, mime_type, sort_order, uploaded_by, created_at')
       .eq('content_id', contentId)
       .order('sort_order')
       .order('created_at')
@@ -539,44 +220,6 @@ export default function Contents() {
       setExpandedId(contentId)
       loadAssets(contentId)
     }
-  }
-
-  async function addAsset(contentId: number, asset_type: 'url' | 'image', url: string, label: string) {
-    const existing = assetsMap[contentId] || []
-    const sort_order = existing.length
-    const { data, error } = await supabase.from('content_assets').insert([{
-      content_id: contentId,
-      asset_type,
-      url,
-      label: label || null,
-      sort_order,
-      uploaded_by: me.id,
-    }]).select().single()
-    if (error) { showToast(error.message, 'error'); return }
-    setAssetsMap(prev => ({
-      ...prev,
-      [contentId]: [...(prev[contentId] || []), data as ContentAsset],
-    }))
-    showToast('เพิ่ม asset แล้ว')
-  }
-
-  async function deleteAsset(contentId: number, assetId: number) {
-    const { error } = await supabase.from('content_assets').delete().eq('id', assetId)
-    if (error) { showToast(error.message, 'error'); return }
-    setAssetsMap(prev => ({
-      ...prev,
-      [contentId]: (prev[contentId] || []).filter(a => a.id !== assetId),
-    }))
-    showToast('ลบ asset แล้ว')
-  }
-
-  async function updateAssetLabel(contentId: number, assetId: number, label: string) {
-    const { error } = await supabase.from('content_assets').update({ label: label || null }).eq('id', assetId)
-    if (error) { showToast(error.message, 'error'); return }
-    setAssetsMap(prev => ({
-      ...prev,
-      [contentId]: (prev[contentId] || []).map(a => a.id === assetId ? { ...a, label } : a),
-    }))
   }
 
   // ── Add ──────────────────────────────────────────────────────
@@ -971,15 +614,13 @@ export default function Contents() {
                     {/* Assets panel — expanded row */}
                     {isExpanded && (
                       <tr className="bg-slate-50/60">
-                        <td colSpan={headers.length} className="px-6 pb-4 pt-2">
-                          <ContentAssetsPanel
+                        <td colSpan={headers.length} className="px-6 pb-5 pt-3">
+                          <ContentAssets
                             contentId={c.id}
-                            assets={assets}
-                            canManage={canManageAssets}
+                            assets={assetsMap[c.id] || []}
+                            canWrite={canManageAssets}
                             canDelete={me.role === 'admin' || me.role === 'manager'}
-                            onAdd={(type, url, label) => addAsset(c.id, type, url, label)}
-                            onDelete={(assetId) => deleteAsset(c.id, assetId)}
-                            onUpdateLabel={(assetId, label) => updateAssetLabel(c.id, assetId, label)}
+                            onAssetsChange={updated => setAssetsMap(prev => ({ ...prev, [c.id]: updated }))}
                           />
                         </td>
                       </tr>
