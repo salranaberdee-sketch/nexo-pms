@@ -6,7 +6,7 @@ import { useCan } from '@/lib/profile-context'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState, todayStr } from './TableState'
 import { showToast } from './Toast'
-import Modal, { Field } from './Modal'
+import Modal, { Field, ConfirmModal } from './Modal'
 import { useCategories } from './CategoryManager'
 
 const SALES_STATUS_OPTIONS = ['ยังไม่เปิดขาย', 'ยังไม่เริ่ม', 'กำลังขาย', 'ปิดเป้า']
@@ -36,6 +36,16 @@ function IconPencil() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
+  )
+}
+function IconTrash() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      <path d="M10 11v6"/><path d="M14 11v6"/>
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
     </svg>
   )
 }
@@ -71,8 +81,13 @@ export default function Sales() {
     status: 'ยังไม่เปิดขาย',
   })
 
+  // Delete confirm
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
   const canInsert = useCan('insert', 'sales')
   const canUpdate = useCan('update', 'sales')
+  const canDelete = useCan('delete', 'sales')
   const supabase = createClient()
 
   // Categories from DB (same source as Products page)
@@ -81,7 +96,7 @@ export default function Sales() {
   async function load() {
     setLoadError('')
     const [s, p] = await Promise.all([
-      supabase.from('sales').select('id, product_id, period_start, period_end, sales_target_amount, sales_target_count, actual_sales, actual_received, status').order('product_id'),
+      supabase.from('sales').select('id, product_id, period_start, period_end, sales_target_amount, sales_target_count, actual_sales, actual_received, status, created_at').order('product_id'),
       supabase.from('products').select('product_id, name, status, business_type, product_type, brand'),
     ])
     if (s.error) { setLoadError(s.error.message); setLoading(false); return }
@@ -170,6 +185,16 @@ export default function Sales() {
     showToast('บันทึกยอดขายแล้ว')
   }
 
+  async function deleteRow(id: number) {
+    setDeleting(true)
+    const { error: delErr } = await supabase.from('sales').delete().eq('id', id)
+    setDeleting(false)
+    if (delErr) { showToast(delErr.message, 'error'); return }
+    setConfirmDelete(null)
+    setSales(prev => prev.filter(s => s.id !== id))
+    showToast('ลบยอดขายแล้ว')
+  }
+
   async function updateStatus(id: number, status: string) {
     const old = sales.find(s => s.id === id)?.status
     setSales(prev => prev.map(s => s.id === id ? { ...s, status } : s))
@@ -218,12 +243,18 @@ export default function Sales() {
   const gap         = Math.max(0, totalTarget - totalActual)
   const perDay      = daysLeft > 0 && gap > 0 ? Math.round(gap / daysLeft) : 0
 
+  // Date range filter
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo]     = useState('')
+
   const filtered = useMemo(() => {
     let list = sales
     if (filterCategory !== 'all') {
       const catIds = products.filter(p => p.business_type === filterCategory).map(p => p.product_id)
       list = list.filter(s => catIds.includes(s.product_id))
     }
+    if (dateFrom) list = list.filter(s => s.created_at && s.created_at >= dateFrom)
+    if (dateTo)   list = list.filter(s => s.created_at && s.created_at <= dateTo + 'T23:59:59')
     if (!search) return list
     const q = search.toLowerCase()
     return list.filter(s => {
@@ -232,7 +263,7 @@ export default function Sales() {
         || (product?.name || '').toLowerCase().includes(q)
         || (product?.business_type || '').toLowerCase().includes(q)
     })
-  }, [sales, search, productMap, filterCategory, products])
+  }, [sales, search, productMap, filterCategory, products, dateFrom, dateTo])
 
   // Status filter
   const [filterStatus, setFilterStatus] = useState('all')
@@ -246,7 +277,11 @@ export default function Sales() {
     return filterStatus === 'all' ? filtered : filtered.filter(s => s.status === filterStatus)
   }, [filtered, filterStatus])
 
-  const headers = ['Product', 'ชื่อสินค้า', 'หมวดหมู่', 'ช่วงเวลา', 'เป้ายอดขาย', 'ยอดจริง', 'รับเงินจริง', 'ยังขาด', '% สำเร็จ', 'สถานะ', '']
+  const headers = ['Product', 'ชื่อสินค้า', 'หมวดหมู่', 'ช่วงเวลา', 'เป้ายอดขาย', 'ยอดจริง', 'รับเงินจริง', 'ยังขาด', '% สำเร็จ', 'สถานะ', 'วันที่เพิ่ม', '']
+
+  // Pagination — reset when filters change
+  const [visibleCount, setVisibleCount] = useState(10)
+  useEffect(() => { setVisibleCount(10) }, [search, filterCategory, filterStatus, dateFrom, dateTo])
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-5">
@@ -366,8 +401,22 @@ export default function Sales() {
 
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3">
-          <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาด้วย Product ID หรือชื่อสินค้า..." />
+        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-1 flex-wrap">
+            <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาด้วย Product ID หรือชื่อสินค้า..." />
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-xs text-slate-400 whitespace-nowrap">จาก</span>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
+              <span className="text-xs text-slate-400">ถึง</span>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
+              {(dateFrom || dateTo) && (
+                <button onClick={() => { setDateFrom(''); setDateTo('') }}
+                  className="text-xs text-slate-400 hover:text-red-500 transition-colors px-1.5 py-1 rounded-lg hover:bg-red-50">✕</button>
+              )}
+            </div>
+          </div>
           <span className="text-xs text-slate-400 whitespace-nowrap">{filteredAndSearched.length} รายการ</span>
         </div>
         <div className="overflow-x-auto">
@@ -384,7 +433,7 @@ export default function Sales() {
                 <TableSkeleton cols={headers.length} />
               ) : filteredAndSearched.length === 0 ? (
                 <EmptyState message="ยังไม่มีเป้ายอดขาย" />
-              ) : filteredAndSearched.map(s => {
+              ) : filteredAndSearched.slice(0, visibleCount).map(s => {
                 const product = productMap.get(s.product_id)
                 const target  = Number(s.sales_target_amount)
                 const actual  = Number(s.actual_sales)
@@ -456,21 +505,58 @@ export default function Sales() {
                         </span>
                       )}
                     </td>
+                    {/* Created at */}
+                    <td className="px-5 py-4 text-xs text-slate-400 whitespace-nowrap">
+                      {s.created_at
+                        ? new Date(s.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : '—'}
+                    </td>
                     <td className="px-5 py-4 whitespace-nowrap">
-                      {canUpdate ? (
-                        <button onClick={() => openEdit(s)} title="แก้ไข"
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 rounded-lg transition-colors">
-                          <IconPencil />แก้ไข
-                        </button>
-                      ) : <span className="text-xs text-slate-300">—</span>}
+                      <div className="flex items-center gap-1">
+                        {canUpdate && (
+                          <button onClick={() => openEdit(s)} title="แก้ไข"
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 rounded-lg transition-colors">
+                            <IconPencil />แก้ไข
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button onClick={() => setConfirmDelete(s.id)} title="ลบ"
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors">
+                            <IconTrash />ลบ
+                          </button>
+                        )}
+                        {!canUpdate && !canDelete && <span className="text-xs text-slate-300">—</span>}
+                      </div>
                     </td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
+          {visibleCount < filteredAndSearched.length && (
+            <div className="px-5 py-4 border-t border-slate-100 text-center">
+              <button onClick={() => setVisibleCount(v => v + 10)}
+                className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
+                ดูเพิ่มเติม ({filteredAndSearched.length - visibleCount} รายการ)
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* ── DELETE confirm ─────────────────────────────────────── */}
+      <ConfirmModal
+        open={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => deleteRow(confirmDelete!)}
+        loading={deleting}
+        title="ยืนยันลบยอดขาย"
+        message={(() => {
+          const target = sales.find(s => s.id === confirmDelete)
+          const product = target ? productMap.get(target.product_id) : null
+          return <><strong>{product?.name || target?.product_id}</strong> จะถูกลบถาวร</>
+        })()}
+      />
 
       {/* ── ADD modal ──────────────────────────────────────────── */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="เพิ่มเป้ายอดขายใหม่" width="max-w-lg">

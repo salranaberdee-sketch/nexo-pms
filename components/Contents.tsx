@@ -1,4 +1,4 @@
-'use client'
+  'use client'
 
 import { useEffect, useState, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -10,7 +10,7 @@ import { TableSkeleton, EmptyState, todayStr } from './TableState'
 import StatusSelect from './StatusSelect'
 import InlinePersonPicker, { type ProfileOption } from './InlinePersonPicker'
 import { showToast } from './Toast'
-import Modal, { Field } from './Modal'
+import Modal, { Field, ConfirmModal } from './Modal'
 
 const STATUSES = ['รอผลิต', 'ผลิตอยู่', 'รออนุมัติ', 'อนุมัติแล้ว', 'กำหนดโพสต์', 'โพสต์แล้ว']
 const TYPES    = ['GRAPHIC', 'VIDEO', 'COPY']
@@ -51,6 +51,16 @@ function IconPencil() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
+  )
+}
+function IconTrash() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      <path d="M10 11v6"/><path d="M14 11v6"/>
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
     </svg>
   )
 }
@@ -100,8 +110,13 @@ export default function Contents() {
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError]   = useState('')
 
+  // Delete confirm
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
   const canInsert = useCan('insert', 'contents')
   const canUpdate = useCan('update', 'contents')
+  const canDelete = useCan('delete', 'contents')
   const supabase = createClient()
 
   // Approvers = admin/manager only
@@ -115,7 +130,7 @@ export default function Contents() {
     const [c, p, pr] = await Promise.all([
       supabase
         .from('contents')
-        .select('id, product_id, seq, type, title, objective, hook, format_size, assigned_to, assigned_to_id, producer, producer_id, approver, approver_id, deadline, status, acknowledged_at, assigned_date')
+        .select('id, product_id, seq, type, title, objective, hook, format_size, assigned_to, assigned_to_id, producer, producer_id, approver, approver_id, deadline, status, acknowledged_at, assigned_date, created_at')
         .order('product_id').order('seq'),
       supabase.from('products').select('product_id, name, brand'),
       supabase.from('profiles').select('id, name, role, brand_access').eq('approval_status', 'approved').order('name'),
@@ -287,6 +302,17 @@ export default function Contents() {
     showToast('บันทึกแล้ว')
   }
 
+  // ── Delete ────────────────────────────────────────────────────
+  async function deleteRow(id: number) {
+    setDeleting(true)
+    const { error: delErr } = await supabase.from('contents').delete().eq('id', id)
+    setDeleting(false)
+    if (delErr) { showToast(delErr.message, 'error'); return }
+    setConfirmDelete(null)
+    setContents(prev => prev.filter(c => c.id !== id))
+    showToast('ลบ Content แล้ว')
+  }
+
   // ── Status / assignee — quick inline updates ─────────────────
   async function updateStatus(id: number, status: string) {
     const old = contents.find(c => c.id === id)?.status
@@ -316,9 +342,14 @@ export default function Contents() {
   }
 
   // ── Filters ──────────────────────────────────────────────────
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo]     = useState('')
+
   const filtered = useMemo(() => contents.filter(c =>
     (filterProduct === 'all' || c.product_id === filterProduct) &&
     (filterStatus === 'all' || c.status === filterStatus) &&
+    (!dateFrom || (c.created_at && c.created_at >= dateFrom)) &&
+    (!dateTo   || (c.created_at && c.created_at <= dateTo + 'T23:59:59')) &&
     (search === '' || (() => {
       const q = search.toLowerCase()
       return (c.title || '').toLowerCase().includes(q)
@@ -328,15 +359,19 @@ export default function Contents() {
         || (c.producer || '').toLowerCase().includes(q)
         || (c.objective || '').toLowerCase().includes(q)
     })()),
-  ), [contents, filterProduct, filterStatus, search])
+  ), [contents, filterProduct, filterStatus, search, dateFrom, dateTo])
 
   const countByStatus = useMemo(
     () => STATUSES.reduce((acc, s) => ({ ...acc, [s]: contents.filter(c => c.status === s).length }), {} as Record<string, number>),
     [contents],
   )
 
-  const hasFilters = filterProduct !== 'all' || filterStatus !== 'all' || search !== ''
-  const headers = ['#', 'Product', 'ประเภท', 'ชื่อ Content', 'ผู้รับผิดชอบ', 'กำหนดส่ง', 'สถานะ', '']
+  const hasFilters = filterProduct !== 'all' || filterStatus !== 'all' || search !== '' || !!dateFrom || !!dateTo
+  const headers = ['#', 'Product', 'ประเภท', 'ชื่อ Content', 'ผู้รับผิดชอบ', 'กำหนดส่ง', 'สถานะ', 'วันที่เพิ่ม', '']
+
+  // Pagination — reset when filters change
+  const [visibleCount, setVisibleCount] = useState(10)
+  useEffect(() => { setVisibleCount(10) }, [filterProduct, filterStatus, search, dateFrom, dateTo])
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-5">
@@ -386,8 +421,17 @@ export default function Contents() {
           <option value="all">ทุก Product</option>
           {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
         </select>
+        {/* Date range */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-xs text-slate-400 whitespace-nowrap">จาก</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
+          <span className="text-xs text-slate-400">ถึง</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
+        </div>
         {hasFilters && (
-          <button onClick={() => { setFilterProduct('all'); setFilterStatus('all'); setSearch('') }}
+          <button onClick={() => { setFilterProduct('all'); setFilterStatus('all'); setSearch(''); setDateFrom(''); setDateTo('') }}
             className="text-sm text-slate-400 hover:text-slate-700 px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap">
             ล้างตัวกรอง ✕
           </button>
@@ -413,7 +457,7 @@ export default function Contents() {
                 <TableSkeleton cols={headers.length} />
               ) : filtered.length === 0 ? (
                 <EmptyState message="ไม่พบ Content ที่ตรงเงื่อนไข" />
-              ) : filtered.map(c => {
+              ) : filtered.slice(0, visibleCount).map(c => {
                 const overdue = c.deadline && c.deadline < TODAY && c.status !== DONE_STATUS
                 const daysUntil = c.deadline && c.status !== DONE_STATUS
                   ? Math.round((new Date(c.deadline).getTime() - TODAY_MS) / 86400000) : null
@@ -468,22 +512,58 @@ export default function Contents() {
                       <StatusSelect value={c.status} options={STATUSES} styleMap={statusStyle}
                         disabled={!canUpdate} onChange={v => updateStatus(c.id, v)} />
                     </td>
+                    {/* Created at */}
+                    <td className="px-5 py-4 text-xs text-slate-400 whitespace-nowrap">
+                      {c.created_at
+                        ? new Date(c.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : '—'}
+                    </td>
                     <td className="px-5 py-4 whitespace-nowrap">
-                      {canUpdate && (
-                        <button onClick={() => openEdit(c)}
-                          title="แก้ไข"
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 rounded-lg transition-colors">
-                          <IconPencil />แก้ไข
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {canUpdate && (
+                          <button onClick={() => openEdit(c)}
+                            title="แก้ไข"
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 rounded-lg transition-colors">
+                            <IconPencil />แก้ไข
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button onClick={() => setConfirmDelete(c.id)} title="ลบ"
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors">
+                            <IconTrash />ลบ
+                          </button>
+                        )}
+                        {!canUpdate && !canDelete && <span className="text-xs text-slate-300">—</span>}
+                      </div>
                     </td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
+          {visibleCount < filtered.length && (
+            <div className="px-5 py-4 border-t border-slate-100 text-center">
+              <button onClick={() => setVisibleCount(v => v + 10)}
+                className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
+                ดูเพิ่มเติม ({filtered.length - visibleCount} รายการ)
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* ── DELETE confirm ─────────────────────────────────────── */}
+      <ConfirmModal
+        open={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => deleteRow(confirmDelete!)}
+        loading={deleting}
+        title="ยืนยันลบ Content"
+        message={(() => {
+          const target = contents.find(c => c.id === confirmDelete)
+          return <><strong>{target?.title}</strong> ({target?.product_id} #{target?.seq}) จะถูกลบถาวร</>
+        })()}
+      />
 
       {/* ── ADD modal ──────────────────────────────────────────── */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="เพิ่ม Content ใหม่" width="max-w-2xl">

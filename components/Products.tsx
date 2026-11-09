@@ -90,7 +90,7 @@ export default function Products() {
     const [p, pr] = await Promise.all([
       supabase
         .from('products')
-        .select('id, product_id, name, business_type, product_type, brand, owner, owner_id, status, notes')
+        .select('id, product_id, name, business_type, product_type, brand, owner, owner_id, status, notes, created_at')
         .order('created_at', { ascending: false }),
       supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
     ])
@@ -187,10 +187,16 @@ export default function Products() {
     [products, allBusinessTypes],
   )
 
+  // Date range filter
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo]     = useState('')
+
   const filtered = useMemo(() => {
     let list = products
     if (filterStatus !== 'all')   list = list.filter(p => p.status === filterStatus)
     if (filterCategory !== 'all') list = list.filter(p => p.business_type === filterCategory)
+    if (dateFrom) list = list.filter(p => p.created_at && p.created_at >= dateFrom)
+    if (dateTo)   list = list.filter(p => p.created_at && p.created_at <= dateTo + 'T23:59:59')
     if (!search) return list
     const q = search.toLowerCase()
     return list.filter(p =>
@@ -198,10 +204,15 @@ export default function Products() {
       || (p.brand || '').toLowerCase().includes(q) || (p.owner || '').toLowerCase().includes(q)
       || (p.business_type || '').toLowerCase().includes(q) || (p.product_type || '').toLowerCase().includes(q),
     )
-  }, [products, search, filterStatus, filterCategory])
+  }, [products, search, filterStatus, filterCategory, dateFrom, dateTo])
 
   const deleteTarget = confirmDelete !== null ? products.find(p => p.id === confirmDelete) : null
-  const headers = ['Product ID', 'ชื่อสินค้า', 'ประเภท', 'แบรนด์', 'ผู้รับผิดชอบ', 'สถานะ', 'หมายเหตุ', '']
+  const headers = ['Product ID', 'ชื่อสินค้า', 'ประเภท', 'แบรนด์', 'ผู้รับผิดชอบ', 'สถานะ', 'หมายเหตุ', 'วันที่เพิ่ม', '']
+
+  // Pagination — reset when filters change
+  const [visibleCount, setVisibleCount] = useState(10)
+  useEffect(() => { setVisibleCount(10) }, [filterStatus, filterCategory, search, dateFrom, dateTo])
+  const paginated = filtered.slice(0, visibleCount)
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-5">
@@ -277,8 +288,22 @@ export default function Products() {
 
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3">
-          <SearchInput value={search} onChange={setSearch} placeholder="ค้นหา Product ID, ชื่อ, แบรนด์, ผู้รับผิดชอบ..." />
+        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-1 flex-wrap">
+            <SearchInput value={search} onChange={setSearch} placeholder="ค้นหา Product ID, ชื่อ, แบรนด์, ผู้รับผิดชอบ..." />
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-xs text-slate-400 whitespace-nowrap">จาก</span>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
+              <span className="text-xs text-slate-400">ถึง</span>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
+              {(dateFrom || dateTo) && (
+                <button onClick={() => { setDateFrom(''); setDateTo('') }}
+                  className="text-xs text-slate-400 hover:text-red-500 transition-colors px-1.5 py-1 rounded-lg hover:bg-red-50">✕</button>
+              )}
+            </div>
+          </div>
           <span className="text-xs text-slate-400 whitespace-nowrap">{filtered.length} / {products.length} รายการ</span>
         </div>
         <div className="overflow-x-auto">
@@ -295,7 +320,7 @@ export default function Products() {
                 <TableSkeleton cols={headers.length} />
               ) : filtered.length === 0 ? (
                 <EmptyState message="ยังไม่มี Product ที่ตรงเงื่อนไข" />
-              ) : filtered.map(p => (
+              ) : paginated.map(p => (
                 <tr key={p.id} className="border-b border-slate-100/60 hover:bg-indigo-50/20 transition-colors last:border-0 group">
                   {/* Product ID + copy */}
                   <td className="px-5 py-4">
@@ -320,6 +345,12 @@ export default function Products() {
                       disabled={!canUpdate} onChange={v => updateStatus(p.id, v)} />
                   </td>
                   <td className="px-5 py-4 text-sm text-slate-400 max-w-[180px] truncate" title={p.notes || ''}>{p.notes || '—'}</td>
+                  {/* Created at */}
+                  <td className="px-5 py-4 text-xs text-slate-400 whitespace-nowrap">
+                    {p.created_at
+                      ? new Date(p.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })
+                      : '—'}
+                  </td>
                   {/* Action buttons — always visible, sized properly */}
                   <td className="px-5 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-1">
@@ -344,6 +375,14 @@ export default function Products() {
               ))}
             </tbody>
           </table>
+          {visibleCount < filtered.length && (
+            <div className="px-5 py-4 border-t border-slate-100 text-center">
+              <button onClick={() => setVisibleCount(v => v + 10)}
+                className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
+                ดูเพิ่มเติม ({filtered.length - visibleCount} รายการ)
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

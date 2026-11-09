@@ -2,11 +2,23 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
-import { useProfile } from '@/lib/profile-context'
+import { useProfile, useCan } from '@/lib/profile-context'
 import StatusSelect from './StatusSelect'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState } from './TableState'
 import { showToast } from './Toast'
+import { ConfirmModal } from './Modal'
+
+function IconTrash() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      <path d="M10 11v6"/><path d="M14 11v6"/>
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+    </svg>
+  )
+}
 
 const ROLES = ['admin', 'manager', 'editor', 'viewer']
 
@@ -52,6 +64,11 @@ export default function Team() {
 
   const supabase = createClient()
   const me = useProfile()
+  const canDelete = useCan('delete', 'profiles')
+
+  // Delete confirm
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   async function load() {
     const [profileRes, brandRes] = await Promise.all([
@@ -119,6 +136,17 @@ export default function Team() {
     }
   }
 
+  // ── Delete profile ────────────────────────────────────────────
+  async function deleteProfile(id: string) {
+    setDeleting(true)
+    const { error: delErr } = await supabase.from('profiles').delete().eq('id', id)
+    setDeleting(false)
+    if (delErr) { showToast(delErr.message, 'error'); return }
+    setConfirmDelete(null)
+    setProfiles(prev => prev.filter(p => p.id !== id))
+    showToast('ลบสมาชิกแล้ว')
+  }
+
   // ── Brand Access ──────────────────────────────────────────────
   function openBrandAccess(profileId: string, currentAccess: string[]) {
     setEditingBrandAccess(profileId)
@@ -154,14 +182,24 @@ export default function Team() {
   const approvedCount = useMemo(() => profiles.filter(p => p.approval_status === 'approved').length, [profiles])
   const rejectedCount = useMemo(() => profiles.filter(p => p.approval_status === 'rejected').length, [profiles])
 
+  // Date range filter
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo]     = useState('')
+
   const filtered = useMemo(() => profiles.filter(p => {
     const matchFilter = filter === 'all' || p.approval_status === filter
     const matchSearch = !search || (() => {
       const q = search.toLowerCase()
       return (p.name || '').toLowerCase().includes(q) || (p.email || '').toLowerCase().includes(q)
     })()
-    return matchFilter && matchSearch
-  }), [profiles, filter, search])
+    const matchDate = (!dateFrom || (p.created_at && p.created_at >= dateFrom))
+                   && (!dateTo   || (p.created_at && p.created_at <= dateTo + 'T23:59:59'))
+    return matchFilter && matchSearch && matchDate
+  }), [profiles, filter, search, dateFrom, dateTo])
+
+  // Pagination — reset when filters change
+  const [visibleCount, setVisibleCount] = useState(10)
+  useEffect(() => { setVisibleCount(10) }, [filter, search, dateFrom, dateTo])
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-5">
@@ -223,8 +261,22 @@ export default function Team() {
 
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3">
-          <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาชื่อหรืออีเมล..." />
+        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-1 flex-wrap">
+            <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาชื่อหรืออีเมล..." />
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-xs text-slate-400 whitespace-nowrap">จาก</span>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
+              <span className="text-xs text-slate-400">ถึง</span>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
+              {(dateFrom || dateTo) && (
+                <button onClick={() => { setDateFrom(''); setDateTo('') }}
+                  className="text-xs text-slate-400 hover:text-red-500 transition-colors px-1.5 py-1 rounded-lg hover:bg-red-50">✕</button>
+              )}
+            </div>
+          </div>
           <div className="flex items-center gap-2 shrink-0">
             <span className="text-xs text-slate-400">{filtered.length} คน</span>
             {filter !== 'all' && (
@@ -241,17 +293,17 @@ export default function Team() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100">
-                {['ชื่อ', 'อีเมล', 'บทบาท', 'สิทธิ์ Brand', 'สถานะ', 'วันที่สมัคร'].map(h => (
+                {['ชื่อ', 'อีเมล', 'บทบาท', 'สิทธิ์ Brand', 'สถานะ', 'วันที่สมัคร', ''].map(h => (
                   <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 whitespace-nowrap uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <TableSkeleton cols={6} />
+                <TableSkeleton cols={7} />
               ) : filtered.length === 0 ? (
                 <EmptyState message="ไม่พบสมาชิกที่ตรงเงื่อนไข" />
-              ) : filtered.map(p => {
+              ) : filtered.slice(0, visibleCount).map(p => {
                 const isSelf = p.id === me.id
                 const displayApproval = approvalLabel[p.approval_status] || p.approval_status
                 return (
@@ -328,13 +380,44 @@ export default function Team() {
                         ? new Date(p.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })
                         : '—'}
                     </td>
+                    {/* Delete */}
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      {canDelete && !isSelf && (
+                        <button onClick={() => setConfirmDelete(p.id)} title="ลบสมาชิก"
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors">
+                          <IconTrash />ลบ
+                        </button>
+                      )}
+                      {(isSelf || !canDelete) && <span className="text-xs text-slate-300">—</span>}
+                    </td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
+          {visibleCount < filtered.length && (
+            <div className="px-5 py-4 border-t border-slate-100 text-center">
+              <button onClick={() => setVisibleCount(v => v + 10)}
+                className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
+                ดูเพิ่มเติม ({filtered.length - visibleCount} คน)
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* ── DELETE confirm ─────────────────────────────────────── */}
+      <ConfirmModal
+        open={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => deleteProfile(confirmDelete!)}
+        loading={deleting}
+        title="ยืนยันลบสมาชิก"
+        message={(() => {
+          const target = profiles.find(p => p.id === confirmDelete)
+          return <>ลบ <strong>{target?.name}</strong> ({target?.email}) ออกจากระบบถาวร บัญชีและข้อมูลทั้งหมดจะหายไปไม่สามารถกู้คืนได้</>
+        })()}
+      />
 
       {/* ── Brand Access Modal ──────────────────────────────────── */}
       {editingBrandAccess && (() => {
