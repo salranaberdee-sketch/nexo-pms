@@ -443,7 +443,7 @@ export default function Dashboard() {
     <div className="flex h-full">
       {/* ── Main content ─────────────────────────────────────── */}
       <div className={`flex-1 overflow-y-auto transition-all duration-300 ${activePanel ? 'lg:mr-[380px]' : ''}`}>
-        <div className="p-6 max-w-screen-xl mx-auto space-y-6">
+        <div className="p-6 space-y-6">
 
           {/* Header */}
           <div className="flex items-center justify-between">

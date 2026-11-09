@@ -159,7 +159,7 @@ export default function MyTasks() {
   const overdueCount = tasks.filter(t => t.status !== DONE_STATUS && t.deadline && t.deadline < TODAY).length
 
   if (loading) return (
-    <div className="p-6 max-w-screen-xl mx-auto">
+    <div className="p-6 space-y-3">
       <div className="space-y-3">
         <div className="bg-white rounded-2xl h-28 animate-pulse border border-slate-100" />
         <div className="bg-white rounded-2xl h-64 animate-pulse border border-slate-100" />
@@ -168,7 +168,7 @@ export default function MyTasks() {
   )
 
   return (
-    <div className="p-6 max-w-screen-xl mx-auto space-y-5">
+    <div className="p-6 space-y-5">
 
       {/* Header */}
       <div className="flex items-center justify-between">

@@ -374,7 +374,7 @@ export default function Contents() {
   useEffect(() => { setVisibleCount(10) }, [filterProduct, filterStatus, search, dateFrom, dateTo])
 
   return (
-    <div className="p-6 max-w-screen-xl mx-auto space-y-5">
+    <div className="p-6 space-y-5">
 
       {/* Header */}
       <div className="flex items-center justify-between">

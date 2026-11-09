@@ -215,7 +215,7 @@ export default function Products() {
   const paginated = filtered.slice(0, visibleCount)
 
   return (
-    <div className="p-6 max-w-screen-xl mx-auto space-y-5">
+    <div className="p-6 space-y-5">
 
       {/* Page header */}
       <div className="flex items-center justify-between">
