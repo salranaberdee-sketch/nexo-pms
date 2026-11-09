@@ -154,12 +154,14 @@ export default function Sidebar({
   }, [supabase, profile?.id])
 
   // Nav grouped by category — rule: items that share the same data domain or workflow stage stay together.
-  // Products group: Products + Briefs (brief is product documentation, always tied to a product)
   // Content group: Content pipeline + My Tasks (my tasks = content assigned to me)
   // Marketing group: Ads + Leads (leads are a direct output of ads campaigns)
   // Sales group: Sales (revenue tracking, separate concern from marketing spend)
   // Admin group: Team (user management, admin-only)
-  const navGroups = [
+  type NavItem = { path: string; label: string; Icon: () => React.ReactElement }
+  type NavGroup = { label: string | null; adminOnly?: boolean; items: NavItem[] }
+
+  const navGroups: NavGroup[] = [
     {
       label: null, // no header for top-level overview
       items: [
@@ -199,7 +201,7 @@ export default function Sidebar({
         { path: '/team', label: 'ทีม', Icon: IconUsers },
       ],
     },
-  ] as const
+  ]
 
   const visibleGroups = useMemo(
     () => navGroups.filter(g => !g.adminOnly || isAdmin),
