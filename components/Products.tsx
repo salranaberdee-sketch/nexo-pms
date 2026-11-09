@@ -25,7 +25,7 @@ const PID_RE = /^[A-Z]+-[A-Z]+-\d+$/
 
 const EMPTY_FORM = {
   product_id: '', name: '', business_type: '', product_type: '',
-  brand: '', owner: '', owner_id: '', status: 'กำลังพัฒนา', notes: '',
+  brand: '', owner: '', owner_id: '', status: 'กำลังพัฒนา', notes: '', start_date: '',
 }
 
 // Shared input class
@@ -90,7 +90,7 @@ export default function Products() {
     const [p, pr] = await Promise.all([
       supabase
         .from('products')
-        .select('id, product_id, name, business_type, product_type, brand, owner, owner_id, status, notes, created_at')
+        .select('id, product_id, name, business_type, product_type, brand, owner, owner_id, status, notes, start_date, created_at')
         .order('created_at', { ascending: false }),
       supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
     ])
@@ -110,7 +110,8 @@ export default function Products() {
     setEditingId(p.id)
     setForm({ product_id: p.product_id || '', name: p.name || '', business_type: p.business_type || '',
       product_type: p.product_type || '', brand: p.brand || '', owner: p.owner || '',
-      owner_id: p.owner_id || '', status: p.status || 'กำลังพัฒนา', notes: p.notes || '' })
+      owner_id: p.owner_id || '', status: p.status || 'กำลังพัฒนา', notes: p.notes || '',
+      start_date: p.start_date || '' })
     setError('')
     setShowForm(true)
   }
@@ -125,12 +126,16 @@ export default function Products() {
       const { error: updErr } = await supabase.from('products').update({
         name: form.name, business_type: form.business_type, product_type: form.product_type,
         brand: form.brand, owner: form.owner, owner_id: form.owner_id || null,
-        status: form.status, notes: form.notes,
+        status: form.status, notes: form.notes, start_date: form.start_date || null,
       }).eq('id', editingId)
       if (updErr) { setError(updErr.message); setSaving(false); return }
       showToast('บันทึกการแก้ไขแล้ว')
     } else {
-      const { error: insErr } = await supabase.from('products').insert([{ ...form, owner_id: form.owner_id || null }])
+      const { error: insErr } = await supabase.from('products').insert([{
+        ...form,
+        owner_id: form.owner_id || null,
+        start_date: form.start_date || null,
+      }])
       if (insErr) { setError(insErr.message); setSaving(false); return }
       showToast('เพิ่มสินค้าแล้ว')
     }
@@ -207,7 +212,7 @@ export default function Products() {
   }, [products, search, filterStatus, filterCategory, dateFrom, dateTo])
 
   const deleteTarget = confirmDelete !== null ? products.find(p => p.id === confirmDelete) : null
-  const headers = ['Product ID', 'ชื่อสินค้า', 'ประเภท', 'แบรนด์', 'ผู้รับผิดชอบ', 'สถานะ', 'หมายเหตุ', 'วันที่เพิ่ม', '']
+  const headers = ['Product ID', 'ชื่อสินค้า', 'ประเภทธุรกิจ', 'ประเภทสินค้า', 'แบรนด์', 'ผู้รับผิดชอบ', 'วันที่เริ่มต้น', 'สถานะ', 'หมายเหตุ', '']
 
   // Pagination — reset when filters change
   const [visibleCount, setVisibleCount] = useState(10)
@@ -333,24 +338,25 @@ export default function Products() {
                     </div>
                   </td>
                   <td className="px-5 py-4 font-semibold text-slate-900 max-w-[200px] truncate" title={p.name}>{p.name}</td>
-                  <td className="px-5 py-4 text-sm text-slate-500">{p.product_type}</td>
-                  <td className="px-5 py-4 text-sm text-slate-500">{p.brand}</td>
+                  <td className="px-5 py-4 text-sm text-slate-500">{p.business_type || '—'}</td>
+                  <td className="px-5 py-4 text-sm text-slate-500">{p.product_type || '—'}</td>
+                  <td className="px-5 py-4 text-sm text-slate-500">{p.brand || '—'}</td>
                   <td className="px-5 py-4">
                     <InlinePersonPicker value={p.owner_id || ''} display={p.owner || ''}
                       profiles={profileOptions} disabled={!canUpdate}
                       onChange={(id, name) => updateOwner(p.id, id, name)} />
+                  </td>
+                  {/* Start date */}
+                  <td className="px-5 py-4 text-xs text-slate-400 whitespace-nowrap">
+                    {p.start_date
+                      ? new Date(p.start_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })
+                      : '—'}
                   </td>
                   <td className="px-5 py-4">
                     <StatusSelect value={p.status} options={STATUS_OPTIONS} styleMap={statusStyle}
                       disabled={!canUpdate} onChange={v => updateStatus(p.id, v)} />
                   </td>
                   <td className="px-5 py-4 text-sm text-slate-400 max-w-[180px] truncate" title={p.notes || ''}>{p.notes || '—'}</td>
-                  {/* Created at */}
-                  <td className="px-5 py-4 text-xs text-slate-400 whitespace-nowrap">
-                    {p.created_at
-                      ? new Date(p.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })
-                      : '—'}
-                  </td>
                   {/* Action buttons — always visible, sized properly */}
                   <td className="px-5 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-1">
@@ -457,6 +463,11 @@ export default function Products() {
               className={selectCls}>
               {STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
             </select>
+          </Field>
+          <Field label="วันที่เริ่มต้น">
+            <input type="date" value={form.start_date}
+              onChange={e => setForm({ ...form, start_date: e.target.value })}
+              className={inputCls} />
           </Field>
           <Field label="หมายเหตุ">
             <input placeholder="หมายเหตุเพิ่มเติม" value={form.notes}
