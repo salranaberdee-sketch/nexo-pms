@@ -772,7 +772,7 @@ export default function Contents() {
   )
 
   const hasFilters = filterProduct !== 'all' || filterStatus !== 'all' || search !== '' || !!dateFrom || !!dateTo
-  const headers = ['', '#', 'Product', 'ประเภท', 'ชื่อ Content', 'ผู้รับผิดชอบ', 'ต้นทุน', 'กำหนดส่ง', 'สถานะ', 'วันที่เพิ่ม', '']
+  const headers = ['expand', '#', 'Product', 'ประเภท', 'ชื่อ Content', 'ผู้รับผิดชอบ', 'ต้นทุน', 'กำหนดส่ง', 'สถานะ', 'วันที่เพิ่ม', 'actions']
 
   // Pagination — reset when filters change
   const [visibleCount, setVisibleCount] = useState(10)
@@ -853,7 +853,9 @@ export default function Contents() {
             <thead>
               <tr className="border-b border-slate-100">
                 {headers.map(h => (
-                  <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 whitespace-nowrap uppercase tracking-wide">{h}</th>
+                  <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 whitespace-nowrap uppercase tracking-wide">
+                    {h === 'expand' || h === 'actions' ? '' : h}
+                  </th>
                 ))}
               </tr>
             </thead>
