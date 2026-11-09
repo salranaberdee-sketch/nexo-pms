@@ -98,7 +98,7 @@ export default function Sales() {
     setLoadError('')
     const [s, p] = await Promise.all([
       supabase.from('sales').select('id, product_id, period_start, period_end, sales_target_amount, sales_target_count, actual_sales, actual_received, status, created_at').order('product_id'),
-      supabase.from('products').select('product_id, name, status, business_type, product_type, brand'),
+      supabase.from('products').select('product_id, name, status, business_type, product_type, brand, owner'),
     ])
     if (s.error) { setLoadError(s.error.message); setLoading(false); return }
     setSales(s.data || [])
@@ -278,7 +278,7 @@ export default function Sales() {
     return filterStatus === 'all' ? filtered : filtered.filter(s => s.status === filterStatus)
   }, [filtered, filterStatus])
 
-  const headers = ['Product', 'ชื่อสินค้า', 'หมวดหมู่', 'ช่วงเวลา', 'เป้ายอดขาย', 'ยอดจริง', 'รับเงินจริง', 'ยังขาด', '% สำเร็จ', 'สถานะ', 'วันที่เพิ่ม', '']
+  const headers = ['Product', 'ชื่อสินค้า', 'ผู้รับผิดชอบ', 'หมวดหมู่', 'ช่วงเวลา', 'เป้ายอดขาย', 'เป้าจำนวน', 'ยอดจริง', 'รับเงินจริง', 'ยังขาด', '% สำเร็จ', 'ต้องขาย/วัน', 'สถานะ', '']
 
   // Pagination — reset when filters change
   const [visibleCount, setVisibleCount] = useState(10)
@@ -442,10 +442,19 @@ export default function Sales() {
                 const rowGap  = Math.max(0, target - actual)
                 const pct     = target > 0 ? Math.round((actual / target) * 100) : 0
                 const colPct  = actual > 0 ? Math.round((received / actual) * 100) : 0
+                // Per-row days left and per-day required
+                const rowDaysLeft = s.period_end ? Math.max(0, Math.round((new Date(s.period_end).getTime() - TODAY_MS) / 86400000)) : 0
+                const rowPerDay   = rowDaysLeft > 0 && rowGap > 0 ? Math.round(rowGap / rowDaysLeft) : 0
                 return (
                   <tr key={s.id} className="border-b border-slate-100/60 hover:bg-indigo-50/20 transition-colors last:border-0">
                     <td className="px-5 py-4 font-mono text-xs font-medium text-slate-500">{s.product_id}</td>
                     <td className="px-5 py-4 font-semibold text-slate-900 max-w-[160px] truncate">{product?.name}</td>
+                    {/* Owner from products join */}
+                    <td className="px-5 py-4 text-sm text-slate-500">
+                      {product?.owner
+                        ? <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md font-medium">{product.owner}</span>
+                        : <span className="text-slate-300 text-xs">—</span>}
+                    </td>
                     {/* Category */}
                     <td className="px-5 py-4">
                       {product?.business_type ? (
@@ -461,6 +470,12 @@ export default function Sales() {
                       </div>
                     </td>
                     <td className="px-5 py-4 text-sm text-slate-500 tabular-nums">฿{target.toLocaleString()}</td>
+                    {/* เป้าจำนวนชิ้น */}
+                    <td className="px-5 py-4 text-sm text-slate-500 tabular-nums">
+                      {Number(s.sales_target_count) > 0
+                        ? <span>{Number(s.sales_target_count).toLocaleString()} ชิ้น</span>
+                        : <span className="text-slate-300">—</span>}
+                    </td>
                     <td className="px-5 py-4 text-sm font-semibold text-slate-900 tabular-nums">฿{actual.toLocaleString()}</td>
                     <td className="px-5 py-4 tabular-nums">
                       <div className="flex flex-col">
@@ -482,6 +497,14 @@ export default function Sales() {
                         <span className="text-sm text-slate-600 tabular-nums font-medium">{pct}%</span>
                       </div>
                     </td>
+                    {/* ต้องขาย/วัน per-row */}
+                    <td className="px-5 py-4 text-sm tabular-nums">
+                      {rowPerDay > 0
+                        ? <span className="text-amber-600 font-medium">฿{rowPerDay.toLocaleString()}</span>
+                        : rowGap === 0
+                          ? <span className="text-emerald-600 font-medium">ปิดเป้าแล้ว</span>
+                          : <span className="text-slate-300">—</span>}
+                    </td>
                     <td className="px-5 py-4">
                       <StatusSelect
                         value={s.status}
@@ -490,12 +513,6 @@ export default function Sales() {
                         disabled={!canUpdate}
                         onChange={v => updateStatus(s.id, v)}
                       />
-                    </td>
-                    {/* Created at */}
-                    <td className="px-5 py-4 text-xs text-slate-400 whitespace-nowrap">
-                      {s.created_at
-                        ? new Date(s.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })
-                        : '—'}
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-1">

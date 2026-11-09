@@ -287,7 +287,7 @@ export default function Ads() {
     )
   }, [ads, search, filterMonth, dateFrom, dateTo])
 
-  const headers = ['Product', 'เดือน', 'Campaign', 'ช่องทาง', 'Content', 'ผู้ดูแล', 'งบจัดสรร', 'ใช้จริง', 'คงเหลือ', 'Reach', 'Leads', 'CPL', 'ROAS', 'วันที่เพิ่ม', '']
+  const headers = ['Product', 'เดือน', 'Campaign', 'ช่องทาง', 'Content', 'ผู้ดูแล', 'งบอนุมัติรวม', 'งบจัดสรร', 'ใช้จริง', 'คงเหลือ', 'Reach', 'Clicks', 'Leads', 'CPL', 'ROAS', 'ยอดขาย Ads', '']
 
   // Pagination — reset when filters change
   const [visibleCount, setVisibleCount] = useState(10)
@@ -421,6 +421,7 @@ export default function Ads() {
                         profiles={profileOptions} disabled={!canUpdate}
                         onChange={(id, name) => updateManager(a.id, id, name)} />
                     </td>
+                    <td className="px-5 py-4 text-sm text-slate-500 tabular-nums">฿{Number(a.budget_total ?? 0).toLocaleString()}</td>
                     <td className="px-5 py-4 text-sm text-slate-600 tabular-nums">฿{allocated.toLocaleString()}</td>
                     <td className={`px-5 py-4 tabular-nums ${over ? 'bg-red-50/60' : ''}`}>
                       <div className="flex items-center gap-1.5">
@@ -430,15 +431,14 @@ export default function Ads() {
                     </td>
                     <td className="px-5 py-4 text-sm text-emerald-600 tabular-nums font-medium">฿{Number(a.budget_remaining).toLocaleString()}</td>
                     <td className="px-5 py-4 text-sm text-slate-500 tabular-nums">{Number(a.reach).toLocaleString()}</td>
+                    <td className="px-5 py-4 text-sm text-slate-500 tabular-nums">{Number(a.clicks).toLocaleString()}</td>
                     <td className="px-5 py-4 text-sm font-semibold text-slate-900 tabular-nums">{Number(a.leads).toLocaleString()}</td>
                     <td className="px-5 py-4 text-sm text-slate-500 tabular-nums">฿{Number(a.cpl).toLocaleString()}</td>
                     <td className={`px-5 py-4 text-sm tabular-nums ${roasColor}`}>
                       {roas > 0 ? `${roas.toFixed(2)}×` : '—'}
                     </td>
-                    <td className="px-5 py-4 text-xs text-slate-400 whitespace-nowrap">
-                      {a.created_at
-                        ? new Date(a.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })
-                        : '—'}
+                    <td className="px-5 py-4 text-sm text-emerald-700 tabular-nums font-medium">
+                      {Number(a.sales_amount) > 0 ? `฿${Number(a.sales_amount).toLocaleString()}` : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-1">

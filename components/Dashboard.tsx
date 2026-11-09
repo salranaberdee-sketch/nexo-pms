@@ -800,7 +800,10 @@ export default function Dashboard() {
                     <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">เป้า</th>
                     <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">ยอดจริง</th>
                     <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">% สำเร็จ</th>
-                    <th className="text-right px-5 py-3 text-xs font-medium text-slate-400">Content</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">ADS ใช้จริง</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">เหลือวัน</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">Content</th>
+                    <th className="text-right px-5 py-3 text-xs font-medium text-red-400">เกินกำหนด</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -809,10 +812,15 @@ export default function Dashboard() {
                   ) : products.map(p => {
                     const s = salesByProduct.get(p.product_id)
                     const c = contentsByProduct.get(p.product_id) || []
+                    const adsForProduct = adsByProduct.get(p.product_id) || []
                     const target = Number(s?.sales_target_amount || 0)
                     const actual = Number(s?.actual_sales || 0)
                     const rowPct = target > 0 ? Math.round((actual / target) * 100) : 0
                     const barColor = rowPct >= 80 ? 'bg-emerald-500' : rowPct >= 40 ? 'bg-amber-400' : 'bg-blue-500'
+                    const adsSpent = adsForProduct.reduce((sum: number, a: any) => sum + Number(a.budget_spent || 0), 0)
+                    const TODAY_STR = new Date().toISOString().split('T')[0]
+                    const overdueContents = c.filter((x: any) => x.status !== 'โพสต์แล้ว' && x.deadline && x.deadline < TODAY_STR)
+                    const daysLeft = s?.period_end ? Math.max(0, Math.round((new Date(s.period_end).getTime() - TODAY_MS) / 86400000)) : null
                     const isActive = activePanel === 'product' && activePanelProduct === p.product_id
                     return (
                       <tr key={p.id}
@@ -840,10 +848,23 @@ export default function Dashboard() {
                             <span className="text-xs text-slate-500 w-10 text-right tabular-nums">{rowPct}%</span>
                           </div>
                         </td>
+                        <td className="px-4 py-3 text-right text-sm tabular-nums text-slate-500">
+                          {adsSpent > 0 ? `฿${adsSpent.toLocaleString()}` : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {daysLeft !== null
+                            ? <span className={`text-xs tabular-nums font-medium ${daysLeft <= 3 ? 'text-red-500' : daysLeft <= 7 ? 'text-amber-500' : 'text-slate-500'}`}>{daysLeft} วัน</span>
+                            : <span className="text-slate-300 text-xs">—</span>}
+                        </td>
                         <td className="px-5 py-3 text-right">
                           <span className="text-xs text-slate-400">
                             {c.filter((x: any) => x.status === 'โพสต์แล้ว').length}/{c.length}
                           </span>
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          {overdueContents.length > 0
+                            ? <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-md">{overdueContents.length} ชิ้น</span>
+                            : <span className="text-xs text-emerald-500">✓</span>}
                         </td>
                       </tr>
                     )

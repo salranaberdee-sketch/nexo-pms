@@ -86,6 +86,9 @@ const EMPTY_ADD_FORM = {
   approver: '', approver_id: '',
   deadline: '', status: 'รอผลิต',
   production_cost: '',
+  poster: '', poster_id: '',
+  scheduled_post_date: '',
+  issues: '',
 }
 
 const EMPTY_EDIT_FORM = {
@@ -97,6 +100,14 @@ const EMPTY_EDIT_FORM = {
   approver: '', approver_id: '',
   status: 'รอผลิต',
   production_cost: '',
+  poster: '', poster_id: '',
+  scheduled_post_date: '',
+  actual_submit_date: '',
+  approved_at: '',
+  actual_post_date: '',
+  post_link: '',
+  file_link: '',
+  issues: '',
 }
 
 export default function Contents() {
@@ -153,7 +164,7 @@ export default function Contents() {
     const [c, p, pr] = await Promise.all([
       supabase
         .from('contents')
-        .select('id, product_id, seq, type, title, objective, hook, format_size, assigned_to, assigned_to_id, producer, producer_id, approver, approver_id, deadline, status, production_cost, acknowledged_at, assigned_date, created_at, file_link, post_link')
+        .select('id, product_id, seq, type, title, objective, hook, format_size, assigned_to, assigned_to_id, producer, producer_id, approver, approver_id, deadline, status, production_cost, acknowledged_at, assigned_date, created_at, file_link, post_link, channel, actual_submit_date, approved_at, poster, poster_id, scheduled_post_date, actual_post_date, issues')
         .order('product_id').order('seq'),
       supabase.from('products').select('product_id, name, brand'),
       supabase.from('profiles').select('id, name, role, brand_access').eq('approval_status', 'approved').order('name'),
@@ -270,6 +281,8 @@ export default function Contents() {
       deadline:        addForm.deadline || null,
       status:          addForm.status,
       production_cost: Number(addForm.production_cost) || 0,
+      scheduled_post_date: addForm.scheduled_post_date || null,
+      issues:          addForm.issues || null,
     }]).select('id').single()
     if (insErr) { setAddError(insErr.message); setSaving(false); return }
     // Log assignments
@@ -308,6 +321,15 @@ export default function Contents() {
       approver_id:    c.approver_id || '',
       status:         c.status || 'รอผลิต',
       production_cost: String(c.production_cost ?? 0),
+      poster:         c.poster || '',
+      poster_id:      c.poster_id || '',
+      scheduled_post_date: c.scheduled_post_date || '',
+      actual_submit_date:  c.actual_submit_date || '',
+      approved_at:    c.approved_at || '',
+      actual_post_date:    c.actual_post_date || '',
+      post_link:      c.post_link || '',
+      file_link:      c.file_link || '',
+      issues:         c.issues || '',
     })
     setEditError('')
   }
@@ -343,6 +365,15 @@ export default function Contents() {
       approver_id:    editForm.approver_id || null,
       status:         editForm.status,
       production_cost: Number(editForm.production_cost) || 0,
+      poster:         editForm.poster || null,
+      poster_id:      editForm.poster_id || null,
+      scheduled_post_date: editForm.scheduled_post_date || null,
+      actual_submit_date:  editForm.actual_submit_date || null,
+      approved_at:    editForm.approved_at || null,
+      actual_post_date:    editForm.actual_post_date || null,
+      post_link:      editForm.post_link || null,
+      file_link:      editForm.file_link || null,
+      issues:         editForm.issues || null,
       // Clear acknowledgement when producer reassigned (new person hasn't seen it yet)
       ...(producerChanged ? { acknowledged_at: null, acknowledged_by: null } : {}),
     }).eq('id', editingRow.id)
@@ -435,7 +466,7 @@ export default function Contents() {
   )
 
   const hasFilters = filterProduct !== 'all' || filterStatus !== 'all' || search !== '' || !!dateFrom || !!dateTo
-  const headers = ['expand', '#', 'Product', 'ประเภท', 'ชื่อ Content', 'ผู้รับผิดชอบ', 'ต้นทุน', 'กำหนดส่ง', 'สถานะ', 'วันที่เพิ่ม', 'actions']
+  const headers = ['expand', '#', 'Product', 'ประเภท', 'ชื่อ Content', 'ช่องทาง', 'ผู้รับผิดชอบ', 'ผู้อนุมัติ', 'ต้นทุน', 'กำหนดส่ง', 'สถานะ', 'โพสต์', 'actions']
 
   // Pagination — reset when filters change
   const [visibleCount, setVisibleCount] = useState(10)
@@ -582,10 +613,22 @@ export default function Contents() {
                           </span>
                         )}
                       </td>
+                      {/* Channel */}
+                      <td className="px-5 py-4 text-xs text-slate-500 whitespace-nowrap">
+                        {c.channel
+                          ? <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">{c.channel}</span>
+                          : <span className="text-slate-300">—</span>}
+                      </td>
                       <td className="px-5 py-4 whitespace-nowrap">
                         <InlinePersonPicker value={c.assigned_to_id || ''} display={c.assigned_to || ''}
                           profiles={profileOptions} disabled={!canUpdate}
                           onChange={(id, name) => updateAssignee(c.id, id, name)} />
+                      </td>
+                      {/* Approver */}
+                      <td className="px-5 py-4 text-xs text-slate-500">
+                        {c.approver
+                          ? <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md font-medium">{c.approver}</span>
+                          : <span className="text-slate-300">—</span>}
                       </td>
                       <td className="px-5 py-4 text-sm tabular-nums text-slate-500 whitespace-nowrap">
                         {Number(c.production_cost) > 0
@@ -607,11 +650,25 @@ export default function Contents() {
                         <StatusSelect value={c.status} options={STATUSES} styleMap={statusStyle}
                           disabled={!canUpdate} onChange={v => updateStatus(c.id, v)} />
                       </td>
-                      {/* Created at */}
-                      <td className="px-5 py-4 text-xs text-slate-400 whitespace-nowrap">
-                        {c.created_at
-                          ? new Date(c.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })
-                          : '—'}
+                      {/* Post link / actual post date */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {c.actual_post_date ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs text-emerald-600 font-medium">
+                              {new Date(c.actual_post_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}
+                            </span>
+                            {c.post_link && (
+                              <a href={c.post_link} target="_blank" rel="noreferrer"
+                                className="text-[10px] text-indigo-500 hover:text-indigo-700 truncate max-w-[100px] block">
+                                ดูโพสต์ →
+                              </a>
+                            )}
+                          </div>
+                        ) : c.scheduled_post_date ? (
+                          <span className="text-xs text-orange-500">
+                            ⏰ {new Date(c.scheduled_post_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}
+                          </span>
+                        ) : <span className="text-slate-300 text-xs">—</span>}
                       </td>
                       <td className="px-5 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-1">
@@ -761,6 +818,18 @@ export default function Contents() {
               onChange={e => setAddForm({ ...addForm, production_cost: e.target.value })}
               className={inputCls} />
           </Field>
+          <Field label="กำหนดโพสต์">
+            <input type="date" value={addForm.scheduled_post_date}
+              onChange={e => setAddForm({ ...addForm, scheduled_post_date: e.target.value })} className={inputCls} />
+          </Field>
+          <div className="col-span-2">
+            <Field label="ปัญหา / ติดขัด">
+              <input placeholder="บันทึกปัญหาหรือสิ่งที่ติดขัด (ถ้ามี)"
+                value={addForm.issues}
+                onChange={e => setAddForm({ ...addForm, issues: e.target.value })}
+                className={inputCls} />
+            </Field>
+          </div>
         </div>
         {addError && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{addError}</p>}
         <div className="flex gap-2 mt-6">
@@ -843,6 +912,51 @@ export default function Contents() {
               onChange={e => setEditForm(f => ({ ...f, production_cost: e.target.value }))}
               className={inputCls} />
           </Field>
+
+          {/* ── Post-production tracking ── */}
+          <div className="col-span-2 border-t border-slate-100 pt-4 mt-1">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">ติดตามหลังผลิต</p>
+          </div>
+          <Field label="วันส่งจริง">
+            <input type="date" value={editForm.actual_submit_date}
+              onChange={e => setEditForm(f => ({ ...f, actual_submit_date: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="วันที่อนุมัติ">
+            <input type="date" value={editForm.approved_at}
+              onChange={e => setEditForm(f => ({ ...f, approved_at: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="ผู้โพสต์">
+            <ProfilePicker value={editForm.poster_id}
+              profiles={profileOptions}
+              onChange={(id, name) => setEditForm(f => ({ ...f, poster_id: id, poster: name }))}
+              placeholder="เลือกผู้โพสต์" />
+          </Field>
+          <Field label="กำหนดโพสต์">
+            <input type="date" value={editForm.scheduled_post_date}
+              onChange={e => setEditForm(f => ({ ...f, scheduled_post_date: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="วันโพสต์จริง">
+            <input type="date" value={editForm.actual_post_date}
+              onChange={e => setEditForm(f => ({ ...f, actual_post_date: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="ลิงก์ไฟล์งาน">
+            <input placeholder="https://..." value={editForm.file_link}
+              onChange={e => setEditForm(f => ({ ...f, file_link: e.target.value }))} className={inputCls} />
+          </Field>
+          <div className="col-span-2">
+            <Field label="ลิงก์โพสต์จริง">
+              <input placeholder="https://..." value={editForm.post_link}
+                onChange={e => setEditForm(f => ({ ...f, post_link: e.target.value }))} className={inputCls} />
+            </Field>
+          </div>
+          <div className="col-span-2">
+            <Field label="ปัญหา / ติดขัด">
+              <textarea rows={2} placeholder="บันทึกปัญหาหรือสิ่งที่ติดขัด"
+                value={editForm.issues}
+                onChange={e => setEditForm(f => ({ ...f, issues: e.target.value }))}
+                className={inputCls + ' resize-none'} />
+            </Field>
+          </div>
         </div>
         {editError && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{editError}</p>}
         <div className="flex gap-2 mt-6">
