@@ -8,6 +8,7 @@ import { TableSkeleton, EmptyState, todayStr } from './TableState'
 import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
 import { useCategories } from './CategoryManager'
+import StatusSelect from './StatusSelect'
 
 const SALES_STATUS_OPTIONS = ['ยังไม่เปิดขาย', 'ยังไม่เริ่ม', 'กำลังขาย', 'ปิดเป้า']
 
@@ -482,28 +483,13 @@ export default function Sales() {
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      {canUpdate ? (
-                        <div className="flex gap-1 flex-wrap">
-                          {SALES_STATUS_OPTIONS.map(opt => (
-                            <button
-                              key={opt}
-                              onClick={() => s.status !== opt && updateStatus(s.id, opt)}
-                              title={opt}
-                              className={`text-xs font-medium px-2.5 py-1 rounded-lg border transition-all
-                                ${s.status === opt
-                                  ? salesStatusStyle[opt] + ' border-current/20 shadow-sm scale-105'
-                                  : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
-                                }`}
-                            >
-                              {opt}
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className={`text-xs font-medium px-2.5 py-1 rounded-lg ${salesStatusStyle[s.status] || 'bg-slate-100 text-slate-400'}`}>
-                          {s.status}
-                        </span>
-                      )}
+                      <StatusSelect
+                        value={s.status}
+                        options={SALES_STATUS_OPTIONS}
+                        styleMap={salesStatusStyle}
+                        disabled={!canUpdate}
+                        onChange={v => updateStatus(s.id, v)}
+                      />
                     </td>
                     {/* Created at */}
                     <td className="px-5 py-4 text-xs text-slate-400 whitespace-nowrap">
