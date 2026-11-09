@@ -1,6 +1,6 @@
   'use client'
 
-import { useEffect, useState, useMemo, useRef } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useCan, useProfile } from '@/lib/profile-context'
@@ -879,8 +879,8 @@ export default function Contents() {
                 const assetCount = assets.length
 
                 return (
-                  <>
-                    <tr key={c.id} className={`border-b border-slate-100/60 transition-colors last:border-0 ${rowBg} ${isExpanded ? 'bg-indigo-50/30' : 'hover:bg-indigo-50/20'}`}>
+                  <React.Fragment key={c.id}>
+                    <tr className={`border-b border-slate-100/60 transition-colors last:border-0 ${rowBg} ${isExpanded ? 'bg-indigo-50/30' : 'hover:bg-indigo-50/20'}`}>
                       {/* Expand button */}
                       <td className="px-3 py-4 w-8">
                         <button
@@ -970,7 +970,7 @@ export default function Contents() {
                     </tr>
                     {/* Assets panel — expanded row */}
                     {isExpanded && (
-                      <tr key={`assets-${c.id}`} className="bg-slate-50/60">
+                      <tr className="bg-slate-50/60">
                         <td colSpan={headers.length} className="px-6 pb-4 pt-2">
                           <ContentAssetsPanel
                             contentId={c.id}
@@ -984,7 +984,7 @@ export default function Contents() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 )
               })}
             </tbody>
