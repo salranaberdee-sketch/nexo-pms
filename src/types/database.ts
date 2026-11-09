@@ -12,6 +12,52 @@ export type Database = {
   }
   public: {
     Tables: {
+      content_assets: {
+        Row: {
+          asset_type: string
+          content_id: number
+          created_at: string
+          id: number
+          label: string | null
+          sort_order: number
+          uploaded_by: string | null
+          url: string
+        }
+        Insert: {
+          asset_type?: string
+          content_id: number
+          created_at?: string
+          id?: number
+          label?: string | null
+          sort_order?: number
+          uploaded_by?: string | null
+          url: string
+        }
+        Update: {
+          asset_type?: string
+          content_id?: number
+          created_at?: string
+          id?: number
+          label?: string | null
+          sort_order?: number
+          uploaded_by?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_assets_content_id_fkey"
+            columns: ["content_id"]
+            referencedRelation: "contents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_assets_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       ads: {
         Row: {
           budget_adjustment: number | null
