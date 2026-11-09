@@ -71,15 +71,7 @@ function IconCheckSquare() {
     </svg>
   )
 }
-function IconClipboard() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-      <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
-      <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
-    </svg>
-  )
-}
+
 function IconLogOut() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -161,20 +153,56 @@ export default function Sidebar({
       .then(({ count }: { count: number | null }) => setMyTaskCount(count ?? 0))
   }, [supabase, profile?.id])
 
-  const nav = [
-    { path: '/dashboard', label: 'Dashboard',      Icon: IconDashboard },
-    { path: '/products',  label: 'Products',        Icon: IconBox },
-    { path: '/briefs',    label: 'Briefs',           Icon: IconClipboard },
-    { path: '/contents',  label: 'Content',          Icon: IconFileText },
-    { path: '/my-tasks',  label: 'งานของฉัน',       Icon: IconCheckSquare },
-    { path: '/ads',       label: 'Ads',              Icon: IconBarChart },
-    { path: '/leads',     label: 'Leads',            Icon: IconUserPlus },
-    { path: '/sales',     label: 'Sales',            Icon: IconTrendingUp },
-    { path: '/team',      label: 'ทีม',             Icon: IconUsers, adminOnly: true },
+  // Nav grouped by category — rule: items that share the same data domain or workflow stage stay together.
+  // Products group: Products + Briefs (brief is product documentation, always tied to a product)
+  // Content group: Content pipeline + My Tasks (my tasks = content assigned to me)
+  // Marketing group: Ads + Leads (leads are a direct output of ads campaigns)
+  // Sales group: Sales (revenue tracking, separate concern from marketing spend)
+  // Admin group: Team (user management, admin-only)
+  const navGroups = [
+    {
+      label: null, // no header for top-level overview
+      items: [
+        { path: '/dashboard', label: 'Dashboard', Icon: IconDashboard },
+      ],
+    },
+    {
+      label: 'สินค้า',
+      items: [
+        { path: '/products', label: 'Products', Icon: IconBox },
+      ],
+    },
+    {
+      label: 'Content',
+      items: [
+        { path: '/contents',  label: 'Content',    Icon: IconFileText },
+        { path: '/my-tasks',  label: 'งานของฉัน', Icon: IconCheckSquare },
+      ],
+    },
+    {
+      label: 'การตลาด',
+      items: [
+        { path: '/ads',   label: 'Ads',   Icon: IconBarChart },
+        { path: '/leads', label: 'Leads', Icon: IconUserPlus },
+      ],
+    },
+    {
+      label: 'ยอดขาย',
+      items: [
+        { path: '/sales', label: 'Sales', Icon: IconTrendingUp },
+      ],
+    },
+    {
+      label: 'จัดการ',
+      adminOnly: true,
+      items: [
+        { path: '/team', label: 'ทีม', Icon: IconUsers },
+      ],
+    },
   ] as const
 
-  const visibleNav = useMemo(
-    () => nav.filter(item => !('adminOnly' in item) || !item.adminOnly || isAdmin),
+  const visibleGroups = useMemo(
+    () => navGroups.filter(g => !g.adminOnly || isAdmin),
     [isAdmin], // eslint-disable-line react-hooks/exhaustive-deps
   )
 
@@ -223,68 +251,84 @@ export default function Sidebar({
       )}
 
       {/* ── Nav ── */}
-      <nav className={`flex-1 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden ${collapsed ? 'px-2' : 'px-2'}`}>
-        {visibleNav.map(({ path, label, Icon }) => {
-          const active = pathname === path
-          const badge =
-            path === '/team'     && pendingCount > 0 ? pendingCount :
-            path === '/my-tasks' && myTaskCount  > 0 ? myTaskCount  : 0
+      <nav className={`flex-1 py-2 overflow-y-auto overflow-x-hidden ${collapsed ? 'px-2' : 'px-2'}`}>
+        {visibleGroups.map((group, gi) => (
+          <div key={gi} className={gi > 0 ? 'mt-1' : ''}>
+            {/* Section header — only when expanded and group has a label */}
+            {!collapsed && group.label && (
+              <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400 select-none">
+                {group.label}
+              </p>
+            )}
+            {/* Divider between groups when collapsed */}
+            {collapsed && gi > 0 && (
+              <div className="my-1.5 mx-1 border-t border-slate-100" />
+            )}
+            <div className="space-y-0.5">
+              {group.items.map(({ path, label, Icon }) => {
+                const active = pathname === path
+                const badge =
+                  path === '/team'     && pendingCount > 0 ? pendingCount :
+                  path === '/my-tasks' && myTaskCount  > 0 ? myTaskCount  : 0
 
-          return (
-            <div key={path} className="relative group/nav">
-              <Link
-                href={path}
-                prefetch={true}
-                className={`flex items-center gap-2.5 rounded-xl text-sm font-medium transition-all
-                  ${collapsed ? 'px-2.5 py-2.5 justify-center' : 'px-3 py-2.5'}
-                  ${active
-                    ? 'bg-indigo-50 text-indigo-700 shadow-sm'
-                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
-              >
-                {/* Icon — always visible */}
-                <span className="shrink-0 relative">
-                  <Icon />
-                  {/* Badge on icon when collapsed */}
-                  {collapsed && badge > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-indigo-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
-                      {badge > 9 ? '9+' : badge}
-                    </span>
-                  )}
-                </span>
-
-                {/* Label + badge — only when expanded */}
-                {!collapsed && (
-                  <>
-                    <span className="truncate">{label}</span>
-                    {badge > 0 && (
-                      <span className={`ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums
-                        ${path === '/team' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                        {badge}
+                return (
+                  <div key={path} className="relative group/nav">
+                    <Link
+                      href={path}
+                      prefetch={true}
+                      className={`flex items-center gap-2.5 rounded-xl text-sm font-medium transition-all
+                        ${collapsed ? 'px-2.5 py-2.5 justify-center' : 'px-3 py-2.5'}
+                        ${active
+                          ? 'bg-indigo-50 text-indigo-700 shadow-sm'
+                          : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
+                    >
+                      {/* Icon — always visible */}
+                      <span className="shrink-0 relative">
+                        <Icon />
+                        {/* Badge on icon when collapsed */}
+                        {collapsed && badge > 0 && (
+                          <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-indigo-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+                            {badge > 9 ? '9+' : badge}
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </>
-                )}
-              </Link>
 
-              {/* Tooltip — only when collapsed */}
-              {collapsed && (
-                <div className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50
-                  opacity-0 group-hover/nav:opacity-100 transition-opacity duration-100">
-                  <div className="bg-slate-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">
-                    {label}
-                    {badge > 0 && (
-                      <span className="ml-1.5 bg-indigo-400 text-white text-[9px] font-bold px-1 py-0.5 rounded-full">
-                        {badge}
-                      </span>
+                      {/* Label + badge — only when expanded */}
+                      {!collapsed && (
+                        <>
+                          <span className="truncate">{label}</span>
+                          {badge > 0 && (
+                            <span className={`ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums
+                              ${path === '/team' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                              {badge}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </Link>
+
+                    {/* Tooltip — only when collapsed */}
+                    {collapsed && (
+                      <div className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50
+                        opacity-0 group-hover/nav:opacity-100 transition-opacity duration-100">
+                        <div className="bg-slate-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">
+                          {label}
+                          {badge > 0 && (
+                            <span className="ml-1.5 bg-indigo-400 text-white text-[9px] font-bold px-1 py-0.5 rounded-full">
+                              {badge}
+                            </span>
+                          )}
+                        </div>
+                        {/* Arrow */}
+                        <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800" />
+                      </div>
                     )}
                   </div>
-                  {/* Arrow */}
-                  <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800" />
-                </div>
-              )}
+                )
+              })}
             </div>
-          )
-        })}
+          </div>
+        ))}
       </nav>
 
       {/* ── User ── */}

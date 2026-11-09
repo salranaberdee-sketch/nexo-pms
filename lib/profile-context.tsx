@@ -32,6 +32,7 @@ const PERMISSION_MATRIX: Record<string, Record<string, string[]>> = {
   ads:                    { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
   sales:                  { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
   product_briefs:         { insert: ['admin', 'manager', 'editor'],     update: ['admin', 'manager', 'editor'],     delete: ['admin', 'manager'] },
+  // product_briefs table exists in DB but the UI feature is removed — kept here for RLS reference only
   profiles:               { insert: [],                                   update: ['admin'],                           delete: ['admin'] },
   ad_contents:            { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
   leads:                  { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
