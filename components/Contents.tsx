@@ -137,8 +137,10 @@ export default function Contents() {
 
   // Expanded row state — shows assets panel
   const [expandedId, setExpandedId] = useState<number | null>(null)
-  // Assets cache keyed by content_id
+  // Assets cache keyed by content_id (full list, loaded on expand)
   const [assetsMap, setAssetsMap] = useState<Record<number, ContentAsset[]>>({})
+  // Asset counts pre-loaded on page load for badge display
+  const [assetCounts, setAssetCounts] = useState<Record<number, number>>({})
 
   // Approvers = admin/manager only
   const approverOptions = useMemo(
@@ -151,15 +153,32 @@ export default function Contents() {
     const [c, p, pr] = await Promise.all([
       supabase
         .from('contents')
-        .select('id, product_id, seq, type, title, objective, hook, format_size, assigned_to, assigned_to_id, producer, producer_id, approver, approver_id, deadline, status, production_cost, acknowledged_at, assigned_date, created_at')
+        .select('id, product_id, seq, type, title, objective, hook, format_size, assigned_to, assigned_to_id, producer, producer_id, approver, approver_id, deadline, status, production_cost, acknowledged_at, assigned_date, created_at, file_link, post_link')
         .order('product_id').order('seq'),
       supabase.from('products').select('product_id, name, brand'),
       supabase.from('profiles').select('id, name, role, brand_access').eq('approval_status', 'approved').order('name'),
     ])
     if (c.error) { setLoadError(c.error.message); setLoading(false); return }
+
+    // Pre-load asset counts for all content IDs in one query
+    const contentIds = (c.data || []).map((row: any) => row.id)
+    let assetCounts: Record<number, number> = {}
+    if (contentIds.length > 0) {
+      const { data: countData } = await supabase
+        .from('content_assets')
+        .select('content_id')
+        .in('content_id', contentIds)
+      if (countData) {
+        for (const row of countData) {
+          assetCounts[row.content_id] = (assetCounts[row.content_id] || 0) + 1
+        }
+      }
+    }
+
     setContents(c.data || [])
     setProducts(p.data || [])
     setProfileOptions(pr.data || [])
+    setAssetCounts(assetCounts)
     setLoading(false)
   }
 
@@ -201,7 +220,8 @@ export default function Contents() {
 
   // ── Assets ────────────────────────────────────────────────────
   async function loadAssets(contentId: number) {
-    if (assetsMap[contentId]) return
+    // Use undefined check — empty array [] is falsy-enough but we distinguish "not loaded" vs "loaded empty"
+    if (assetsMap[contentId] !== undefined) return
     const { data, error } = await supabase
       .from('content_assets')
       .select('id, content_id, asset_type, label, url, storage_path, file_size, mime_type, sort_order, uploaded_by, created_at')
@@ -519,7 +539,8 @@ export default function Contents() {
                 ) && c.status !== DONE_STATUS
                 const isExpanded = expandedId === c.id
                 const assets = assetsMap[c.id] || []
-                const assetCount = assets.length
+                // Use live count from expanded assets if loaded, else use pre-loaded count
+                const assetCount = assetsMap[c.id] !== undefined ? assets.length : (assetCounts[c.id] || 0)
 
                 return (
                   <React.Fragment key={c.id}>
@@ -620,7 +641,10 @@ export default function Contents() {
                             assets={assetsMap[c.id] || []}
                             canWrite={canManageAssets}
                             canDelete={me.role === 'admin' || me.role === 'manager'}
-                            onAssetsChange={updated => setAssetsMap(prev => ({ ...prev, [c.id]: updated }))}
+                            onAssetsChange={updated => {
+                              setAssetsMap(prev => ({ ...prev, [c.id]: updated }))
+                              setAssetCounts(prev => ({ ...prev, [c.id]: updated.length }))
+                            }}
                           />
                         </td>
                       </tr>
