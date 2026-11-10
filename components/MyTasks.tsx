@@ -29,6 +29,10 @@ const NEXT_STATUS: Record<string, Record<string, string>> = {
   approver: {
     'รออนุมัติ': 'อนุมัติแล้ว',
   },
+  // poster role: only responsible for the final posting step
+  poster: {
+    'กำหนดโพสต์': 'โพสต์แล้ว',
+  },
 }
 
 // Label for the "advance" button per role + status
@@ -45,6 +49,9 @@ const ADVANCE_LABEL: Record<string, Record<string, string>> = {
   },
   approver: {
     'รออนุมัติ': '✅ อนุมัติ',
+  },
+  poster: {
+    'กำหนดโพสต์': '✅ โพสต์แล้ว',
   },
 }
 
@@ -88,11 +95,13 @@ type MyTask = {
   approver_id: string | null
   assigned_to: string
   assigned_to_id: string | null
-  myRole: 'producer' | 'approver' | 'assigned_to'
+  poster: string
+  poster_id: string | null
+  myRole: 'producer' | 'approver' | 'assigned_to' | 'poster'
   brand: string
 }
 
-type GroupKey = 'new' | 'approve' | 'overdue' | 'pending' | 'done'
+type GroupKey = 'new' | 'approve' | 'post_today' | 'overdue' | 'pending' | 'done'
 
 type TeamItem = {
   person_id: string
@@ -131,8 +140,9 @@ export default function MyTasks() {
                  file_link, post_link, issues,
                  status, deadline, scheduled_post_date, actual_post_date, actual_submit_date,
                  acknowledged_at, assigned_date,
-                 producer, producer_id, approver, approver_id, assigned_to, assigned_to_id`)
-        .or(`producer_id.eq.${me.id},approver_id.eq.${me.id},assigned_to_id.eq.${me.id}`),
+                 producer, producer_id, approver, approver_id,
+                 assigned_to, assigned_to_id, poster, poster_id`)
+        .or(`producer_id.eq.${me.id},approver_id.eq.${me.id},assigned_to_id.eq.${me.id},poster_id.eq.${me.id}`),
       // All contents (for team view — manager/admin only)
       canManage
         ? supabase
@@ -141,7 +151,8 @@ export default function MyTasks() {
                      file_link, post_link, issues,
                      status, deadline, scheduled_post_date, actual_post_date, actual_submit_date,
                      acknowledged_at, assigned_date,
-                     producer, producer_id, approver, approver_id, assigned_to, assigned_to_id`)
+                     producer, producer_id, approver, approver_id,
+                     assigned_to, assigned_to_id, poster, poster_id`)
             .in('status', ACTIVE_STATUSES)
         : Promise.resolve({ data: [], error: null }),
       supabase.from('products').select('product_id, name, brand'),
@@ -174,6 +185,8 @@ export default function MyTasks() {
         if (c.producer_id   === me.id) roles.push('producer')
         if (c.approver_id   === me.id) roles.push('approver')
         if (c.assigned_to_id === me.id && c.producer_id !== me.id) roles.push('assigned_to')
+        // poster role: only if not already producer (producer handles กำหนดโพสต์→โพสต์แล้ว too)
+        if (c.poster_id === me.id && c.producer_id !== me.id) roles.push('poster')
 
         // For non-my-tasks items (team view) just push once as 'producer' placeholder
         if (roles.length === 0) roles.push('producer')
@@ -209,6 +222,8 @@ export default function MyTasks() {
             approver_id:         c.approver_id  || null,
             assigned_to:         c.assigned_to  || '',
             assigned_to_id:      c.assigned_to_id || null,
+            poster:              c.poster     || '',
+            poster_id:           c.poster_id  || null,
             myRole:              role,
             brand,
           })
@@ -292,8 +307,8 @@ export default function MyTasks() {
   }
 
   // ── Reassign (manager/admin) ──────────────────────────────────
-  async function reassign(task: MyTask, roleField: 'producer_id' | 'approver_id' | 'assigned_to_id', personId: string, personName: string) {
-    const nameField = roleField.replace('_id', '') as 'producer' | 'approver' | 'assigned_to'
+  async function reassign(task: MyTask, roleField: 'producer_id' | 'approver_id' | 'assigned_to_id' | 'poster_id', personId: string, personName: string) {
+    const nameField = roleField.replace('_id', '') as 'producer' | 'approver' | 'assigned_to' | 'poster'
     const logRole   = nameField as 'producer' | 'approver' | 'assigned_to'
     const payload: Record<string, unknown> = {
       [roleField]: personId || null,
@@ -305,7 +320,8 @@ export default function MyTasks() {
     }
     const { error } = await supabase.from('contents').update(payload).eq('id', task.id)
     if (error) { showToast(error.message, 'error'); return }
-    if (personId) {
+    // Log assignment (only for the 3 roles that content_assignment_log tracks)
+    if (personId && (logRole === 'producer' || logRole === 'approver' || logRole === 'assigned_to')) {
       await supabase.from('content_assignment_log').insert([{
         content_id:       task.id,
         role:             logRole,
@@ -331,8 +347,35 @@ export default function MyTasks() {
   }
 
   // ── Local state helper ────────────────────────────────────────
-  function updateLocalTask(id: number, role: MyTask['myRole'], patch: Partial<MyTask>) {    const patchFn = (prev: MyTask[]) =>
-      prev.map(t => t.id === id && t.myRole === role ? { ...t, ...patch } : t)
+  // Patch all rows of the same content id (status/dates apply to every role row)
+  // but keep role-specific fields (acknowledged_at etc.) scoped by role when needed
+  function updateLocalTask(id: number, role: MyTask['myRole'], patch: Partial<MyTask>) {
+    // Fields that change globally (same content — same values for all roles)
+    const globalFields: (keyof MyTask)[] = [
+      'status', 'actual_post_date', 'actual_submit_date',
+      'file_link', 'post_link', 'scheduled_post_date', 'issues',
+      'producer', 'producer_id', 'approver', 'approver_id',
+      'assigned_to', 'assigned_to_id', 'poster', 'poster_id',
+    ]
+    // Fields that are role-scoped (only update the specific role's row)
+    const roleScopedFields: (keyof MyTask)[] = ['acknowledged_at', 'myRole']
+
+    const globalPatch = Object.fromEntries(
+      Object.entries(patch).filter(([k]) => globalFields.includes(k as keyof MyTask))
+    ) as Partial<MyTask>
+    const scopedPatch = Object.fromEntries(
+      Object.entries(patch).filter(([k]) => roleScopedFields.includes(k as keyof MyTask))
+    ) as Partial<MyTask>
+
+    const patchFn = (prev: MyTask[]) =>
+      prev.map(t => {
+        if (t.id !== id) return t
+        // Apply global fields to ALL rows of this content
+        const updated = { ...t, ...globalPatch }
+        // Apply scoped fields only to the matching role row
+        if (t.myRole === role) return { ...updated, ...scopedPatch }
+        return updated
+      })
     setTasks(patchFn)
     setTeamTasks(patchFn)
   }
@@ -351,17 +394,21 @@ export default function MyTasks() {
   // ── Grouping (mine tab) ──────────────────────────────────────
   const TODAY = todayStr()
   const grouped = useMemo(() => {
-    const g: Record<GroupKey, MyTask[]> = { new: [], approve: [], overdue: [], pending: [], done: [] }
+    const g: Record<GroupKey, MyTask[]> = { new: [], approve: [], post_today: [], overdue: [], pending: [], done: [] }
     for (const t of filtered) {
-      const isDone    = t.status === DONE_STATUS
-      const isNew     = !t.acknowledged_at && !isDone
-      const isOverdue = !isDone && t.deadline && t.deadline < TODAY
-      const isApprove = t.myRole === 'approver' && t.status === 'รออนุมัติ'
-      if (isDone)         g.done.push(t)
-      else if (isNew)     g.new.push(t)
-      else if (isApprove) g.approve.push(t)
-      else if (isOverdue) g.overdue.push(t)
-      else                g.pending.push(t)
+      const isDone      = t.status === DONE_STATUS
+      const isNew       = !t.acknowledged_at && !isDone
+      const isOverdue   = !isDone && !!t.deadline && t.deadline < TODAY
+      const isApprove   = t.myRole === 'approver' && t.status === 'รออนุมัติ'
+      // "โพสต์วันนี้": status = กำหนดโพสต์ AND scheduled_post_date = today (or overdue sched date)
+      const isPostToday = !isDone && t.status === 'กำหนดโพสต์' && !!t.scheduled_post_date && t.scheduled_post_date <= TODAY
+
+      if (isDone)           g.done.push(t)
+      else if (isNew)       g.new.push(t)
+      else if (isApprove)   g.approve.push(t)
+      else if (isPostToday) g.post_today.push(t)
+      else if (isOverdue)   g.overdue.push(t)
+      else                  g.pending.push(t)
     }
     return g
   }, [filtered, TODAY])
@@ -370,10 +417,19 @@ export default function MyTasks() {
   const teamGroups = useMemo((): TeamItem[] => {
     if (activeTab !== 'team') return []
     const map = new Map<string, TeamItem>()
+
+    // Dedup: in team view, one content should appear once per responsible person.
+    // Use a Set to track (personId, contentId) pairs already added.
+    const seen = new Set<string>()
+
     for (const t of filtered) {
-      // Determine the actual responsible person for this task
-      const personId   = t.producer_id || t.assigned_to_id || ''
-      const personName = t.producer     || t.assigned_to    || '(ไม่มีผู้รับผิดชอบ)'
+      // Determine the actual responsible person — prefer producer, then assigned_to, then approver, then poster
+      const personId   = t.producer_id || t.assigned_to_id || t.approver_id || t.poster_id || ''
+      const personName = t.producer || t.assigned_to || t.approver || t.poster || '(ไม่มีผู้รับผิดชอบ)'
+      const dedupKey = `${personId}:${t.id}`
+      if (seen.has(dedupKey)) continue  // skip duplicate role rows of same content
+      seen.add(dedupKey)
+
       if (!map.has(personId)) {
         const profile = profiles.find(p => p.id === personId)
         map.set(personId, { person_id: personId, person_name: personName, role: profile?.role || '', tasks: [] })
@@ -383,9 +439,18 @@ export default function MyTasks() {
     return [...map.values()].sort((a, b) => b.tasks.length - a.tasks.length)
   }, [filtered, activeTab, profiles])
 
-  const newCount     = tasks.filter(t => !t.acknowledged_at && t.status !== DONE_STATUS).length
-  const overdueCount = tasks.filter(t => t.status !== DONE_STATUS && t.deadline && t.deadline < TODAY).length
+  // For summary chips: count unique content ids to avoid inflating counts when user holds multiple roles
+  const newCount     = useMemo(() => new Set(
+    tasks.filter(t => !t.acknowledged_at && t.status !== DONE_STATUS).map(t => t.id)
+  ).size, [tasks])
+  const overdueCount = useMemo(() => new Set(
+    tasks.filter(t => t.status !== DONE_STATUS && t.deadline && t.deadline < TODAY).map(t => t.id)
+  ).size, [tasks, TODAY])
   const approveCount = tasks.filter(t => t.myRole === 'approver' && t.status === 'รออนุมัติ').length
+  // Unique content count for team badge (deduplicated by content id)
+  const teamUniqueActiveCount = useMemo(() => new Set(
+    teamTasks.filter(t => t.status !== DONE_STATUS).map(t => t.id)
+  ).size, [teamTasks])
 
   if (loading) return (
     <div className="p-6 space-y-4">
@@ -424,12 +489,12 @@ export default function MyTasks() {
 
       {/* Summary chips */}
       <div className="flex gap-2.5 flex-wrap">
-        <Chip label="งานที่ยังทำอยู่" value={tasks.filter(t => t.status !== DONE_STATUS).length} color="slate" />
+        <Chip label="งานที่ยังทำอยู่" value={new Set(tasks.filter(t => t.status !== DONE_STATUS).map(t => t.id)).size} color="slate" />
         {newCount     > 0 && <Chip label="งานใหม่รอรับ" value={newCount}     color="indigo" />}
         {approveCount > 0 && <Chip label="รอฉันอนุมัติ" value={approveCount} color="amber" />}
         {overdueCount > 0 && <Chip label="เกิน deadline" value={overdueCount} color="red" />}
-        {canManage && teamTasks.length > 0 && (
-          <Chip label="งานทั้งทีม" value={teamTasks.length} color="purple" />
+        {canManage && teamUniqueActiveCount > 0 && (
+          <Chip label="งานทั้งทีม" value={teamUniqueActiveCount} color="purple" />
         )}
       </div>
 
@@ -439,9 +504,9 @@ export default function MyTasks() {
           <TabBtn active={activeTab === 'mine'} onClick={() => setActiveTab('mine')}>งานของฉัน</TabBtn>
           <TabBtn active={activeTab === 'team'} onClick={() => setActiveTab('team')}>
             ภาพรวมทีม
-            {teamTasks.filter(t => t.status !== DONE_STATUS).length > 0 && (
+            {teamUniqueActiveCount > 0 && (
               <span className="ml-1.5 bg-purple-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                {teamTasks.filter(t => t.status !== DONE_STATUS).length}
+                {teamUniqueActiveCount}
               </span>
             )}
           </TabBtn>
@@ -477,11 +542,12 @@ export default function MyTasks() {
           : <div className="space-y-5">
               {(
                 [
-                  { key: 'new'     as GroupKey, label: '📬 งานใหม่ — รอรับทราบ', accent: 'border-indigo-200' },
-                  { key: 'approve' as GroupKey, label: '✅ รอฉันอนุมัติ',         accent: 'border-amber-200' },
-                  { key: 'overdue' as GroupKey, label: '🔴 เกิน Deadline',         accent: 'border-red-200' },
-                  { key: 'pending' as GroupKey, label: '🔵 กำลังดำเนินการ',       accent: 'border-slate-200' },
-                  { key: 'done'    as GroupKey, label: '✓ เสร็จแล้ว',             accent: 'border-slate-100 opacity-70' },
+                  { key: 'new'        as GroupKey, label: '📬 งานใหม่ — รอรับทราบ',      accent: 'border-indigo-200' },
+                  { key: 'approve'    as GroupKey, label: '✅ รอฉันอนุมัติ',              accent: 'border-amber-200' },
+                  { key: 'post_today' as GroupKey, label: '📅 ต้องโพสต์วันนี้',           accent: 'border-orange-300 bg-orange-50/30' },
+                  { key: 'overdue'    as GroupKey, label: '🔴 เกิน Deadline',              accent: 'border-red-200' },
+                  { key: 'pending'    as GroupKey, label: '🔵 กำลังดำเนินการ',            accent: 'border-slate-200' },
+                  { key: 'done'       as GroupKey, label: '✓ เสร็จแล้ว',                  accent: 'border-slate-100 opacity-70' },
                 ]
               ).filter(g => grouped[g.key].length > 0).map(({ key, label, accent }) => (
                 <div key={key} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${accent}`}>
@@ -548,6 +614,11 @@ export default function MyTasks() {
                           {group.tasks.filter(t => t.deadline && t.deadline < TODAY && t.status !== DONE_STATUS).length} เกิน deadline
                         </span>
                       )}
+                      {group.tasks.filter(t => t.status === DONE_STATUS).length > 0 && (
+                        <span className="text-xs font-semibold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
+                          ✓ {group.tasks.filter(t => t.status === DONE_STATUS).length} เสร็จ
+                        </span>
+                      )}
                     </div>
                   </div>
                   {/* Tasks */}
@@ -604,7 +675,7 @@ function TaskRow({
   onAdvance:       (t: MyTask, extra?: Partial<MyTask>) => void
   onReject:        (t: MyTask, issues: string) => void
   onUpdateField:   (t: MyTask, fields: Record<string, unknown>) => void
-  onReassign:      (t: MyTask, roleField: 'producer_id'|'approver_id'|'assigned_to_id', id: string, name: string) => void
+  onReassign:      (t: MyTask, roleField: 'producer_id'|'approver_id'|'assigned_to_id'|'poster_id', id: string, name: string) => void
   profiles:        { id: string; name: string; role: string }[]
   canManage:       boolean
   showReassign:    boolean
@@ -634,10 +705,11 @@ function TaskRow({
   const [advSchedDate, setAdvSchedDate]         = useState(task.scheduled_post_date || '')
 
   const roleLabel: Record<string, string> = {
-    producer: 'ผู้ผลิต', approver: 'ผู้อนุมัติ', assigned_to: 'ผู้รับผิดชอบ',
+    producer: 'ผู้ผลิต', approver: 'ผู้อนุมัติ', assigned_to: 'ผู้รับผิดชอบ', poster: 'ผู้โพสต์',
   }
   const roleColor: Record<string, string> = {
-    producer: 'bg-blue-50 text-blue-700', approver: 'bg-purple-50 text-purple-700', assigned_to: 'bg-teal-50 text-teal-700',
+    producer: 'bg-blue-50 text-blue-700', approver: 'bg-purple-50 text-purple-700',
+    assigned_to: 'bg-teal-50 text-teal-700', poster: 'bg-orange-50 text-orange-700',
   }
   const typeIcon: Record<string, string> = { GRAPHIC: '🖼', VIDEO: '🎬', COPY: '📝' }
 
@@ -794,8 +866,8 @@ function TaskRow({
             </div>
           )}
 
-          {/* Advance status — producer / assigned_to */}
-          {(myRole === 'producer' || myRole === 'assigned_to') && advLabel && !isDone && (
+          {/* Advance status — producer / assigned_to / poster */}
+          {(myRole === 'producer' || myRole === 'assigned_to' || myRole === 'poster') && advLabel && !isDone && (
             <div className="space-y-2">
               {/* Optional extra fields */}
               {showAdvanceForm && (
@@ -906,7 +978,7 @@ function TaskRow({
             </div>
           )}
 
-          {/* Inline file_link update — producer, any active status */}
+          {/* Inline file_link update — producer, any active status (not poster) */}
           {(myRole === 'producer' || myRole === 'assigned_to') && !isDone && task.status !== 'รออนุมัติ' && (
             <InlineFieldUpdate
               label="อัปเดตลิงก์ไฟล์งาน"
@@ -920,7 +992,7 @@ function TaskRow({
           {showReassign && canManage && (
             <div className="border-t border-slate-100 pt-3 space-y-2">
               <p className="text-xs font-semibold text-slate-500">มอบหมายใหม่</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <ReassignPicker
                   label="ผู้ผลิต"
                   currentId={task.producer_id || ''}
@@ -941,6 +1013,13 @@ function TaskRow({
                   currentName={task.assigned_to}
                   profiles={profiles}
                   onSave={(id, name) => onReassign(task, 'assigned_to_id', id, name)}
+                />
+                <ReassignPicker
+                  label="ผู้โพสต์"
+                  currentId={task.poster_id || ''}
+                  currentName={task.poster}
+                  profiles={profiles}
+                  onSave={(id, name) => onReassign(task, 'poster_id', id, name)}
                 />
               </div>
             </div>

@@ -192,6 +192,7 @@ export type Database = {
       content_assets: {
         Row: {
           asset_type: string
+          category: string
           content_id: number
           created_at: string
           file_size: number | null
@@ -205,6 +206,7 @@ export type Database = {
         }
         Insert: {
           asset_type?: string
+          category?: string
           content_id: number
           created_at?: string
           file_size?: number | null
@@ -218,6 +220,7 @@ export type Database = {
         }
         Update: {
           asset_type?: string
+          category?: string
           content_id?: number
           created_at?: string
           file_size?: number | null

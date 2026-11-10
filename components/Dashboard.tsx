@@ -51,7 +51,7 @@ export default function Dashboard() {
     const [p, s, c, a, pr, roi] = await Promise.all([
       supabase.from('products').select('id, product_id, name, brand, status, owner_id'),
       supabase.from('sales').select('product_id, sales_target_amount, actual_sales, actual_received, status, period_start, period_end'),
-      supabase.from('contents').select('id, product_id, seq, title, status, assigned_to_id, assigned_to, deadline'),
+      supabase.from('contents').select('id, product_id, seq, title, status, assigned_to_id, assigned_to, producer_id, approver_id, poster_id, deadline'),
       supabase.from('ads').select('id, campaign_name, product_id, month, budget_total, budget_allocated, budget_spent, budget_remaining, leads, clicks, reach, cpl, roas, managed_by_id, managed_by'),
       supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
       supabase.from('v_content_roi').select('content_id, product_id, seq, title, type, production_cost, ad_cost_share, total_cost, total_leads, closed_leads, deal_revenue, roi, roi_pct, conversion_rate').order('deal_revenue', { ascending: false }).limit(20),
@@ -116,10 +116,23 @@ export default function Dashboard() {
   }, [contents, ads, products, profiles])
 
   const myTasks = useMemo(() => {
-    const myContents = contents.filter(c => c.assigned_to_id === profile.id)
+    // Count contents where user has ANY role (producer/approver/assigned_to/poster)
+    // This matches the same filter used in MyTasks component so the numbers are consistent
+    const myContents = contents.filter(c =>
+      c.assigned_to_id === profile.id ||
+      c.producer_id    === profile.id ||
+      c.approver_id    === profile.id ||
+      c.poster_id      === profile.id
+    )
     const myAds      = ads.filter(a => a.managed_by_id === profile.id)
     const myProducts = products.filter(p => p.owner_id === profile.id)
-    return { myContents, myAds, myProducts, myDone: myContents.filter(c => c.status === 'โพสต์แล้ว').length, myInProgress: myContents.filter(c => c.status !== 'โพสต์แล้ว' && c.status !== 'รอผลิต').length, myWaiting: myContents.filter(c => c.status === 'รอผลิต').length, totalTasks: myContents.length + myAds.length + myProducts.length }
+    return {
+      myContents, myAds, myProducts,
+      myDone:       myContents.filter(c => c.status === 'โพสต์แล้ว').length,
+      myInProgress: myContents.filter(c => c.status !== 'โพสต์แล้ว' && c.status !== 'รอผลิต').length,
+      myWaiting:    myContents.filter(c => c.status === 'รอผลิต').length,
+      totalTasks:   myContents.length + myAds.length + myProducts.length,
+    }
   }, [contents, ads, products, profile.id])
 
   const statusStyle: Record<string, string> = { 'เปิดขาย': 'bg-emerald-50 text-emerald-700', 'เตรียมเปิดตัว': 'bg-amber-50 text-amber-700', 'กำลังพัฒนา': 'bg-blue-50 text-blue-700', 'หยุดขาย': 'bg-slate-100 text-slate-400' }

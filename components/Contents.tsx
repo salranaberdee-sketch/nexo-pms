@@ -152,6 +152,8 @@ export default function Contents() {
   const [assetsMap, setAssetsMap] = useState<Record<number, ContentAsset[]>>({})
   // Asset counts pre-loaded on page load for badge display
   const [assetCounts, setAssetCounts] = useState<Record<number, number>>({})
+  // Work-order counts pre-loaded for badge display
+  const [workOrderCounts, setWorkOrderCounts] = useState<Record<number, number>>({})
 
   // Approvers = admin/manager only
   const approverOptions = useMemo(
@@ -174,14 +176,19 @@ export default function Contents() {
     // Pre-load asset counts for all content IDs in one query
     const contentIds = (c.data || []).map((row: any) => row.id)
     let assetCounts: Record<number, number> = {}
+    // Work-order counts (📋) tracked separately for badge display
+    let workOrderCounts: Record<number, number> = {}
     if (contentIds.length > 0) {
       const { data: countData } = await supabase
         .from('content_assets')
-        .select('content_id')
+        .select('content_id, category')
         .in('content_id', contentIds)
       if (countData) {
         for (const row of countData) {
           assetCounts[row.content_id] = (assetCounts[row.content_id] || 0) + 1
+          if (row.category === 'work_order') {
+            workOrderCounts[row.content_id] = (workOrderCounts[row.content_id] || 0) + 1
+          }
         }
       }
     }
@@ -190,6 +197,7 @@ export default function Contents() {
     setProducts(p.data || [])
     setProfileOptions(pr.data || [])
     setAssetCounts(assetCounts)
+    setWorkOrderCounts(workOrderCounts)
     setLoading(false)
   }
 
@@ -235,7 +243,7 @@ export default function Contents() {
     if (assetsMap[contentId] !== undefined) return
     const { data, error } = await supabase
       .from('content_assets')
-      .select('id, content_id, asset_type, label, url, storage_path, file_size, mime_type, sort_order, uploaded_by, created_at')
+      .select('id, content_id, asset_type, category, label, url, storage_path, file_size, mime_type, sort_order, uploaded_by, created_at')
       .eq('content_id', contentId)
       .order('sort_order')
       .order('created_at')
@@ -580,6 +588,10 @@ export default function Contents() {
                 const isExpanded = expandedId === c.id
                 const assets = assetsMap[c.id] || []
                 const assetCount = assetsMap[c.id] !== undefined ? assets.length : (assetCounts[c.id] || 0)
+                const workOrderCount = assetsMap[c.id] !== undefined
+                  ? assets.filter(a => a.category === 'work_order').length
+                  : (workOrderCounts[c.id] || 0)
+                const deliverableCount = assetCount - workOrderCount
 
                 return (
                   <React.Fragment key={c.id}>
@@ -609,9 +621,18 @@ export default function Contents() {
                         {c.objective && <span className="text-xs text-slate-400 truncate block mt-0.5" title={c.objective}>{c.objective}</span>}
                         {c.producer && <span className="text-xs text-blue-500 mt-0.5 block">ผู้ผลิต: {c.producer}</span>}
                         {assetCount > 0 && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full mt-1">
-                            📎 {assetCount} ชิ้นงาน
-                          </span>
+                          <div className="flex items-center gap-1 mt-1 flex-wrap">
+                            {workOrderCount > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded-full">
+                                📋 {workOrderCount}
+                              </span>
+                            )}
+                            {deliverableCount > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded-full">
+                                ✅ {deliverableCount}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className={`${tdCls} text-xs text-slate-500 whitespace-nowrap`}>
@@ -696,6 +717,10 @@ export default function Contents() {
                             onAssetsChange={updated => {
                               setAssetsMap(prev => ({ ...prev, [c.id]: updated }))
                               setAssetCounts(prev => ({ ...prev, [c.id]: updated.length }))
+                              setWorkOrderCounts(prev => ({
+                                ...prev,
+                                [c.id]: updated.filter(a => a.category === 'work_order').length,
+                              }))
                             }}
                           />
                         </td>
