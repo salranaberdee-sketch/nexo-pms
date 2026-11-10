@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { useProfile } from '@/lib/profile-context'
@@ -28,7 +28,6 @@ export default function Dashboard() {
   // Detail panel state
   const [activePanel, setActivePanel] = useState<PanelType>(null)
   const [activePanelProduct, setActivePanelProduct] = useState<string | null>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
   const profile = useProfile()
   const supabase = createClient()
 
@@ -921,7 +920,7 @@ export default function Dashboard() {
 
       {/* ── Detail Panel (slide in from right) ──────────────── */}
       {activePanel && (
-        <div ref={panelRef}
+        <div
           className="fixed top-0 right-0 h-screen w-[380px] bg-white border-l border-slate-200 shadow-xl z-40 flex flex-col">
           {/* Panel header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">

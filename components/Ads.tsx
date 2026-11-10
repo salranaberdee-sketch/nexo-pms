@@ -137,11 +137,12 @@ export default function Ads() {
 
     // Link content via ad_contents if a content was selected
     if (addForm.content_id) {
-      await supabase.from('ad_contents').insert([{
+      const { error: acErr } = await supabase.from('ad_contents').insert([{
         ad_id: newAd.id,
         content_id: Number(addForm.content_id),
         attribution_pct: 100,
       }])
+      if (acErr) showToast(`เพิ่มแคมเปญแล้ว แต่ link Content ไม่สำเร็จ: ${acErr.message}`, 'error')
     }
 
     setShowAdd(false)
@@ -220,11 +221,12 @@ export default function Ads() {
     if (editVal.content_id !== undefined) {
       await supabase.from('ad_contents').delete().eq('ad_id', editingRow.id)
       if (editVal.content_id) {
-        await supabase.from('ad_contents').insert([{
+        const { error: acErr } = await supabase.from('ad_contents').insert([{
           ad_id: editingRow.id,
           content_id: Number(editVal.content_id),
           attribution_pct: 100,
         }])
+        if (acErr) showToast(`บันทึกแล้ว แต่ link Content ไม่สำเร็จ: ${acErr.message}`, 'error')
       }
     }
 
@@ -279,8 +281,6 @@ export default function Ads() {
       || (a.channel || '').toLowerCase().includes(q),
     )
   }, [ads, search, filterMonth, dateFrom, dateTo])
-
-  const headers = ['Product', 'เดือน', 'Campaign', 'ช่องทาง', 'Content', 'ผู้ดูแล', 'งบอนุมัติรวม', 'งบจัดสรร', 'ใช้จริง', 'คงเหลือ', 'Reach', 'Clicks', 'Leads', 'CPL', 'ROAS', 'ยอดขาย Ads', '']
 
   // Pagination — reset when filters change
   const [visibleCount, setVisibleCount] = useState(10)

@@ -244,12 +244,17 @@ export default function Products() {
 
     // Sync features: delete all existing then re-insert in order
     if (pid) {
-      await supabase.from('product_features').delete().eq('product_id', pid)
-      if (formFeatures.length > 0) {
+      const { error: delFeatErr } = await supabase.from('product_features').delete().eq('product_id', pid)
+      if (delFeatErr) {
+        showToast(`บันทึกสินค้าแล้ว แต่ลบ features เก่าไม่สำเร็จ: ${delFeatErr.message}`, 'error')
+      } else if (formFeatures.length > 0) {
         const rows = formFeatures
           .filter(f => f.label.trim())
           .map((f, i) => ({ product_id: pid, label: f.label.trim(), value: f.value.trim(), sort_order: i }))
-        if (rows.length > 0) await supabase.from('product_features').insert(rows)
+        if (rows.length > 0) {
+          const { error: insFeatErr } = await supabase.from('product_features').insert(rows)
+          if (insFeatErr) showToast(`บันทึกสินค้าแล้ว แต่บันทึก features ไม่สำเร็จ: ${insFeatErr.message}`, 'error')
+        }
       }
       // Invalidate featuresMap cache for this product
       setFeaturesMap(prev => { const next = { ...prev }; delete next[pid]; return next })

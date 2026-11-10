@@ -540,7 +540,8 @@ export default function Report() {
 
   // Load schedules + live preview data
   async function loadSchedules() {
-    const { data } = await supabase.from('report_schedules').select('*').order('created_at', { ascending: false })
+    const { data, error } = await supabase.from('report_schedules').select('*').order('created_at', { ascending: false })
+    if (error) { showToast(error.message, 'error') }
     setSchedules((data ?? []) as ReportSchedule[])
     setLoading(false)
   }

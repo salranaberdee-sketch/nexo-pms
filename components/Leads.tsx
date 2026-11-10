@@ -72,6 +72,124 @@ const EMPTY_FORM = {
   notes: '',
 }
 
+type LeadFormType = typeof EMPTY_FORM
+
+// Hoisted outside Leads so React doesn't remount it on every parent render.
+// Previously defined inside Leads which caused input to lose focus on every state change.
+function LeadForm({ form, setForm, products, adsOpts, contentsOpts, profileOptions }: {
+  form: LeadFormType
+  setForm: (f: LeadFormType) => void
+  products: any[]
+  adsOpts: any[]
+  contentsOpts: any[]
+  profileOptions: ProfileOption[]
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      {/* Attribution */}
+      <Field label="สินค้า / บริการ" required>
+        <select value={form.product_id} onChange={e => setForm({ ...form, product_id: e.target.value, ad_id: '', content_id: '' })} className={selectCls}>
+          <option value="">เลือกสินค้า</option>
+          {products.map((p: any) => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
+        </select>
+      </Field>
+      <Field label="ลูกค้าติดต่อเข้ามาทาง" required>
+        <select value={form.channel_in} onChange={e => setForm({ ...form, channel_in: e.target.value })} className={selectCls}>
+          <option value="form">กรอกฟอร์ม</option>
+          <option value="LINE">LINE</option>
+          <option value="inbox">Inbox / ข้อความ</option>
+          <option value="phone">โทรศัพท์</option>
+          <option value="other">อื่นๆ</option>
+        </select>
+      </Field>
+      <Field label="มาจากโฆษณาชิ้นไหน" hint="เลือกถ้ารู้ว่า lead มาจากแคมเปญไหน">
+        <select value={form.ad_id} onChange={e => setForm({ ...form, ad_id: e.target.value })} className={selectCls}>
+          <option value="">— ไม่แน่ใจ / ไม่มีโฆษณา</option>
+          {adsOpts.map((a: any) => <option key={a.id} value={a.id}>{a.campaign_name} ({a.month})</option>)}
+        </select>
+      </Field>
+      <Field label="มาจาก Content ชิ้นไหน" hint="เลือกถ้ารู้ว่าเห็น content อะไรก่อนติดต่อ">
+        <select value={form.content_id} onChange={e => setForm({ ...form, content_id: e.target.value })} className={selectCls}>
+          <option value="">— ไม่แน่ใจ / ไม่มี content</option>
+          {contentsOpts.map((c: any) => <option key={c.id} value={c.id}>#{c.seq} {c.title}</option>)}
+        </select>
+      </Field>
+
+      {/* UTM */}
+      <div className="col-span-2 pt-2 border-t border-slate-100">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">แหล่งที่มา (ไม่บังคับ)</p>
+        <p className="text-xs text-slate-400 mb-3">กรอกถ้ามี link ติดตามจาก Facebook / TikTok / Google ฯลฯ</p>
+      </div>
+      <Field label="แพลตฟอร์มที่มาจาก" hint="เช่น facebook, tiktok, google, line">
+        <input placeholder="เช่น facebook" value={form.utm_source} onChange={e => setForm({ ...form, utm_source: e.target.value.toLowerCase() })} className={inputCls} />
+      </Field>
+      <Field label="ประเภทโฆษณา" hint="เช่น cpc (คลิก), social (โพสต์), email">
+        <input placeholder="เช่น cpc" value={form.utm_medium} onChange={e => setForm({ ...form, utm_medium: e.target.value.toLowerCase() })} className={inputCls} />
+      </Field>
+      <Field label="ชื่อแคมเปญใน link" hint="ตรงกับ utm_campaign ใน link โฆษณา">
+        <input placeholder="เช่น med-psy-001-2026-11" value={form.utm_campaign} onChange={e => setForm({ ...form, utm_campaign: e.target.value.toLowerCase() })} className={inputCls} />
+      </Field>
+      <Field label="ชื่อชิ้นงาน / Creative" hint="ระบุว่าใช้รูปหรือวิดีโอชิ้นไหนใน link">
+        <input placeholder="เช่น seq1-graphic" value={form.utm_content} onChange={e => setForm({ ...form, utm_content: e.target.value.toLowerCase() })} className={inputCls} />
+      </Field>
+
+      {/* Deal */}
+      <div className="col-span-2 pt-2 border-t border-slate-100">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">ข้อมูลการขาย</p>
+      </div>
+      <Field label="สถานะปัจจุบัน" required>
+        <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className={selectCls}>
+          <option value="ใหม่">ใหม่ — เพิ่งรับ lead</option>
+          <option value="ติดต่อแล้ว">ติดต่อแล้ว — คุยกันแล้ว</option>
+          <option value="ผ่านเกณฑ์">ผ่านเกณฑ์ — สนใจจริง พร้อมซื้อ</option>
+          <option value="ปิดการขาย">ปิดการขาย — ซื้อแล้ว ✓</option>
+          <option value="ไม่สำเร็จ">ไม่สำเร็จ — ไม่สนใจ</option>
+        </select>
+      </Field>
+      <Field label="ยอดขายที่ได้ (฿)" hint="กรอกเมื่อปิดการขายสำเร็จแล้ว">
+        <input type="number" min="0" placeholder="0" value={form.deal_amount} onChange={e => setForm({ ...form, deal_amount: e.target.value })} className={inputCls} />
+      </Field>
+      {form.status === 'ปิดการขาย' && (
+        <Field label="วันที่ปิดการขาย">
+          <input type="date" value={form.closed_at} onChange={e => setForm({ ...form, closed_at: e.target.value })} className={inputCls} />
+        </Field>
+      )}
+      <Field label="เซลล์ / ผู้ดูแล lead นี้">
+        <ProfilePicker value={form.owner_id} profiles={profileOptions}
+          onChange={(id, name) => setForm({ ...form, owner_id: id, owner_name: name })}
+          placeholder="เลือกผู้รับผิดชอบ" />
+      </Field>
+
+      {/* PDPA */}
+      <div className="col-span-2 pt-2 border-t border-slate-100">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">การยินยอมข้อมูล (PDPA)</p>
+      </div>
+      <div className="col-span-2 flex items-start gap-3">
+        <input type="checkbox" id="consent_given" checked={form.consent_given}
+          onChange={e => setForm({ ...form, consent_given: e.target.checked, consent_at: e.target.checked ? form.consent_at : '' })}
+          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600" />
+        <label htmlFor="consent_given" className="text-sm text-slate-600">
+          ลูกค้ายืนยันยินยอมให้เก็บและใช้ข้อมูลส่วนตัวแล้ว
+        </label>
+      </div>
+      {form.consent_given && (
+        <Field label="วันที่ลูกค้ายินยอม">
+          <input type="date" value={form.consent_at} onChange={e => setForm({ ...form, consent_at: e.target.value })} className={inputCls} />
+        </Field>
+      )}
+
+      {/* Notes */}
+      <div className="col-span-2">
+        <Field label="หมายเหตุ" hint="⚠️ ห้ามระบุชื่อ เบอร์โทร หรือข้อมูลสุขภาพ">
+          <textarea rows={2} placeholder="บันทึกข้อความเพิ่มเติม เช่น ความสนใจของลูกค้า (ห้ามระบุชื่อหรือเบอร์โทร)"
+            value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
+            className={inputCls + ' resize-none'} />
+        </Field>
+      </div>
+    </div>
+  )
+}
+
 export default function Leads() {
   const [leads, setLeads]                   = useState<any[]>([])
   const [products, setProducts]             = useState<any[]>([])
@@ -289,118 +407,6 @@ export default function Leads() {
   const editFilteredAds = useMemo(() => ads.filter(a => !editForm.product_id || a.product_id === editForm.product_id), [ads, editForm.product_id])
   const editFilteredContents = useMemo(() => contents.filter(c => !editForm.product_id || c.product_id === editForm.product_id), [contents, editForm.product_id])
 
-  function LeadForm({ form, setForm, adsOpts, contentsOpts }: {
-    form: typeof EMPTY_FORM
-    setForm: (f: typeof EMPTY_FORM) => void
-    adsOpts: typeof ads
-    contentsOpts: typeof contents
-  }) {
-    return (
-      <div className="grid grid-cols-2 gap-4">
-        {/* Attribution */}
-        <Field label="สินค้า / บริการ" required>
-          <select value={form.product_id} onChange={e => setForm({ ...form, product_id: e.target.value, ad_id: '', content_id: '' })} className={selectCls}>
-            <option value="">เลือกสินค้า</option>
-            {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
-          </select>
-        </Field>
-        <Field label="ลูกค้าติดต่อเข้ามาทาง" required>
-          <select value={form.channel_in} onChange={e => setForm({ ...form, channel_in: e.target.value })} className={selectCls}>
-            <option value="form">กรอกฟอร์ม</option>
-            <option value="LINE">LINE</option>
-            <option value="inbox">Inbox / ข้อความ</option>
-            <option value="phone">โทรศัพท์</option>
-            <option value="other">อื่นๆ</option>
-          </select>
-        </Field>
-        <Field label="มาจากโฆษณาชิ้นไหน" hint="เลือกถ้ารู้ว่า lead มาจากแคมเปญไหน">
-          <select value={form.ad_id} onChange={e => setForm({ ...form, ad_id: e.target.value })} className={selectCls}>
-            <option value="">— ไม่แน่ใจ / ไม่มีโฆษณา</option>
-            {adsOpts.map(a => <option key={a.id} value={a.id}>{a.campaign_name} ({a.month})</option>)}
-          </select>
-        </Field>
-        <Field label="มาจาก Content ชิ้นไหน" hint="เลือกถ้ารู้ว่าเห็น content อะไรก่อนติดต่อ">
-          <select value={form.content_id} onChange={e => setForm({ ...form, content_id: e.target.value })} className={selectCls}>
-            <option value="">— ไม่แน่ใจ / ไม่มี content</option>
-            {contentsOpts.map(c => <option key={c.id} value={c.id}>#{c.seq} {c.title}</option>)}
-          </select>
-        </Field>
-
-        {/* UTM — plain language */}
-        <div className="col-span-2 pt-2 border-t border-slate-100">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">แหล่งที่มา (ไม่บังคับ)</p>
-          <p className="text-xs text-slate-400 mb-3">กรอกถ้ามี link ติดตามจาก Facebook / TikTok / Google ฯลฯ</p>
-        </div>
-        <Field label="แพลตฟอร์มที่มาจาก" hint="เช่น facebook, tiktok, google, line">
-          <input placeholder="เช่น facebook" value={form.utm_source} onChange={e => setForm({ ...form, utm_source: e.target.value.toLowerCase() })} className={inputCls} />
-        </Field>
-        <Field label="ประเภทโฆษณา" hint="เช่น cpc (คลิก), social (โพสต์), email">
-          <input placeholder="เช่น cpc" value={form.utm_medium} onChange={e => setForm({ ...form, utm_medium: e.target.value.toLowerCase() })} className={inputCls} />
-        </Field>
-        <Field label="ชื่อแคมเปญใน link" hint="ตรงกับ utm_campaign ใน link โฆษณา">
-          <input placeholder="เช่น med-psy-001-2026-11" value={form.utm_campaign} onChange={e => setForm({ ...form, utm_campaign: e.target.value.toLowerCase() })} className={inputCls} />
-        </Field>
-        <Field label="ชื่อชิ้นงาน / Creative" hint="ระบุว่าใช้รูปหรือวิดีโอชิ้นไหนใน link">
-          <input placeholder="เช่น seq1-graphic" value={form.utm_content} onChange={e => setForm({ ...form, utm_content: e.target.value.toLowerCase() })} className={inputCls} />
-        </Field>
-
-        {/* Deal */}
-        <div className="col-span-2 pt-2 border-t border-slate-100">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">ข้อมูลการขาย</p>
-        </div>
-        <Field label="สถานะปัจจุบัน" required>
-          <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className={selectCls}>
-            <option value="ใหม่">ใหม่ — เพิ่งรับ lead</option>
-            <option value="ติดต่อแล้ว">ติดต่อแล้ว — คุยกันแล้ว</option>
-            <option value="ผ่านเกณฑ์">ผ่านเกณฑ์ — สนใจจริง พร้อมซื้อ</option>
-            <option value="ปิดการขาย">ปิดการขาย — ซื้อแล้ว ✓</option>
-            <option value="ไม่สำเร็จ">ไม่สำเร็จ — ไม่สนใจ</option>
-          </select>
-        </Field>
-        <Field label="ยอดขายที่ได้ (฿)" hint="กรอกเมื่อปิดการขายสำเร็จแล้ว">
-          <input type="number" min="0" placeholder="0" value={form.deal_amount} onChange={e => setForm({ ...form, deal_amount: e.target.value })} className={inputCls} />
-        </Field>
-        {form.status === 'ปิดการขาย' && (
-          <Field label="วันที่ปิดการขาย">
-            <input type="date" value={form.closed_at} onChange={e => setForm({ ...form, closed_at: e.target.value })} className={inputCls} />
-          </Field>
-        )}
-        <Field label="เซลล์ / ผู้ดูแล lead นี้">
-          <ProfilePicker value={form.owner_id} profiles={profileOptions}
-            onChange={(id, name) => setForm({ ...form, owner_id: id, owner_name: name })}
-            placeholder="เลือกผู้รับผิดชอบ" />
-        </Field>
-
-        {/* PDPA */}
-        <div className="col-span-2 pt-2 border-t border-slate-100">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">การยินยอมข้อมูล (PDPA)</p>
-        </div>
-        <div className="col-span-2 flex items-start gap-3">
-          <input type="checkbox" id="consent_given" checked={form.consent_given}
-            onChange={e => setForm({ ...form, consent_given: e.target.checked, consent_at: e.target.checked ? form.consent_at : '' })}
-            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600" />
-          <label htmlFor="consent_given" className="text-sm text-slate-600">
-            ลูกค้ายืนยันยินยอมให้เก็บและใช้ข้อมูลส่วนตัวแล้ว
-          </label>
-        </div>
-        {form.consent_given && (
-          <Field label="วันที่ลูกค้ายินยอม">
-            <input type="date" value={form.consent_at} onChange={e => setForm({ ...form, consent_at: e.target.value })} className={inputCls} />
-          </Field>
-        )}
-
-        {/* Notes */}
-        <div className="col-span-2">
-          <Field label="หมายเหตุ" hint="⚠️ ห้ามระบุชื่อ เบอร์โทร หรือข้อมูลสุขภาพ">
-            <textarea rows={2} placeholder="บันทึกข้อความเพิ่มเติม เช่น ความสนใจของลูกค้า (ห้ามระบุชื่อหรือเบอร์โทร)"
-              value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
-              className={inputCls + ' resize-none'} />
-          </Field>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="p-6 space-y-5">
 
@@ -594,7 +600,7 @@ export default function Leads() {
 
       {/* ── ADD modal ──────────────────────────────────────────── */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="เพิ่ม Lead ใหม่" width="max-w-2xl">
-        <LeadForm form={addForm} setForm={setAddForm} adsOpts={filteredAds} contentsOpts={filteredContents} />
+        <LeadForm form={addForm} setForm={setAddForm} products={products} adsOpts={filteredAds} contentsOpts={filteredContents} profileOptions={profileOptions} />
         {addError && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{addError}</p>}
         <div className="flex gap-2 mt-6">
           <button onClick={saveAdd} disabled={saving || !addForm.product_id}
@@ -607,7 +613,7 @@ export default function Leads() {
 
       {/* ── EDIT modal ─────────────────────────────────────────── */}
       <Modal open={!!editingRow} onClose={() => setEditingRow(null)} title="แก้ไข Lead" width="max-w-2xl">
-        <LeadForm form={editForm} setForm={setEditForm} adsOpts={editFilteredAds} contentsOpts={editFilteredContents} />
+        <LeadForm form={editForm} setForm={setEditForm} products={products} adsOpts={editFilteredAds} contentsOpts={editFilteredContents} profileOptions={profileOptions} />
         {editError && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{editError}</p>}
         <div className="flex gap-2 mt-6">
           <button onClick={saveEdit} disabled={savingEdit || !editForm.product_id}

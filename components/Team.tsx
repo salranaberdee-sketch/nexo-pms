@@ -83,6 +83,12 @@ export default function Team() {
         .not('brand', 'is', null)
         .neq('brand', ''),
     ])
+    // Handle error from profiles query
+    if (profileRes.error) {
+      setError(profileRes.error.message)
+      setLoading(false)
+      return
+    }
     setProfiles(profileRes.data || [])
     // Deduplicate brands
     const rawBrands = (brandRes.data || []).map((r: any) => String(r.brand))
@@ -110,6 +116,7 @@ export default function Team() {
 
   async function applyApproval(id: string, newStatus: string) {
     setError('')
+    const oldStatus = profiles.find(p => p.id === id)?.approval_status
     setProfiles(prev => prev.map(p => p.id === id ? { ...p, approval_status: newStatus } : p))
     const { error: updErr } = await supabase.from('profiles').update({
       approval_status: newStatus,
@@ -117,8 +124,9 @@ export default function Team() {
       approved_at: new Date().toISOString(),
     }).eq('id', id)
     if (updErr) {
+      // Immediate rollback — restore old status without waiting for reload
+      setProfiles(prev => prev.map(p => p.id === id ? { ...p, approval_status: oldStatus } : p))
       setError(updErr.message)
-      await load()
     } else {
       showToast(newStatus === 'approved' ? 'อนุมัติแล้ว' : newStatus === 'rejected' ? 'ปฏิเสธแล้ว' : 'อัปเดตสถานะแล้ว')
     }
@@ -127,11 +135,13 @@ export default function Team() {
 
   async function changeRole(id: string, role: string) {
     setError('')
+    const oldRole = profiles.find(p => p.id === id)?.role
     setProfiles(prev => prev.map(p => p.id === id ? { ...p, role } : p))
     const { error: updErr } = await supabase.from('profiles').update({ role }).eq('id', id)
     if (updErr) {
+      // Immediate rollback
+      setProfiles(prev => prev.map(p => p.id === id ? { ...p, role: oldRole } : p))
       setError(updErr.message)
-      await load()
     } else {
       showToast('เปลี่ยน role แล้ว')
     }
