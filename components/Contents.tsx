@@ -455,8 +455,8 @@ export default function Contents() {
   const filtered = useMemo(() => contents.filter(c =>
     (filterProduct === 'all' || c.product_id === filterProduct) &&
     (filterStatus === 'all' || c.status === filterStatus) &&
-    (!dateFrom || (c.created_at && c.created_at >= dateFrom)) &&
-    (!dateTo   || (c.created_at && c.created_at <= dateTo + 'T23:59:59')) &&
+    (!dateFrom || (c.deadline && c.deadline >= dateFrom)) &&
+    (!dateTo   || (c.deadline && c.deadline <= dateTo)) &&
     (search === '' || (() => {
       const q = search.toLowerCase()
       return (c.title || '').toLowerCase().includes(q)
@@ -531,7 +531,7 @@ export default function Contents() {
           {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
         </select>
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className="text-xs text-slate-400 whitespace-nowrap">จาก</span>
+          <span className="text-xs text-slate-400 whitespace-nowrap">กำหนดส่ง จาก</span>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
             className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
           <span className="text-xs text-slate-400">ถึง</span>

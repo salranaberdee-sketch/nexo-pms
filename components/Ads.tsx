@@ -269,8 +269,8 @@ export default function Ads() {
 
   const filtered = useMemo(() => {
     let list = filterMonth === 'all' ? ads : ads.filter(a => a.month === filterMonth)
-    if (dateFrom) list = list.filter(a => a.created_at && a.created_at >= dateFrom)
-    if (dateTo)   list = list.filter(a => a.created_at && a.created_at <= dateTo + 'T23:59:59')
+    if (dateFrom) list = list.filter(a => a.start_date && a.start_date >= dateFrom)
+    if (dateTo)   list = list.filter(a => a.start_date && a.start_date <= dateTo)
     if (!search) return list
     const q = search.toLowerCase()
     return list.filter(a =>
@@ -354,7 +354,7 @@ export default function Ads() {
               </select>
             )}
             <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-xs text-slate-400 whitespace-nowrap">จาก</span>
+              <span className="text-xs text-slate-400 whitespace-nowrap">วันเริ่ม Campaign จาก</span>
               <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
                 className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
               <span className="text-xs text-slate-400">ถึง</span>

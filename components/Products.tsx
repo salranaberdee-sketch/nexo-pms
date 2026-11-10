@@ -76,6 +76,9 @@ export default function Products() {
   const [editingId, setEditingId]           = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete]   = useState<number | null>(null)
   const [deleting, setDeleting]             = useState(false)
+  // Cascade counts shown in delete confirmation
+  const [cascadeCounts, setCascadeCounts]   = useState<{ contents: number; ads: number; sales: number } | null>(null)
+  const [loadingCascade, setLoadingCascade] = useState(false)
   const [form, setForm]                     = useState({ ...EMPTY_FORM })
   const canInsert = useCan('insert', 'products')
   const canUpdate = useCan('update', 'products')
@@ -89,6 +92,11 @@ export default function Products() {
   // Draft for new feature row
   const [newLabel, setNewLabel] = useState('')
   const [newValue, setNewValue] = useState('')
+
+  // Modal-level features (for add/edit form)
+  const [formFeatures, setFormFeatures] = useState<{ label: string; value: string }[]>([])
+  const [formFeatLabel, setFormFeatLabel] = useState('')
+  const [formFeatValue, setFormFeatValue] = useState('')
 
   async function loadFeatures(productId: string) {
     if (featuresMap[productId] !== undefined) return
@@ -169,7 +177,14 @@ export default function Products() {
 
   useEffect(() => { load() }, [])
 
-  function resetForm() { setForm({ ...EMPTY_FORM }); setEditingId(null); setError('') }
+  function resetForm() {
+    setForm({ ...EMPTY_FORM })
+    setEditingId(null)
+    setError('')
+    setFormFeatures([])
+    setFormFeatLabel('')
+    setFormFeatValue('')
+  }
 
   function openAdd() { resetForm(); setShowForm(true) }
 
@@ -180,6 +195,23 @@ export default function Products() {
       owner_id: p.owner_id || '', status: p.status || 'กำลังพัฒนา', notes: p.notes || '',
       start_date: p.start_date || '' })
     setError('')
+    setFormFeatLabel('')
+    setFormFeatValue('')
+    // Load existing features into form
+    const cached = featuresMap[p.product_id]
+    if (cached) {
+      setFormFeatures(cached.map(f => ({ label: f.label, value: f.value })))
+    } else {
+      supabase
+        .from('product_features')
+        .select('label, value, sort_order')
+        .eq('product_id', p.product_id)
+        .order('sort_order')
+        .order('id')
+        .then((res: { data: { label: string; value: string; sort_order: number }[] | null }) => {
+          setFormFeatures((res.data || []).map(f => ({ label: f.label, value: f.value })))
+        })
+    }
     setShowForm(true)
   }
 
@@ -189,6 +221,11 @@ export default function Products() {
       setError('Product ID ต้องเป็นรูปแบบ XXX-YYY-NNN เช่น MED-PSY-002')
       setSaving(false); return
     }
+
+    const pid = editingId
+      ? products.find(p => p.id === editingId)?.product_id
+      : form.product_id
+
     if (editingId) {
       const { error: updErr } = await supabase.from('products').update({
         name: form.name, business_type: form.business_type, product_type: form.product_type,
@@ -196,7 +233,6 @@ export default function Products() {
         status: form.status, notes: form.notes, start_date: form.start_date || null,
       }).eq('id', editingId)
       if (updErr) { setError(updErr.message); setSaving(false); return }
-      showToast('บันทึกการแก้ไขแล้ว')
     } else {
       const { error: insErr } = await supabase.from('products').insert([{
         ...form,
@@ -204,8 +240,22 @@ export default function Products() {
         start_date: form.start_date || null,
       }])
       if (insErr) { setError(insErr.message); setSaving(false); return }
-      showToast('เพิ่มสินค้าแล้ว')
     }
+
+    // Sync features: delete all existing then re-insert in order
+    if (pid) {
+      await supabase.from('product_features').delete().eq('product_id', pid)
+      if (formFeatures.length > 0) {
+        const rows = formFeatures
+          .filter(f => f.label.trim())
+          .map((f, i) => ({ product_id: pid, label: f.label.trim(), value: f.value.trim(), sort_order: i }))
+        if (rows.length > 0) await supabase.from('product_features').insert(rows)
+      }
+      // Invalidate featuresMap cache for this product
+      setFeaturesMap(prev => { const next = { ...prev }; delete next[pid]; return next })
+    }
+
+    showToast(editingId ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่มสินค้าแล้ว')
     setShowForm(false); resetForm(); await load(); setSaving(false)
   }
 
@@ -215,8 +265,29 @@ export default function Products() {
     setDeleting(false)
     if (delErr) { showToast(delErr.message, 'error'); return }
     setConfirmDelete(null)
+    setCascadeCounts(null)
     setProducts(prev => prev.filter(p => p.id !== id))
     showToast('ลบสินค้าแล้ว')
+  }
+
+  async function openDeleteConfirm(id: number) {
+    const product = products.find(p => p.id === id)
+    if (!product) return
+    setConfirmDelete(id)
+    setCascadeCounts(null)
+    setLoadingCascade(true)
+    // Query cascade counts in parallel
+    const [cRes, aRes, sRes] = await Promise.all([
+      supabase.from('contents').select('id', { count: 'exact', head: true }).eq('product_id', product.product_id),
+      supabase.from('ads').select('id', { count: 'exact', head: true }).eq('product_id', product.product_id),
+      supabase.from('sales').select('id', { count: 'exact', head: true }).eq('product_id', product.product_id),
+    ])
+    setLoadingCascade(false)
+    setCascadeCounts({
+      contents: cRes.count ?? 0,
+      ads:      aRes.count ?? 0,
+      sales:    sRes.count ?? 0,
+    })
   }
 
   async function updateStatus(id: number, status: string) {
@@ -401,25 +472,10 @@ export default function Products() {
               ) : filtered.length === 0 ? (
                 <EmptyState message="ยังไม่มี Product ที่ตรงเงื่อนไข" />
               ) : paginated.map(p => (
-                <React.Fragment key={p.id}>
-                <tr className="hover:bg-slate-50/60 transition-colors group">
-                  {/* Product ID + copy + expand toggle */}
+                <tr key={p.id} className="hover:bg-slate-50/60 transition-colors group">
+                  {/* Product ID + copy */}
                   <td className={tdCls}>
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => toggleExpand(p.product_id)}
-                        title={expandedProductId === p.product_id ? 'ซ่อนคุณสมบัติ' : 'ดูคุณสมบัติสินค้า'}
-                        className={`shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors ${
-                          expandedProductId === p.product_id
-                            ? 'bg-indigo-100 text-indigo-600'
-                            : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'
-                        }`}
-                      >
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                          style={{ transform: expandedProductId === p.product_id ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
-                          <polyline points="9 18 15 12 9 6" />
-                        </svg>
-                      </button>
                       <span className="font-mono text-xs font-medium text-slate-500">{p.product_id}</span>
                       <button onClick={() => copyId(p.product_id)} title="คัดลอก"
                         className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-indigo-500 p-0.5 rounded">
@@ -458,7 +514,7 @@ export default function Products() {
                         </button>
                       )}
                       {canDelete && (
-                        <button onClick={() => setConfirmDelete(p.id)} title="ลบ" className={btnDanger}>
+                        <button onClick={() => openDeleteConfirm(p.id)} title="ลบ" className={btnDanger}>
                           <IconTrash />
                         </button>
                       )}
@@ -466,29 +522,6 @@ export default function Products() {
                     </div>
                   </td>
                 </tr>
-                {/* ── Feature expand panel ── */}
-                {expandedProductId === p.product_id && (
-                  <tr>
-                    <td colSpan={10} className="p-0 bg-indigo-50/30">
-                      <FeaturePanel
-                        productId={p.product_id}
-                        productName={p.name}
-                        features={featuresMap[p.product_id]}
-                        canEdit={canUpdate}
-                        canDelete={canDelete}
-                        newLabel={newLabel}
-                        newValue={newValue}
-                        saving={featureSaving}
-                        onNewLabelChange={setNewLabel}
-                        onNewValueChange={setNewValue}
-                        onAdd={() => addFeature(p.product_id)}
-                        onUpdate={(fid, patch) => updateFeature(p.product_id, fid, patch)}
-                        onDelete={fid => deleteFeature(p.product_id, fid)}
-                      />
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
               ))}
             </tbody>
           </table>
@@ -508,8 +541,9 @@ export default function Products() {
         open={showForm}
         onClose={() => { setShowForm(false); resetForm() }}
         title={editingId ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}
-        width="max-w-xl"
+        width="max-w-2xl"
       >
+        {/* ── Basic info ── */}
         <div className="grid grid-cols-2 gap-4">
           <Field label="Product ID" hint="รูปแบบ XXX-YYY-NNN" required={!editingId}>
             <input
@@ -590,6 +624,90 @@ export default function Products() {
               className={inputCls} />
           </Field>
         </div>
+
+        {/* ── คุณสมบัติสินค้า ──────────────────────────────── */}
+        <div className="mt-5 border border-indigo-100 rounded-xl bg-indigo-50/40 px-4 pt-4 pb-3">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-indigo-700">✦ คุณสมบัติสินค้า</p>
+            <span className="text-[10px] text-indigo-400">อธิบายจุดเด่นให้ลูกค้าทราบ</span>
+          </div>
+
+          {/* Feature rows — 2 columns */}
+          {formFeatures.length > 0 && (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-3">
+              {formFeatures.map((f, i) => (
+                <div key={i} className="flex items-center gap-1.5 group/feat">
+                  <input
+                    value={f.label}
+                    onChange={e => setFormFeatures(prev => prev.map((x, j) => j === i ? { ...x, label: e.target.value } : x))}
+                    placeholder="หัวข้อ"
+                    className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white flex-1 min-w-0 placeholder:text-slate-300"
+                  />
+                  <span className="text-slate-300 text-xs shrink-0">:</span>
+                  <input
+                    value={f.value}
+                    onChange={e => setFormFeatures(prev => prev.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}
+                    placeholder="ค่า"
+                    className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white w-24 shrink-0 placeholder:text-slate-300"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setFormFeatures(prev => prev.filter((_, j) => j !== i))}
+                    className="opacity-0 group-hover/feat:opacity-100 transition-opacity text-slate-300 hover:text-red-500 p-0.5 rounded shrink-0"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add row */}
+          <div className="flex items-center gap-2">
+            <input
+              value={formFeatLabel}
+              onChange={e => setFormFeatLabel(e.target.value)}
+              placeholder="+ หัวข้อใหม่ เช่น จำนวนบทเรียน"
+              onKeyDown={e => {
+                if (e.key === 'Enter' && formFeatLabel.trim()) {
+                  e.preventDefault()
+                  setFormFeatures(prev => [...prev, { label: formFeatLabel.trim(), value: formFeatValue.trim() }])
+                  setFormFeatLabel(''); setFormFeatValue('')
+                }
+              }}
+              className="border border-dashed border-indigo-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white flex-1 placeholder:text-indigo-300"
+            />
+            <span className="text-slate-300 text-xs shrink-0">:</span>
+            <input
+              value={formFeatValue}
+              onChange={e => setFormFeatValue(e.target.value)}
+              placeholder="ค่า"
+              onKeyDown={e => {
+                if (e.key === 'Enter' && formFeatLabel.trim()) {
+                  e.preventDefault()
+                  setFormFeatures(prev => [...prev, { label: formFeatLabel.trim(), value: formFeatValue.trim() }])
+                  setFormFeatLabel(''); setFormFeatValue('')
+                }
+              }}
+              className="border border-dashed border-indigo-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white w-28 shrink-0 placeholder:text-indigo-300"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (!formFeatLabel.trim()) return
+                setFormFeatures(prev => [...prev, { label: formFeatLabel.trim(), value: formFeatValue.trim() }])
+                setFormFeatLabel(''); setFormFeatValue('')
+              }}
+              disabled={!formFeatLabel.trim()}
+              className="shrink-0 text-xs font-semibold bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-500 disabled:opacity-30 transition-colors"
+            >
+              + เพิ่ม
+            </button>
+          </div>
+        </div>
+
         {error && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{error}</p>}
         <div className="flex gap-2 mt-6">
           <button onClick={save}
@@ -617,15 +735,26 @@ export default function Products() {
       {/* Delete confirm modal */}
       <ConfirmModal
         open={confirmDelete !== null}
-        onClose={() => setConfirmDelete(null)}
+        onClose={() => { setConfirmDelete(null); setCascadeCounts(null) }}
         onConfirm={() => deleteRow(confirmDelete!)}
         loading={deleting}
         title="ยืนยันลบสินค้า"
         message={
           <>
             ลบ <strong>{deleteTarget?.name}</strong> ({deleteTarget?.product_id})?
-            <br />
-            <span className="text-red-500">ระวัง: จะลบ Content, Ads และ Sales ที่อ้างอิงทั้งหมดด้วย (CASCADE)</span>
+            {loadingCascade ? (
+              <span className="block mt-2 text-xs text-slate-400">กำลังตรวจสอบข้อมูลที่เกี่ยวข้อง…</span>
+            ) : cascadeCounts && (cascadeCounts.contents > 0 || cascadeCounts.ads > 0 || cascadeCounts.sales > 0) ? (
+              <span className="block mt-3 p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-700 space-y-1">
+                <span className="block font-semibold text-red-800">⚠️ ข้อมูลต่อไปนี้จะถูกลบพร้อมกัน:</span>
+                {cascadeCounts.contents > 0 && <span className="block">• Content {cascadeCounts.contents} ชิ้น</span>}
+                {cascadeCounts.ads > 0      && <span className="block">• Ads {cascadeCounts.ads} แคมเปญ</span>}
+                {cascadeCounts.sales > 0    && <span className="block">• Sales {cascadeCounts.sales} รายการ</span>}
+                <span className="block mt-1 text-red-600 font-medium">ไม่สามารถกู้คืนได้</span>
+              </span>
+            ) : cascadeCounts ? (
+              <span className="block mt-2 text-xs text-slate-500">ไม่มีข้อมูล Content, Ads หรือ Sales ที่เชื่อมโยง</span>
+            ) : null}
           </>
         }
       />
