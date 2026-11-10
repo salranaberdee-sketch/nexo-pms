@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useCan } from '@/lib/profile-context'
 import ProfilePicker from './ProfilePicker'
@@ -15,6 +15,8 @@ import { useSettings } from '@/lib/app-settings'
 import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, tdCls, tableWrapCls } from '@/lib/cx'
 
 const STATUS_OPTIONS = ['กำลังพัฒนา', 'เตรียมเปิดตัว', 'เปิดขาย', 'หยุดขาย']
+
+type Feature = { id: number; label: string; value: string; sort_order: number }
 
 const statusStyle: Record<string, string> = {
   'เปิดขาย':       'bg-emerald-50 text-emerald-700',
@@ -79,6 +81,71 @@ export default function Products() {
   const canUpdate = useCan('update', 'products')
   const canDelete = useCan('delete', 'products')
   const supabase = createClient()
+
+  // Features panel state — lazy loaded per product
+  const [expandedProductId, setExpandedProductId] = useState<string | null>(null)
+  const [featuresMap, setFeaturesMap] = useState<Record<string, Feature[]>>({})
+  const [featureSaving, setFeatureSaving] = useState(false)
+  // Draft for new feature row
+  const [newLabel, setNewLabel] = useState('')
+  const [newValue, setNewValue] = useState('')
+
+  async function loadFeatures(productId: string) {
+    if (featuresMap[productId] !== undefined) return
+    const { data } = await supabase
+      .from('product_features')
+      .select('id, label, value, sort_order')
+      .eq('product_id', productId)
+      .order('sort_order')
+      .order('id')
+    setFeaturesMap(prev => ({ ...prev, [productId]: (data || []) as Feature[] }))
+  }
+
+  function toggleExpand(productId: string) {
+    if (expandedProductId === productId) {
+      setExpandedProductId(null)
+    } else {
+      setExpandedProductId(productId)
+      loadFeatures(productId)
+      setNewLabel('')
+      setNewValue('')
+    }
+  }
+
+  async function addFeature(productId: string) {
+    if (!newLabel.trim()) return
+    setFeatureSaving(true)
+    const nextOrder = (featuresMap[productId]?.length ?? 0)
+    const { data, error } = await supabase
+      .from('product_features')
+      .insert([{ product_id: productId, label: newLabel.trim(), value: newValue.trim(), sort_order: nextOrder }])
+      .select('id, label, value, sort_order')
+      .single()
+    setFeatureSaving(false)
+    if (error) { showToast(error.message, 'error'); return }
+    setFeaturesMap(prev => ({ ...prev, [productId]: [...(prev[productId] || []), data as Feature] }))
+    setNewLabel('')
+    setNewValue('')
+  }
+
+  async function updateFeature(productId: string, featureId: number, patch: Partial<Feature>) {
+    const { error } = await supabase.from('product_features').update(patch).eq('id', featureId)
+    if (error) { showToast(error.message, 'error'); return }
+    setFeaturesMap(prev => ({
+      ...prev,
+      [productId]: (prev[productId] || []).map(f => f.id === featureId ? { ...f, ...patch } : f),
+    }))
+  }
+
+  async function deleteFeature(productId: string, featureId: number) {
+    const { error } = await supabase.from('product_features').delete().eq('id', featureId)
+    if (error) { showToast(error.message, 'error'); return }
+    setFeaturesMap(prev => ({
+      ...prev,
+      [productId]: (prev[productId] || []).filter(f => f.id !== featureId),
+    }))
+    showToast('ลบคุณสมบัติแล้ว')
+  }
 
   // Categories from DB
   const { categories, reload: reloadCategories } = useCategories()
@@ -334,10 +401,25 @@ export default function Products() {
               ) : filtered.length === 0 ? (
                 <EmptyState message="ยังไม่มี Product ที่ตรงเงื่อนไข" />
               ) : paginated.map(p => (
-                <tr key={p.id} className="hover:bg-slate-50/60 transition-colors group">
-                  {/* Product ID + copy */}
+                <React.Fragment key={p.id}>
+                <tr className="hover:bg-slate-50/60 transition-colors group">
+                  {/* Product ID + copy + expand toggle */}
                   <td className={tdCls}>
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleExpand(p.product_id)}
+                        title={expandedProductId === p.product_id ? 'ซ่อนคุณสมบัติ' : 'ดูคุณสมบัติสินค้า'}
+                        className={`shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors ${
+                          expandedProductId === p.product_id
+                            ? 'bg-indigo-100 text-indigo-600'
+                            : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'
+                        }`}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                          style={{ transform: expandedProductId === p.product_id ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </button>
                       <span className="font-mono text-xs font-medium text-slate-500">{p.product_id}</span>
                       <button onClick={() => copyId(p.product_id)} title="คัดลอก"
                         className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-indigo-500 p-0.5 rounded">
@@ -384,6 +466,29 @@ export default function Products() {
                     </div>
                   </td>
                 </tr>
+                {/* ── Feature expand panel ── */}
+                {expandedProductId === p.product_id && (
+                  <tr>
+                    <td colSpan={10} className="p-0 bg-indigo-50/30">
+                      <FeaturePanel
+                        productId={p.product_id}
+                        productName={p.name}
+                        features={featuresMap[p.product_id]}
+                        canEdit={canUpdate}
+                        canDelete={canDelete}
+                        newLabel={newLabel}
+                        newValue={newValue}
+                        saving={featureSaving}
+                        onNewLabelChange={setNewLabel}
+                        onNewValueChange={setNewValue}
+                        onAdd={() => addFeature(p.product_id)}
+                        onUpdate={(fid, patch) => updateFeature(p.product_id, fid, patch)}
+                        onDelete={fid => deleteFeature(p.product_id, fid)}
+                      />
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
               ))}
             </tbody>
           </table>
@@ -524,6 +629,194 @@ export default function Products() {
           </>
         }
       />
+    </div>
+  )
+}
+
+// ─── FeaturePanel ────────────────────────────────────────────────────────────
+// Inline expand panel under each product row — shows editable key-value features
+
+function FeaturePanel({
+  productId, productName, features, canEdit, canDelete,
+  newLabel, newValue, saving,
+  onNewLabelChange, onNewValueChange, onAdd, onUpdate, onDelete,
+}: {
+  productId: string
+  productName: string
+  features: Feature[] | undefined
+  canEdit: boolean
+  canDelete: boolean
+  newLabel: string
+  newValue: string
+  saving: boolean
+  onNewLabelChange: (v: string) => void
+  onNewValueChange: (v: string) => void
+  onAdd: () => void
+  onUpdate: (id: number, patch: Partial<Feature>) => void
+  onDelete: (id: number) => void
+}) {
+  const isLoading = features === undefined
+
+  return (
+    <div className="px-6 py-4 border-t border-indigo-100">
+      {/* Panel header */}
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">
+          ✦ คุณสมบัติสินค้า
+        </span>
+        <span className="text-xs text-indigo-400">{productName}</span>
+        {!isLoading && features!.length > 0 && (
+          <span className="text-[10px] bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full font-medium">
+            {features!.length} รายการ
+          </span>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 py-2">
+          <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-slate-400">กำลังโหลด...</span>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {/* Feature rows */}
+          {features!.length === 0 && !canEdit && (
+            <p className="text-xs text-slate-400 py-1">ยังไม่มีคุณสมบัติ</p>
+          )}
+          {features!.map(f => (
+            <FeatureRow
+              key={f.id}
+              feature={f}
+              canEdit={canEdit}
+              canDelete={canDelete}
+              onUpdate={patch => onUpdate(f.id, patch)}
+              onDelete={() => onDelete(f.id)}
+            />
+          ))}
+
+          {/* Add new feature row */}
+          {canEdit && (
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                value={newLabel}
+                onChange={e => onNewLabelChange(e.target.value)}
+                placeholder="หัวข้อ เช่น จำนวนบทเรียน"
+                onKeyDown={e => e.key === 'Enter' && onAdd()}
+                className="border border-dashed border-indigo-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent bg-white w-44 placeholder:text-slate-300"
+              />
+              <input
+                value={newValue}
+                onChange={e => onNewValueChange(e.target.value)}
+                placeholder="ค่า เช่น 12 บท"
+                onKeyDown={e => e.key === 'Enter' && onAdd()}
+                className="border border-dashed border-indigo-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent bg-white w-36 placeholder:text-slate-300"
+              />
+              <button
+                onClick={onAdd}
+                disabled={saving || !newLabel.trim()}
+                className="text-xs font-semibold bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-500 disabled:opacity-40 transition-colors flex items-center gap-1"
+              >
+                {saving ? (
+                  <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  '+ เพิ่ม'
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── FeatureRow ───────────────────────────────────────────────────────────────
+// Single editable feature item
+
+function FeatureRow({
+  feature, canEdit, canDelete, onUpdate, onDelete,
+}: {
+  feature: Feature
+  canEdit: boolean
+  canDelete: boolean
+  onUpdate: (patch: Partial<Feature>) => void
+  onDelete: () => void
+}) {
+  const [editingLabel, setEditingLabel] = useState(false)
+  const [editingValue, setEditingValue] = useState(false)
+  const [draftLabel, setDraftLabel]     = useState(feature.label)
+  const [draftValue, setDraftValue]     = useState(feature.value)
+
+  function commitLabel() {
+    setEditingLabel(false)
+    if (draftLabel.trim() && draftLabel !== feature.label) onUpdate({ label: draftLabel.trim() })
+    else setDraftLabel(feature.label)
+  }
+
+  function commitValue() {
+    setEditingValue(false)
+    if (draftValue !== feature.value) onUpdate({ value: draftValue })
+  }
+
+  return (
+    <div className="flex items-center gap-2 group/row">
+      {/* Label */}
+      <div className="w-44 shrink-0">
+        {editingLabel && canEdit ? (
+          <input
+            autoFocus
+            value={draftLabel}
+            onChange={e => setDraftLabel(e.target.value)}
+            onBlur={commitLabel}
+            onKeyDown={e => { if (e.key === 'Enter') commitLabel(); if (e.key === 'Escape') { setEditingLabel(false); setDraftLabel(feature.label) } }}
+            className="w-full border border-indigo-300 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+          />
+        ) : (
+          <span
+            onClick={() => canEdit && setEditingLabel(true)}
+            className={`inline-block text-xs font-semibold text-slate-600 px-2.5 py-1 rounded-lg bg-white border border-transparent ${canEdit ? 'cursor-pointer hover:border-indigo-200 hover:text-indigo-700' : ''}`}
+          >
+            {feature.label}
+          </span>
+        )}
+      </div>
+
+      {/* Separator */}
+      <span className="text-slate-300 text-xs shrink-0">:</span>
+
+      {/* Value */}
+      <div className="flex-1 min-w-0">
+        {editingValue && canEdit ? (
+          <input
+            autoFocus
+            value={draftValue}
+            onChange={e => setDraftValue(e.target.value)}
+            onBlur={commitValue}
+            onKeyDown={e => { if (e.key === 'Enter') commitValue(); if (e.key === 'Escape') { setEditingValue(false); setDraftValue(feature.value) } }}
+            className="w-full border border-indigo-300 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+          />
+        ) : (
+          <span
+            onClick={() => canEdit && setEditingValue(true)}
+            className={`inline-block text-xs text-slate-700 px-2.5 py-1 rounded-lg bg-white border border-transparent ${canEdit ? 'cursor-pointer hover:border-indigo-200 hover:text-indigo-700' : ''} ${!feature.value ? 'text-slate-300 italic' : ''}`}
+          >
+            {feature.value || (canEdit ? 'คลิกเพื่อใส่ค่า' : '—')}
+          </span>
+        )}
+      </div>
+
+      {/* Delete */}
+      {canDelete && (
+        <button
+          onClick={onDelete}
+          className="opacity-0 group-hover/row:opacity-100 transition-opacity text-slate-300 hover:text-red-500 p-1 rounded"
+          title="ลบ"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 }

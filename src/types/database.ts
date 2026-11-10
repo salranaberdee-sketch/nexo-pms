@@ -684,6 +684,44 @@ export type Database = {
           },
         ]
       }
+      product_features: {
+        Row: {
+          created_at: string | null
+          id: number
+          label: string
+          product_id: string
+          sort_order: number
+          updated_at: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          label: string
+          product_id: string
+          sort_order?: number
+          updated_at?: string | null
+          value?: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          label?: string
+          product_id?: string
+          sort_order?: number
+          updated_at?: string | null
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_features_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["product_id"]
+          },
+        ]
+      }
       products: {
         Row: {
           brand: string | null
