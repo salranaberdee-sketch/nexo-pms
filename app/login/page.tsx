@@ -344,15 +344,6 @@ export default function LoginPage() {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider">รหัสผ่าน</label>
-              {!isRegister && (
-                <button
-                  type="button"
-                  onClick={() => switchMode('forgot')}
-                  className="text-[11px] text-indigo-500 hover:text-indigo-700 transition-colors"
-                >
-                  ลืมรหัสผ่าน?
-                </button>
-              )}
             </div>
             <div className="relative group">
               <Lock size={16} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
@@ -418,6 +409,17 @@ export default function LoginPage() {
               </>
             )}
           </button>
+
+          {/* Forgot password link — login only, below submit for visibility */}
+          {!isRegister && (
+            <button
+              type="button"
+              onClick={() => switchMode('forgot')}
+              className="w-full text-center text-sm text-slate-400 hover:text-indigo-600 transition-colors py-1"
+            >
+              ลืมรหัสผ่าน?
+            </button>
+          )}
         </form>
       </div>
     </div>
