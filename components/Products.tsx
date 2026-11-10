@@ -11,6 +11,7 @@ import InlinePersonPicker, { type ProfileOption } from './InlinePersonPicker'
 import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
 import CategoryManager, { useCategories } from './CategoryManager'
+import { useSettings } from '@/lib/app-settings'
 import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, tdCls, tableWrapCls } from '@/lib/cx'
 
 const STATUS_OPTIONS = ['กำลังพัฒนา', 'เตรียมเปิดตัว', 'เปิดขาย', 'หยุดขาย']
@@ -81,6 +82,8 @@ export default function Products() {
 
   // Categories from DB
   const { categories, reload: reloadCategories } = useCategories()
+  // Product types and brands from app_settings
+  const { productTypes: settingProductTypes, brands: settingBrands } = useSettings()
 
   async function load() {
     setLoadError('')
@@ -438,9 +441,11 @@ export default function Products() {
               className={inputCls}
             />
             <datalist id="product-type-options">
-              {[...new Set(products.map(p => p.product_type).filter(Boolean))].sort().map(pt => (
-                <option key={pt} value={pt} />
-              ))}
+              {settingProductTypes.length > 0
+                ? settingProductTypes.map(pt => <option key={pt} value={pt} />)
+                : [...new Set(products.map(p => p.product_type).filter(Boolean))].sort().map(pt => (
+                    <option key={pt} value={pt} />
+                  ))}
             </datalist>
           </Field>
           <Field label="แบรนด์">
@@ -452,9 +457,11 @@ export default function Products() {
               className={inputCls}
             />
             <datalist id="brand-options">
-              {[...new Set(products.map(p => p.brand).filter(Boolean))].sort().map(b => (
-                <option key={b} value={b} />
-              ))}
+              {settingBrands.length > 0
+                ? settingBrands.map(b => <option key={b} value={b} />)
+                : [...new Set(products.map(p => p.brand).filter(Boolean))].sort().map(b => (
+                    <option key={b} value={b} />
+                  ))}
             </datalist>
           </Field>
           <Field label="ผู้รับผิดชอบ">

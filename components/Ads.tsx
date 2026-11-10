@@ -10,6 +10,7 @@ import InlinePersonPicker, { type ProfileOption } from './InlinePersonPicker'
 import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
 import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, thRightCls, tdCls, tdRightCls, tableWrapCls, sectionLabelCls } from '@/lib/cx'
+import { useSettings } from '@/lib/app-settings'
 
 function IconPlus() {
   return (
@@ -38,7 +39,7 @@ function IconTrash() {
 }
 
 const EMPTY_ADD_FORM = {
-  product_id: '', month: '', campaign_name: '', channel: 'Facebook',
+  product_id: '', month: '', campaign_name: '', channel: '',
   budget_approved: '', budget_allocated: '', content_ref: '',
   content_id: '',
   managed_by: '', managed_by_id: '', start_date: '', end_date: '', result_notes: '',
@@ -82,6 +83,7 @@ export default function Ads() {
   const canUpdate = useCan('update', 'ads')
   const canDelete = useCan('delete', 'ads')
   const supabase = createClient()
+  const { channels: settingChannels, defaultChannel } = useSettings()
 
   async function load() {
     setLoadError('')
@@ -517,7 +519,11 @@ export default function Ads() {
             </Field>
           </div>
           <Field label="ช่องทาง">
-            <input placeholder="Facebook, Instagram ฯลฯ" value={addForm.channel} onChange={e => setAddForm({ ...addForm, channel: e.target.value })} className={inputCls} />
+            <select value={addForm.channel || defaultChannel}
+              onChange={e => setAddForm({ ...addForm, channel: e.target.value })}
+              className={selectCls}>
+              {settingChannels.map(ch => <option key={ch} value={ch}>{ch}</option>)}
+            </select>
           </Field>
           <Field label="งบที่อนุมัติ (฿)">
             <input type="number" placeholder="0" value={addForm.budget_approved} onChange={e => setAddForm({ ...addForm, budget_approved: e.target.value })} className={inputCls} />
@@ -580,7 +586,11 @@ export default function Ads() {
             </Field>
           </div>
           <Field label="ช่องทาง">
-            <input placeholder="Facebook, Instagram ฯลฯ" value={editVal.channel} onChange={e => setEditVal(v => ({ ...v, channel: e.target.value }))} className={inputCls} />
+            <select value={editVal.channel || defaultChannel}
+              onChange={e => setEditVal(v => ({ ...v, channel: e.target.value }))}
+              className={selectCls}>
+              {settingChannels.map(ch => <option key={ch} value={ch}>{ch}</option>)}
+            </select>
           </Field>
           <Field label="Content ที่ใช้" hint="เลือก content เพื่อ track ROI">
             <select value={editVal.content_id} onChange={e => setEditVal(v => ({ ...v, content_id: e.target.value }))} className={selectCls}>

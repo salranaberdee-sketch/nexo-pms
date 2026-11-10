@@ -6,6 +6,7 @@ import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
 import { ProfileProvider, type Profile } from '@/lib/profile-context'
+import { AppSettingsProvider } from '@/lib/app-settings'
 import { ToastContainer } from '@/components/Toast'
 
 // Shared layout for authenticated app pages.
@@ -96,13 +97,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <ProfileProvider profile={profile}>
-      <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--color-canvas)' }}>
-        <Sidebar user={user} profile={profile} onCollapse={setSidebarCollapsed} />
-        <main className="flex-1 overflow-y-auto min-w-0">
-          {children}
-        </main>
-      </div>
-      <ToastContainer />
+      <AppSettingsProvider>
+        <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--color-canvas)' }}>
+          <Sidebar user={user} profile={profile} onCollapse={setSidebarCollapsed} />
+          <main className="flex-1 overflow-y-auto min-w-0">
+            {children}
+          </main>
+        </div>
+        <ToastContainer />
+      </AppSettingsProvider>
     </ProfileProvider>
   )
 }

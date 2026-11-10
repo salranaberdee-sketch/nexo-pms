@@ -39,6 +39,7 @@ const PERMISSION_MATRIX: Record<string, Record<string, string[]>> = {
   categories:             { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
   content_assets:         { insert: ['admin', 'manager', 'editor'],     update: ['admin', 'manager', 'editor'],     delete: ['admin', 'manager'] },
   content_assignment_log: { insert: ['admin', 'manager'],                update: [],                                  delete: [] },
+  app_settings:           { insert: ['admin'],                            update: ['admin'],                           delete: ['admin'] },
 }
 
 // Returns true if the current user's role allows the given action on the given table.

@@ -12,6 +12,7 @@ import InlinePersonPicker, { type ProfileOption } from './InlinePersonPicker'
 import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
 import ContentAssets, { type ContentAsset } from './ContentAssets'
+import { useSettings } from '@/lib/app-settings'
 import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, tdCls, tableWrapCls } from '@/lib/cx'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -78,7 +79,7 @@ function IconTrash() {
 
 const EMPTY_ADD_FORM = {
   product_id: '', seq: '', type: 'GRAPHIC', title: '',
-  objective: '', channel: 'Facebook', hook: '', format_size: '',
+  objective: '', channel: '', hook: '', format_size: '',
   assigned_to: '', assigned_to_id: '',
   producer: '', producer_id: '',
   approver: '', approver_id: '',
@@ -143,6 +144,7 @@ export default function Contents() {
   const canDelete = useCan('delete', 'contents')
   const canManageAssets = useCan('insert', 'contents') // editor+ can add assets
   const supabase = createClient()
+  const { channels: settingChannels, defaultChannel } = useSettings()
 
   // Expanded row state — shows assets panel
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -765,8 +767,11 @@ export default function Contents() {
               onChange={e => setAddForm({ ...addForm, objective: e.target.value })} className={inputCls} />
           </Field>
           <Field label="ช่องทาง">
-            <input placeholder="Facebook, Instagram ฯลฯ" value={addForm.channel}
-              onChange={e => setAddForm({ ...addForm, channel: e.target.value })} className={inputCls} />
+            <select value={addForm.channel || defaultChannel}
+              onChange={e => setAddForm({ ...addForm, channel: e.target.value })}
+              className={selectCls}>
+              {settingChannels.map(ch => <option key={ch} value={ch}>{ch}</option>)}
+            </select>
           </Field>
           <Field label="Hook">
             <input placeholder="Hook ของ Content" value={addForm.hook}
@@ -855,7 +860,11 @@ export default function Contents() {
             </select>
           </Field>
           <Field label="ช่องทาง">
-            <input placeholder="Facebook, Instagram ฯลฯ" value={editForm.channel} onChange={e => setEditForm(f => ({ ...f, channel: e.target.value }))} className={inputCls} />
+            <select value={editForm.channel}
+              onChange={e => setEditForm(f => ({ ...f, channel: e.target.value }))}
+              className={selectCls}>
+              {settingChannels.map(ch => <option key={ch} value={ch}>{ch}</option>)}
+            </select>
           </Field>
           <div className="col-span-2">
             <Field label="ชื่อ Content" required>
