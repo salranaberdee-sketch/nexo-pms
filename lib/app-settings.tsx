@@ -26,6 +26,7 @@ export type AppSettingsValue = {
   companyTagline:  string
   channels:        string[]  // content_channels split by comma
   defaultChannel:  string
+  objectives:      string[]  // content_objectives split by comma
   productTypes:    string[]  // product_types split by comma
   brands:          string[]  // brands split by comma
   fiscalYearStart: string    // "01" – "12"
@@ -67,6 +68,7 @@ export function useAppSettings(): AppSettingsValue {
                        ? channelList
                        : ['Facebook', 'Line', 'TikTok', 'YouTube', 'Instagram', 'X', 'Website'],
     defaultChannel:  settings.default_channel   ?? 'Facebook',
+    objectives:      parseCSV(settings.content_objectives),
     productTypes:    parseCSV(settings.product_types),
     brands:          parseCSV(settings.brands),
     fiscalYearStart: settings.fiscal_year_start ?? '01',

@@ -14,6 +14,7 @@ import Modal, { Field, ConfirmModal } from './Modal'
 import ContentAssets, { type ContentAsset } from './ContentAssets'
 import { useContentTypes, type ContentType } from './ContentTypeManager'
 import ContentTypeManager from './ContentTypeManager'
+import ContentSettingsPanel from './ContentSettingsPanel'
 import { useSettings } from '@/lib/app-settings'
 import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, tdCls, tableWrapCls } from '@/lib/cx'
 import { IconPlus, IconPencil, IconTrash, IconChevronDown } from '@/lib/icons'
@@ -106,7 +107,7 @@ export default function Contents() {
   const canDelete = useCan('delete', 'contents')
   const canManageAssets = useCan('insert', 'contents') // editor+ can add assets
   const supabase = createClient()
-  const { channels: settingChannels, defaultChannel } = useSettings()
+  const { channels: settingChannels, defaultChannel, objectives: settingObjectives } = useSettings()
 
   // Expanded row state — shows assets panel
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -496,12 +497,7 @@ export default function Contents() {
 
       {/* ── Tab: ประเภท ───────────────────────────────────────── */}
       {activeTab === 'types' && (
-        <div className="max-w-lg">
-          <div className="bg-white border border-slate-200 rounded-2xl p-5">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">จัดการประเภท Content</p>
-            <ContentTypeManager />
-          </div>
-        </div>
+        <ContentSettingsPanel />
       )}
 
       {/* ── Tab: รายการ (guard) ───────────────────────────────── */}
@@ -802,8 +798,13 @@ export default function Contents() {
               onChange={e => setAddForm({ ...addForm, title: e.target.value })} className={inputCls} />
           </Field>
           <Field label="วัตถุประสงค์">
-            <input placeholder="Awareness / Conversion / ฯลฯ" value={addForm.objective}
+            <input list="objectives-list" placeholder="Awareness / Conversion / ฯลฯ" value={addForm.objective}
               onChange={e => setAddForm({ ...addForm, objective: e.target.value })} className={inputCls} />
+            {settingObjectives.length > 0 && (
+              <datalist id="objectives-list">
+                {settingObjectives.map(o => <option key={o} value={o} />)}
+              </datalist>
+            )}
           </Field>
           <Field label="ช่องทาง">
             <select value={addForm.channel || defaultChannel}
@@ -911,7 +912,12 @@ export default function Contents() {
             </Field>
           </div>
           <Field label="วัตถุประสงค์">
-            <input value={editForm.objective} onChange={e => setEditForm(f => ({ ...f, objective: e.target.value }))} className={inputCls} />
+            <input list="objectives-list-edit" value={editForm.objective} onChange={e => setEditForm(f => ({ ...f, objective: e.target.value }))} className={inputCls} />
+            {settingObjectives.length > 0 && (
+              <datalist id="objectives-list-edit">
+                {settingObjectives.map(o => <option key={o} value={o} />)}
+              </datalist>
+            )}
           </Field>
           <Field label="Hook">
             <input value={editForm.hook} onChange={e => setEditForm(f => ({ ...f, hook: e.target.value }))} className={inputCls} />
