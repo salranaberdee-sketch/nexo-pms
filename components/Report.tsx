@@ -6,74 +6,7 @@ import { useProfile, useCan } from '@/lib/profile-context'
 import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
 import { btnPrimary, btnSecondary, btnDanger, tableWrapCls, sectionLabelCls, inputCls, selectCls } from '@/lib/cx'
-
-// ─── Icons ────────────────────────────────────────────────────────────────────
-function IconBarChart2() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
-      <line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/>
-    </svg>
-  )
-}
-function IconMail() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
-    </svg>
-  )
-}
-function IconDownload() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-    </svg>
-  )
-}
-function IconPlus() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-    </svg>
-  )
-}
-function IconTrash() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-    </svg>
-  )
-}
-function IconEdit() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-    </svg>
-  )
-}
-function IconSend() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-    </svg>
-  )
-}
-function IconClock() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-    </svg>
-  )
-}
-function IconToggle({ on }: { on: boolean }) {
-  return (
-    <svg width="32" height="20" viewBox="0 0 32 20">
-      <rect x="0" y="0" width="32" height="20" rx="10" fill={on ? '#6366f1' : '#e2e8f0'}/>
-      <circle cx={on ? 22 : 10} cy="10" r="8" fill="white" style={{ transition: 'cx 0.2s' }}/>
-    </svg>
-  )
-}
+import { IconPlus, IconTrash, IconPencil, IconDownload, IconMail, IconSend, IconClock, IconToggle, IconBarChart2 } from '@/lib/icons'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ReportSchedule {
@@ -1007,7 +940,7 @@ export default function Report() {
                           <IconToggle on={s.is_active} />
                         </button>
                         <button onClick={() => openEdit(s)} title="แก้ไข" className={btnSecondary}>
-                          <IconEdit />
+                          <IconPencil />
                         </button>
                         <button onClick={() => setConfirmDelete(s.id)} title="ลบ" className={btnDanger}>
                           <IconTrash />

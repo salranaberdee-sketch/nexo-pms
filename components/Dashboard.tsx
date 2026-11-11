@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase'
 import { useProfile } from '@/lib/profile-context'
 import { EmptyState } from './TableState'
 import { showToast } from './Toast'
+import { productStatusStyle, contentStatusStyle, salesStatusStyle } from '@/lib/status-styles'
 
 const TODAY = new Date().toISOString().split('T')[0]
 const TODAY_MS = new Date(TODAY).getTime()
@@ -134,9 +135,6 @@ export default function Dashboard() {
     }
   }, [contents, ads, products, profile.id])
 
-  const statusStyle: Record<string, string> = { 'เปิดขาย': 'bg-emerald-50 text-emerald-700', 'เตรียมเปิดตัว': 'bg-amber-50 text-amber-700', 'กำลังพัฒนา': 'bg-blue-50 text-blue-700', 'หยุดขาย': 'bg-slate-100 text-slate-400' }
-  const contentStatusStyle: Record<string, string> = { 'รอผลิต': 'bg-slate-100 text-slate-500', 'ผลิตอยู่': 'bg-blue-50 text-blue-700', 'รออนุมัติ': 'bg-amber-50 text-amber-700', 'อนุมัติแล้ว': 'bg-purple-50 text-purple-700', 'กำหนดโพสต์': 'bg-orange-50 text-orange-700', 'โพสต์แล้ว': 'bg-emerald-50 text-emerald-700' }
-  const salesStatusStyle: Record<string, string> = { 'ยังไม่เปิดขาย': 'bg-slate-100 text-slate-400', 'ยังไม่เริ่ม': 'bg-blue-50 text-blue-700', 'กำลังขาย': 'bg-amber-50 text-amber-700', 'ปิดเป้า': 'bg-emerald-50 text-emerald-700' }
   const updatedLabel = lastUpdated ? lastUpdated.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''
 
   if (loading) return <Loading />
@@ -383,7 +381,7 @@ export default function Dashboard() {
                 {prod?.brand && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md">{prod.brand}</span>}
               </div>
               {prod?.status && (
-                <span className={`inline-block mt-1.5 text-xs px-2 py-0.5 rounded-md font-medium ${statusStyle[prod.status] || 'bg-slate-100 text-slate-400'}`}>{prod.status}</span>
+                <span className={`inline-block mt-1.5 text-xs px-2 py-0.5 rounded-md font-medium ${productStatusStyle[prod.status] || 'bg-slate-100 text-slate-400'}`}>{prod.status}</span>
               )}
             </div>
           </div>
@@ -780,7 +778,7 @@ export default function Dashboard() {
                                   <Link key={p.id} href="/products" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl border border-slate-100 bg-white hover:border-indigo-200 transition-colors">
                                     <span className="font-mono text-xs text-slate-400 shrink-0">{p.product_id}</span>
                                     <span className="text-sm text-slate-700 flex-1">{p.name}</span>
-                                    <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${statusStyle[p.status] || 'bg-slate-100 text-slate-400'}`}>{p.status}</span>
+                                    <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${productStatusStyle[p.status] || 'bg-slate-100 text-slate-400'}`}>{p.status}</span>
                                   </Link>
                                 ))}
                               </div>
@@ -848,7 +846,7 @@ export default function Dashboard() {
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-500">{p.brand}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${statusStyle[p.status] || 'bg-slate-100 text-slate-400'}`}>{p.status}</span>
+                          <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${productStatusStyle[p.status] || 'bg-slate-100 text-slate-400'}`}>{p.status}</span>
                         </td>
                         <td className="px-4 py-3 text-right text-sm text-slate-400">฿{target.toLocaleString()}</td>
                         <td className="px-4 py-3 text-right text-sm font-medium text-slate-900">฿{actual.toLocaleString()}</td>

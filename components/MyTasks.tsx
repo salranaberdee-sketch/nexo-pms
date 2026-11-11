@@ -7,6 +7,7 @@ import { useProfile } from '@/lib/profile-context'
 import { todayStr } from './TableState'
 import { showToast } from './Toast'
 import ContentAssets, { type ContentAsset } from './ContentAssets'
+import { contentStatusStyle as statusStyle } from '@/lib/status-styles'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -53,15 +54,6 @@ const ADVANCE_LABEL: Record<string, Record<string, string>> = {
   poster: {
     'กำหนดโพสต์': '✅ โพสต์แล้ว',
   },
-}
-
-const statusStyle: Record<string, string> = {
-  'รอผลิต':      'bg-slate-100 text-slate-500',
-  'ผลิตอยู่':     'bg-blue-50 text-blue-700',
-  'รออนุมัติ':   'bg-amber-50 text-amber-700',
-  'อนุมัติแล้ว': 'bg-purple-50 text-purple-700',
-  'กำหนดโพสต์': 'bg-orange-50 text-orange-700',
-  'โพสต์แล้ว':  'bg-emerald-50 text-emerald-700',
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────

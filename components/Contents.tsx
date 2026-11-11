@@ -14,20 +14,16 @@ import Modal, { Field, ConfirmModal } from './Modal'
 import ContentAssets, { type ContentAsset } from './ContentAssets'
 import { useSettings } from '@/lib/app-settings'
 import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, tdCls, tableWrapCls } from '@/lib/cx'
+import { IconPlus, IconPencil, IconTrash, IconChevronDown } from '@/lib/icons'
+import { contentStatusStyle as statusStyle } from '@/lib/status-styles'
+import type { Tables } from '@/src/types/database'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type Content = Tables<'contents'>
+
 const STATUSES = ['รอผลิต', 'ผลิตอยู่', 'รออนุมัติ', 'อนุมัติแล้ว', 'กำหนดโพสต์', 'โพสต์แล้ว']
 const TYPES    = ['GRAPHIC', 'VIDEO', 'COPY']
-
-const statusStyle: Record<string, string> = {
-  'รอผลิต':       'bg-slate-100 text-slate-500',
-  'ผลิตอยู่':      'bg-blue-50 text-blue-700',
-  'รออนุมัติ':    'bg-amber-50 text-amber-700',
-  'อนุมัติแล้ว':  'bg-purple-50 text-purple-700',
-  'กำหนดโพสต์':  'bg-orange-50 text-orange-700',
-  'โพสต์แล้ว':   'bg-emerald-50 text-emerald-700',
-}
 
 const typeStyle: Record<string, string> = {
   GRAPHIC: 'bg-blue-50 text-blue-600',
@@ -40,42 +36,6 @@ const DONE_STATUS = 'โพสต์แล้ว'
 const TODAY = todayStr()
 const TODAY_MS = new Date(TODAY).getTime()
 const SOON_DAYS = 3
-
-function IconChevron() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-      <polyline points="6 9 12 15 18 9"/>
-    </svg>
-  )
-}
-
-// ─── ContentAssetsPanel ───────────────────────────────────────────────────────
-
-function IconPlus() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  )
-}
-function IconPencil() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-    </svg>
-  )
-}
-function IconTrash() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6"/>
-      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-      <path d="M10 11v6"/><path d="M14 11v6"/>
-      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-    </svg>
-  )
-}
 
 const EMPTY_ADD_FORM = {
   product_id: '', seq: '', type: 'GRAPHIC', title: '',
@@ -114,8 +74,8 @@ export default function Contents() {
   const initialProduct = searchParams.get('product') || 'all'
   const me = useProfile()
 
-  const [contents, setContents]             = useState<any[]>([])
-  const [products, setProducts]             = useState<any[]>([])
+  const [contents, setContents]             = useState<Content[]>([])
+  const [products, setProducts]             = useState<Tables<'products'>[]>([])
   const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([])
   const [filterProduct, setFilterProduct]   = useState(initialProduct)
   const [filterStatus, setFilterStatus]     = useState('all')
@@ -130,7 +90,7 @@ export default function Contents() {
   const [addError, setAddError] = useState('')
 
   // Edit modal
-  const [editingRow, setEditingRow] = useState<any | null>(null)
+  const [editingRow, setEditingRow] = useState<Content | null>(null)
   const [editForm, setEditForm]     = useState({ ...EMPTY_EDIT_FORM })
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError]   = useState('')
@@ -215,7 +175,7 @@ export default function Contents() {
     return profileOptions.filter(p =>
       p.role === 'admin' || p.role === 'manager' ||
       !p.brand_access?.length ||
-      (p.brand_access as string[]).includes(product.brand),
+      (p.brand_access as string[]).includes(product.brand!),
     )
   }
 
@@ -426,7 +386,7 @@ export default function Contents() {
     setContents(prev => prev.map(c => c.id === id ? { ...c, status } : c))
     const { error: updErr } = await supabase.from('contents').update({ status }).eq('id', id)
     if (updErr) {
-      setContents(prev => prev.map(c => c.id === id ? { ...c, status: old } : c))
+      setContents(prev => prev.map(c => c.id === id ? { ...c, status: old ?? c.status } : c))
       showToast(updErr.message, 'error')
     }
   }
@@ -442,7 +402,7 @@ export default function Contents() {
     }).eq('id', id)
     if (updErr) {
       showToast(updErr.message, 'error')
-      setContents(prev => prev.map(c => c.id === id ? { ...c, assigned_to_id: old?.assigned_to_id, assigned_to: old?.assigned_to } : c))
+      setContents(prev => prev.map(c => c.id === id ? { ...c, assigned_to_id: old?.assigned_to_id ?? null, assigned_to: old?.assigned_to ?? null } : c))
     } else if (assigned_to_id && assigned_to_id !== prevId) {
       await logAssignment(id, 'assigned_to', assigned_to_id, assigned_to)
     }
@@ -580,7 +540,7 @@ export default function Contents() {
                 const daysUntil = c.deadline && c.status !== DONE_STATUS
                   ? Math.round((new Date(c.deadline).getTime() - TODAY_MS) / 86400000) : null
                 const soon = !overdue && daysUntil !== null && daysUntil >= 0 && daysUntil <= SOON_DAYS
-                const daysLate = overdue ? Math.round((TODAY_MS - new Date(c.deadline).getTime()) / 86400000) : 0
+                const daysLate = overdue ? Math.round((TODAY_MS - new Date(c.deadline!).getTime()) / 86400000) : 0
                 const rowBg = overdue ? 'bg-red-50/40' : soon ? 'bg-amber-50/40' : ''
                 const isNew = !c.acknowledged_at && (
                   c.producer_id === me.id || c.assigned_to_id === me.id
@@ -601,7 +561,7 @@ export default function Contents() {
                         <button onClick={() => handleExpandRow(c.id)}
                           title={isExpanded ? 'ซ่อนรายละเอียด' : 'ดูรายละเอียด / assets'}
                           className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 ${isExpanded ? 'bg-indigo-100 text-indigo-600 rotate-180' : ''}`}>
-                          <IconChevron />
+                          <IconChevronDown />
                         </button>
                       </td>
                       <td className={`${tdCls} text-sm text-slate-400 tabular-nums font-medium`}>{c.seq}</td>
@@ -667,7 +627,7 @@ export default function Contents() {
                         ) : <span className="text-sm text-slate-300">—</span>}
                       </td>
                       <td className={tdCls}>
-                        <StatusSelect value={c.status} options={STATUSES} styleMap={statusStyle}
+                        <StatusSelect value={c.status ?? 'รอผลิต'} options={STATUSES} styleMap={statusStyle}
                           disabled={!canUpdate} onChange={v => updateStatus(c.id, v)} />
                       </td>
                       <td className={`${tdCls} whitespace-nowrap`}>

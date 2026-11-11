@@ -13,17 +13,14 @@ import Modal, { Field, ConfirmModal } from './Modal'
 import CategoryManager, { useCategories } from './CategoryManager'
 import { useSettings } from '@/lib/app-settings'
 import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, tdCls, tableWrapCls } from '@/lib/cx'
+import { IconPlus, IconPencil, IconTrash, IconCopy } from '@/lib/icons'
+import { productStatusStyle as statusStyle } from '@/lib/status-styles'
+import type { Tables } from '@/src/types/database'
 
 const STATUS_OPTIONS = ['กำลังพัฒนา', 'เตรียมเปิดตัว', 'เปิดขาย', 'หยุดขาย']
 
 type Feature = { id: number; label: string; value: string; sort_order: number }
-
-const statusStyle: Record<string, string> = {
-  'เปิดขาย':       'bg-emerald-50 text-emerald-700',
-  'เตรียมเปิดตัว': 'bg-amber-50 text-amber-700',
-  'กำลังพัฒนา':   'bg-blue-50 text-blue-700',
-  'หยุดขาย':       'bg-slate-100 text-slate-400',
-}
+type Product = Tables<'products'>
 
 const PID_RE = /^[A-Z]+-[A-Z]+-\d+$/
 
@@ -32,38 +29,8 @@ const EMPTY_FORM = {
   brand: '', owner: '', owner_id: '', status: 'กำลังพัฒนา', notes: '', start_date: '',
 }
 
-function IconPlus() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  )
-}
-function IconPencil() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-    </svg>
-  )
-}
-function IconTrash() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-    </svg>
-  )
-}
-function IconCopy() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-    </svg>
-  )
-}
-
 export default function Products() {
-  const [products, setProducts]             = useState<any[]>([])
+  const [products, setProducts]             = useState<Product[]>([])
   const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([])
   const [loading, setLoading]               = useState(true)
   const [loadError, setLoadError]           = useState('')
@@ -301,7 +268,7 @@ export default function Products() {
     const { error: updErr } = await supabase.from('products').update({ status }).eq('id', id)
     if (updErr) {
       showToast(updErr.message, 'error')
-      setProducts(prev => prev.map(p => p.id === id ? { ...p, status: old } : p))
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, status: old ?? p.status } : p))
     }
   }
 
@@ -505,7 +472,7 @@ export default function Products() {
                       : '—'}
                   </td>
                   <td className={tdCls}>
-                    <StatusSelect value={p.status} options={STATUS_OPTIONS} styleMap={statusStyle}
+                    <StatusSelect value={p.status ?? 'กำลังพัฒนา'} options={STATUS_OPTIONS} styleMap={statusStyle}
                       disabled={!canUpdate} onChange={v => updateStatus(p.id, v)} />
                   </td>
                   <td className={`${tdCls} text-sm text-slate-400 max-w-[180px]`}>
@@ -587,7 +554,7 @@ export default function Products() {
             <datalist id="product-type-options">
               {settingProductTypes.length > 0
                 ? settingProductTypes.map(pt => <option key={pt} value={pt} />)
-                : [...new Set(products.map(p => p.product_type).filter(Boolean))].sort().map(pt => (
+                : [...new Set(products.map(p => p.product_type).filter(Boolean) as string[])].sort().map(pt => (
                     <option key={pt} value={pt} />
                   ))}
             </datalist>
@@ -603,7 +570,7 @@ export default function Products() {
             <datalist id="brand-options">
               {settingBrands.length > 0
                 ? settingBrands.map(b => <option key={b} value={b} />)
-                : [...new Set(products.map(p => p.brand).filter(Boolean))].sort().map(b => (
+                : [...new Set(products.map(p => p.brand).filter(Boolean) as string[])].sort().map(b => (
                     <option key={b} value={b} />
                   ))}
             </datalist>

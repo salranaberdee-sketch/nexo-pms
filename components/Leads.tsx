@@ -11,46 +11,18 @@ import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
 import type { ProfileOption } from './InlinePersonPicker'
 import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, tdCls, tableWrapCls, sectionLabelCls } from '@/lib/cx'
+import { IconPlus, IconPencil, IconTrash } from '@/lib/icons'
+import { leadStatusStyle } from '@/lib/status-styles'
+import type { Tables } from '@/src/types/database'
 
 const LEAD_STATUSES = ['ใหม่', 'ติดต่อแล้ว', 'ผ่านเกณฑ์', 'ปิดการขาย', 'ไม่สำเร็จ']
 const CHANNELS = ['form', 'LINE', 'inbox', 'phone', 'other']
 
-const leadStatusStyle: Record<string, string> = {
-  'ใหม่':         'bg-blue-50 text-blue-700',
-  'ติดต่อแล้ว':  'bg-amber-50 text-amber-700',
-  'ผ่านเกณฑ์':   'bg-purple-50 text-purple-700',
-  'ปิดการขาย':   'bg-emerald-50 text-emerald-700',
-  'ไม่สำเร็จ':   'bg-red-50 text-red-500',
-}
+type Lead = Tables<'leads'>
+type Product = Tables<'products'>
 
 const channelLabel: Record<string, string> = {
   form: 'Form', LINE: 'LINE', inbox: 'Inbox', phone: 'โทร', other: 'อื่นๆ',
-}
-
-function IconPlus() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  )
-}
-function IconPencil() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-    </svg>
-  )
-}
-function IconTrash() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6"/>
-      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-      <path d="M10 11v6"/><path d="M14 11v6"/>
-      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-    </svg>
-  )
 }
 
 const EMPTY_FORM = {
@@ -191,10 +163,10 @@ function LeadForm({ form, setForm, products, adsOpts, contentsOpts, profileOptio
 }
 
 export default function Leads() {
-  const [leads, setLeads]                   = useState<any[]>([])
-  const [products, setProducts]             = useState<any[]>([])
-  const [ads, setAds]                       = useState<any[]>([])
-  const [contents, setContents]             = useState<any[]>([])
+  const [leads, setLeads]                   = useState<Lead[]>([])
+  const [products, setProducts]             = useState<Product[]>([])
+  const [ads, setAds]                       = useState<Tables<'ads'>[]>([])
+  const [contents, setContents]             = useState<Tables<'contents'>[]>([])
   const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([])
   const [loading, setLoading]               = useState(true)
   const [loadError, setLoadError]           = useState('')

@@ -9,17 +9,11 @@ import { TableSkeleton, EmptyState } from './TableState'
 import { showToast } from './Toast'
 import { ConfirmModal } from './Modal'
 import { btnDanger, thCls, tdCls, tableWrapCls } from '@/lib/cx'
+import { IconTrash } from '@/lib/icons'
+import { roleStyle, approvalStatusStyle } from '@/lib/status-styles'
+import type { Tables } from '@/src/types/database'
 
-function IconTrash() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6"/>
-      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-      <path d="M10 11v6"/><path d="M14 11v6"/>
-      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-    </svg>
-  )
-}
+type ProfileRow = Tables<'profiles'>
 
 const ROLES = ['admin', 'manager', 'editor', 'viewer']
 
@@ -29,12 +23,6 @@ const approvalLabel: Record<string, string> = {
   rejected: 'ปฏิเสธ',
 }
 
-const roleStyle: Record<string, string> = {
-  admin:   'bg-purple-50 text-purple-700',
-  manager: 'bg-blue-50 text-blue-700',
-  editor:  'bg-teal-50 text-teal-700',
-  viewer:  'bg-slate-100 text-slate-500',
-}
 
 const APPROVAL_DISPLAY_OPTIONS = ['รออนุมัติ', 'อนุมัติแล้ว', 'ปฏิเสธ']
 const approvalDisplayStyle: Record<string, string> = {
@@ -49,7 +37,7 @@ const thaiToApproval: Record<string, string> = {
 }
 
 export default function Team() {
-  const [profiles, setProfiles] = useState<any[]>([])
+  const [profiles, setProfiles] = useState<ProfileRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
@@ -125,7 +113,7 @@ export default function Team() {
     }).eq('id', id)
     if (updErr) {
       // Immediate rollback — restore old status without waiting for reload
-      setProfiles(prev => prev.map(p => p.id === id ? { ...p, approval_status: oldStatus } : p))
+      setProfiles(prev => prev.map(p => p.id === id ? { ...p, approval_status: oldStatus ?? p.approval_status } : p))
       setError(updErr.message)
     } else {
       showToast(newStatus === 'approved' ? 'อนุมัติแล้ว' : newStatus === 'rejected' ? 'ปฏิเสธแล้ว' : 'อัปเดตสถานะแล้ว')
@@ -140,7 +128,7 @@ export default function Team() {
     const { error: updErr } = await supabase.from('profiles').update({ role }).eq('id', id)
     if (updErr) {
       // Immediate rollback
-      setProfiles(prev => prev.map(p => p.id === id ? { ...p, role: oldRole } : p))
+      setProfiles(prev => prev.map(p => p.id === id ? { ...p, role: oldRole ?? p.role } : p))
       setError(updErr.message)
     } else {
       showToast('เปลี่ยน role แล้ว')
