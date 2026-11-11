@@ -12,6 +12,7 @@ import InlinePersonPicker, { type ProfileOption } from './InlinePersonPicker'
 import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
 import ContentAssets, { type ContentAsset } from './ContentAssets'
+import { useContentTypes, type ContentType } from './ContentTypeManager'
 import { useSettings } from '@/lib/app-settings'
 import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, tdCls, tableWrapCls } from '@/lib/cx'
 import { IconPlus, IconPencil, IconTrash, IconChevronDown } from '@/lib/icons'
@@ -23,14 +24,11 @@ import type { Tables } from '@/src/types/database'
 type Content = Tables<'contents'>
 
 const STATUSES = ['รอผลิต', 'ผลิตอยู่', 'รออนุมัติ', 'อนุมัติแล้ว', 'กำหนดโพสต์', 'โพสต์แล้ว']
-const TYPES    = ['GRAPHIC', 'VIDEO', 'COPY']
 
-const typeStyle: Record<string, string> = {
-  GRAPHIC: 'bg-blue-50 text-blue-600',
-  VIDEO:   'bg-purple-50 text-purple-600',
-  COPY:    'bg-orange-50 text-orange-600',
+// Helpers derived from dynamic content_types list
+function typeStyleOf(contentTypes: ContentType[], name: string): string {
+  return contentTypes.find(t => t.name === name)?.color ?? 'bg-slate-100 text-slate-500'
 }
-const typeLabel: Record<string, string> = { GRAPHIC: 'Graphic', VIDEO: 'Video', COPY: 'Copy' }
 
 const DONE_STATUS = 'โพสต์แล้ว'
 const TODAY = todayStr()
@@ -38,7 +36,7 @@ const TODAY_MS = new Date(TODAY).getTime()
 const SOON_DAYS = 3
 
 const EMPTY_ADD_FORM = {
-  product_id: '', seq: '', type: 'GRAPHIC', title: '',
+  product_id: '', seq: '', type: '', title: '',
   objective: '', channel: '', hook: '', format_size: '',
   assigned_to: '', assigned_to_id: '',
   producer: '', producer_id: '',
@@ -51,7 +49,7 @@ const EMPTY_ADD_FORM = {
 }
 
 const EMPTY_EDIT_FORM = {
-  product_id: '', seq: '', type: 'GRAPHIC', title: '',
+  product_id: '', seq: '', type: '', title: '',
   objective: '', channel: '', hook: '', format_size: '',
   deadline: '',
   assigned_to: '', assigned_to_id: '',
@@ -73,6 +71,9 @@ export default function Contents() {
   const searchParams = useSearchParams()
   const initialProduct = searchParams.get('product') || 'all'
   const me = useProfile()
+
+  // Dynamic content types from DB
+  const { contentTypes } = useContentTypes()
 
   const [contents, setContents]             = useState<Content[]>([])
   const [products, setProducts]             = useState<Tables<'products'>[]>([])
@@ -569,8 +570,8 @@ export default function Contents() {
                         <span className="font-mono text-xs font-medium bg-slate-100 text-slate-600 px-2 py-1 rounded-md">{c.product_id}</span>
                       </td>
                       <td className={tdCls}>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${typeStyle[c.type] || 'bg-slate-100 text-slate-500'}`}>
-                          {typeLabel[c.type] || c.type}
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${typeStyleOf(contentTypes, c.type)}`}>
+                          {c.type}
                         </span>
                       </td>
                       <td className={`${tdCls} max-w-[220px]`}>
@@ -739,8 +740,8 @@ export default function Contents() {
             </div>
           </Field>
           <Field label="ประเภท" required>
-            <select value={addForm.type} onChange={e => setAddForm({ ...addForm, type: e.target.value })} className={selectCls}>
-              {TYPES.map(t => <option key={t}>{t}</option>)}
+            <select value={addForm.type || (contentTypes[0]?.name ?? '')} onChange={e => setAddForm({ ...addForm, type: e.target.value })} className={selectCls}>
+              {contentTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
             </select>
           </Field>
           <Field label="ชื่อ Content" required>
@@ -841,7 +842,7 @@ export default function Contents() {
           </Field>
           <Field label="ประเภท" required>
             <select value={editForm.type} onChange={e => setEditForm(f => ({ ...f, type: e.target.value }))} className={selectCls}>
-              {TYPES.map(t => <option key={t}>{t}</option>)}
+              {contentTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
             </select>
           </Field>
           <Field label="ช่องทาง">

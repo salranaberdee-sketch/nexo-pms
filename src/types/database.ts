@@ -165,6 +165,38 @@ export type Database = {
           },
         ]
       }
+      app_settings: {
+        Row: {
+          description: string | null
+          key: string
+          updated_at: string | null
+          updated_by: string | null
+          value: string | null
+        }
+        Insert: {
+          description?: string | null
+          key: string
+          updated_at?: string | null
+          updated_by?: string | null
+          value?: string | null
+        }
+        Update: {
+          description?: string | null
+          key?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string | null
@@ -320,6 +352,30 @@ export type Database = {
             referencedColumns: ["content_id"]
           },
         ]
+      }
+      content_types: {
+        Row: {
+          color: string
+          created_at: string | null
+          id: number
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          color?: string
+          created_at?: string | null
+          id?: number
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          color?: string
+          created_at?: string | null
+          id?: number
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
       }
       contents: {
         Row: {
@@ -829,6 +885,74 @@ export type Database = {
           {
             foreignKeyName: "profiles_approved_by_fkey"
             columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_schedules: {
+        Row: {
+          created_at: string
+          created_by: string
+          date_range_days: number
+          format: string
+          frequency: string
+          id: number
+          is_active: boolean
+          last_sent_at: string | null
+          name: string
+          next_run_at: string | null
+          product_filter: string[] | null
+          recipients: string[]
+          schedule_day: number | null
+          schedule_time: string
+          sections: string[]
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          date_range_days?: number
+          format?: string
+          frequency?: string
+          id?: number
+          is_active?: boolean
+          last_sent_at?: string | null
+          name: string
+          next_run_at?: string | null
+          product_filter?: string[] | null
+          recipients?: string[]
+          schedule_day?: number | null
+          schedule_time?: string
+          sections?: string[]
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          date_range_days?: number
+          format?: string
+          frequency?: string
+          id?: number
+          is_active?: boolean
+          last_sent_at?: string | null
+          name?: string
+          next_run_at?: string | null
+          product_filter?: string[] | null
+          recipients?: string[]
+          schedule_day?: number | null
+          schedule_time?: string
+          sections?: string[]
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_schedules_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
