@@ -1,7 +1,7 @@
   'use client'
 
 import React, { useEffect, useState, useMemo } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useCan, useProfile } from '@/lib/profile-context'
 import ProfilePicker from './ProfilePicker'
@@ -441,8 +441,17 @@ export default function Contents() {
   const [visibleCount, setVisibleCount] = useState(10)
   useEffect(() => { setVisibleCount(10) }, [filterProduct, filterStatus, search, dateFrom, dateTo])
 
-  // Tab: 'list' | 'types'
-  const [activeTab, setActiveTab] = useState<'list' | 'types'>('list')
+  // Tab: sync with ?tab= URL param
+  const router = useRouter()
+  const rawTab = searchParams.get('tab')
+  const activeTab: 'list' | 'types' = rawTab === 'types' ? 'types' : 'list'
+
+  function setActiveTab(tab: 'list' | 'types') {
+    const params = new URLSearchParams(searchParams.toString())
+    if (tab === 'list') params.delete('tab')
+    else params.set('tab', tab)
+    router.replace(`/contents?${params.toString()}`)
+  }
 
   return (
     <div className="p-6 space-y-5">

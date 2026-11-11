@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react'
 import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useProfile } from '@/lib/profile-context'
 import { todayStr } from './TableState'
@@ -39,20 +40,20 @@ const NEXT_STATUS: Record<string, Record<string, string>> = {
 // Label for the "advance" button per role + status
 const ADVANCE_LABEL: Record<string, Record<string, string>> = {
   producer: {
-    'รอผลิต':      '▶ เริ่มผลิต',
-    'ผลิตอยู่':     '📤 ส่งอนุมัติ',
-    'อนุมัติแล้ว': '📅 กำหนดโพสต์',
-    'กำหนดโพสต์': '✅ โพสต์แล้ว',
+    'รอผลิต':      'เริ่มผลิต',
+    'ผลิตอยู่':     'ส่งอนุมัติ',
+    'อนุมัติแล้ว': 'กำหนดโพสต์',
+    'กำหนดโพสต์': 'โพสต์แล้ว',
   },
   assigned_to: {
-    'รอผลิต':  '▶ เริ่มผลิต',
-    'ผลิตอยู่': '📤 ส่งอนุมัติ',
+    'รอผลิต':  'เริ่มผลิต',
+    'ผลิตอยู่': 'ส่งอนุมัติ',
   },
   approver: {
-    'รออนุมัติ': '✅ อนุมัติ',
+    'รออนุมัติ': 'อนุมัติ',
   },
   poster: {
-    'กำหนดโพสต์': '✅ โพสต์แล้ว',
+    'กำหนดโพสต์': 'โพสต์แล้ว',
   },
 }
 
@@ -107,13 +108,23 @@ type TeamItem = {
 export default function MyTasks() {
   const me     = useProfile()
   const canManage = me.role === 'admin' || me.role === 'manager'
+  const searchParams = useSearchParams()
+  const router       = useRouter()
 
   const [tasks, setTasks]         = useState<MyTask[]>([])
   const [teamTasks, setTeamTasks] = useState<MyTask[]>([]) // all tasks (manager/admin)
   const [profiles, setProfiles]   = useState<{ id: string; name: string; role: string }[]>([])
   const [loading, setLoading]     = useState(true)
   const [loadError, setLoadError] = useState('')
-  const [activeTab, setActiveTab] = useState<'mine' | 'team'>('mine')
+  // Tab: sync with ?tab= URL param
+  const rawTab = searchParams.get('tab')
+  const activeTab: 'mine' | 'team' = rawTab === 'team' ? 'team' : 'mine'
+  function setActiveTab(tab: 'mine' | 'team') {
+    const params = new URLSearchParams(searchParams.toString())
+    if (tab === 'mine') params.delete('tab')
+    else params.set('tab', tab)
+    router.replace(`/my-tasks?${params.toString()}`)
+  }
   const [filterBrand, setFilterBrand]   = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [expandedId, setExpandedId]     = useState<string | null>(null) // `${id}-${role}`
@@ -534,12 +545,12 @@ export default function MyTasks() {
           : <div className="space-y-5">
               {(
                 [
-                  { key: 'new'        as GroupKey, label: '📬 งานใหม่ — รอรับทราบ',      accent: 'border-indigo-200' },
-                  { key: 'approve'    as GroupKey, label: '✅ รอฉันอนุมัติ',              accent: 'border-amber-200' },
-                  { key: 'post_today' as GroupKey, label: '📅 ต้องโพสต์วันนี้',           accent: 'border-orange-300 bg-orange-50/30' },
-                  { key: 'overdue'    as GroupKey, label: '🔴 เกิน Deadline',              accent: 'border-red-200' },
-                  { key: 'pending'    as GroupKey, label: '🔵 กำลังดำเนินการ',            accent: 'border-slate-200' },
-                  { key: 'done'       as GroupKey, label: '✓ เสร็จแล้ว',                  accent: 'border-slate-100 opacity-70' },
+                  { key: 'new'        as GroupKey, label: 'งานใหม่ — รอรับทราบ',      accent: 'border-indigo-200' },
+                  { key: 'approve'    as GroupKey, label: 'รอฉันอนุมัติ',              accent: 'border-amber-200' },
+                  { key: 'post_today' as GroupKey, label: 'ต้องโพสต์วันนี้',           accent: 'border-orange-300 bg-orange-50/30' },
+                  { key: 'overdue'    as GroupKey, label: 'เกิน Deadline',              accent: 'border-red-200' },
+                  { key: 'pending'    as GroupKey, label: 'กำลังดำเนินการ',            accent: 'border-slate-200' },
+                  { key: 'done'       as GroupKey, label: 'เสร็จแล้ว',                  accent: 'border-slate-100 opacity-70' },
                 ]
               ).filter(g => grouped[g.key].length > 0).map(({ key, label, accent }) => (
                 <div key={key} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${accent}`}>
@@ -608,7 +619,7 @@ export default function MyTasks() {
                       )}
                       {group.tasks.filter(t => t.status === DONE_STATUS).length > 0 && (
                         <span className="text-xs font-semibold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
-                          ✓ {group.tasks.filter(t => t.status === DONE_STATUS).length} เสร็จ
+                          {group.tasks.filter(t => t.status === DONE_STATUS).length} เสร็จ
                         </span>
                       )}
                     </div>
@@ -703,7 +714,7 @@ function TaskRow({
     producer: 'bg-blue-50 text-blue-700', approver: 'bg-purple-50 text-purple-700',
     assigned_to: 'bg-teal-50 text-teal-700', poster: 'bg-orange-50 text-orange-700',
   }
-  const typeIcon: Record<string, string> = { GRAPHIC: '🖼', VIDEO: '🎬', COPY: '📝' }
+  const typeIcon: Record<string, string> = { GRAPHIC: '', VIDEO: '', COPY: '' }
 
   // Require file_link when submitting for approval
   const needsFileLink = nextStatus === 'รออนุมัติ'
@@ -738,8 +749,8 @@ function TaskRow({
           {isNew && <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />}
         </div>
 
-        {/* Type icon */}
-        <span className="shrink-0 text-base">{typeIcon[task.type] || '📄'}</span>
+        {/* Type badge */}
+        <span className="shrink-0 text-[10px] font-bold text-slate-400 w-10 text-center">{task.type}</span>
 
         {/* Role badge */}
         <span className={`shrink-0 hidden sm:inline text-xs font-semibold px-2 py-0.5 rounded-lg ${roleColor[myRole]}`}>
@@ -815,13 +826,13 @@ function TaskRow({
             {task.file_link && (
               <a href={task.file_link} target="_blank" rel="noreferrer"
                 className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                📎 ไฟล์งาน
+                ไฟล์งาน
               </a>
             )}
             {task.post_link && (
               <a href={task.post_link} target="_blank" rel="noreferrer"
                 className="text-xs text-emerald-600 hover:underline flex items-center gap-1">
-                🔗 ลิงก์โพสต์
+                ลิงก์โพสต์
               </a>
             )}
             <Link href={`/contents?product=${task.product_id}`}
@@ -931,13 +942,13 @@ function TaskRow({
                   disabled={!!isActioning}
                   className="text-xs font-semibold bg-emerald-600 text-white px-4 py-2 rounded-xl hover:bg-emerald-500 transition-colors disabled:opacity-40"
                 >
-                  {isActioning ? '...' : '✅ อนุมัติ'}
+                  {isActioning ? '...' : 'อนุมัติ'}
                 </button>
                 <button
                   onClick={e => { e.stopPropagation(); setShowRejectForm(!showRejectForm); setRejectIssues(task.issues || '') }}
                   className="text-xs font-semibold bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-xl hover:bg-red-100 transition-colors"
                 >
-                  ↩ ส่งกลับแก้ไข
+                  ส่งกลับแก้ไข
                 </button>
               </div>
               {showRejectForm && (
@@ -1039,7 +1050,7 @@ function InlineFieldUpdate({ label, value, placeholder, onSave }: {
         onClick={e => { e.stopPropagation(); setVal(value); setEditing(true) }}
         className="text-xs text-slate-400 hover:text-indigo-600 hover:underline transition-colors"
       >
-        ✏️ {label}
+        {label}
         {value && <span className="text-slate-500 ml-1 truncate max-w-[160px] inline-block align-bottom">{value}</span>}
       </button>
     )
@@ -1092,7 +1103,7 @@ function ReassignPicker({ label, currentId, currentName, profiles, onSave }: {
             }}
             className="shrink-0 text-[10px] font-semibold bg-emerald-600 text-white px-2 py-1.5 rounded-lg hover:bg-emerald-500"
           >
-            ✓
+            บันทึก
           </button>
         )}
       </div>
