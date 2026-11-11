@@ -107,7 +107,7 @@ export default function Contents() {
   const canDelete = useCan('delete', 'contents')
   const canManageAssets = useCan('insert', 'contents') // editor+ can add assets
   const supabase = createClient()
-  const { channels: settingChannels, defaultChannel, objectives: settingObjectives } = useSettings()
+  const { channels: settingChannels, defaultChannel, objectives: settingObjectives = [] } = useSettings()
 
   // Expanded row state — shows assets panel
   const [expandedId, setExpandedId] = useState<number | null>(null)
