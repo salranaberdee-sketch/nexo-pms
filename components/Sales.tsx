@@ -308,7 +308,7 @@ export default function Sales() {
 
       {/* ── Category summary cards ────────────────────────────── */}
       {categoryStats.length > 0 && (
-        <div className={`grid gap-3 ${categoryStats.length <= 2 ? 'grid-cols-2' : categoryStats.length === 3 ? 'grid-cols-3' : 'grid-cols-2 lg:grid-cols-4'}`}>
+        <div className={`grid gap-3 ${categoryStats.length <= 2 ? 'grid-cols-2' : categoryStats.length === 3 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2 lg:grid-cols-4'}`}>
           {categoryStats.map(({ cat, target, actual, pct }, i) => {
             // Tailwind-safe color pairs [accent-bar, progress-bar, text]
             const colorPairs = [

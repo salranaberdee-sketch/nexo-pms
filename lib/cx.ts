@@ -37,13 +37,13 @@ export const cardCls =
 export const btnPrimary =
   'flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-500 active:bg-indigo-700 transition-colors shadow-sm'
 
-/** Secondary / ghost button */
+/** Secondary / ghost button — min-h-[36px] on mobile for comfortable tap target */
 export const btnSecondary =
-  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-lg transition-colors'
+  'flex items-center gap-1.5 px-3 py-2 sm:py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-lg transition-colors'
 
-/** Destructive ghost button */
+/** Destructive ghost button — min-h-[36px] on mobile for comfortable tap target */
 export const btnDanger =
-  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 border border-transparent rounded-lg transition-colors'
+  'flex items-center gap-1.5 px-3 py-2 sm:py-1.5 text-xs font-medium text-slate-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 border border-transparent rounded-lg transition-colors'
 
 // ── Filter pill ──────────────────────────────────────────────────────────────
 export const pillActive =

@@ -17,13 +17,11 @@ import { roleStyle } from '@/lib/status-styles'
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 export default function Sidebar({
-  user, profile, onCollapse, mobileOpen, onMobileClose,
+  user, profile, onCollapse,
 }: {
   user: User | null
   profile: Profile | null
   onCollapse?: (collapsed: boolean) => void
-  mobileOpen?: boolean
-  onMobileClose?: () => void
 }) {
   const pathname  = usePathname()
   const supabase  = createClient()
@@ -44,12 +42,31 @@ export default function Sidebar({
     if (typeof window !== 'undefined') {
       localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0')
     }
-  }, [collapsed])
+  }, [collapsed]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Close mobile drawer on route change
   useEffect(() => {
-    onMobileClose?.()
-  }, [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!isAdmin) return
+    supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('approval_status', 'pending')
+      .then(({ count, error }: { count: number | null; error: { message: string } | null }) => {
+        if (!error) setPendingCount(count ?? 0)
+      })
+  }, [isAdmin]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!profile?.id) return
+    supabase
+      .from('contents')
+      .select('id', { count: 'exact', head: true })
+      .or(`producer_id.eq.${profile.id},approver_id.eq.${profile.id},assigned_to_id.eq.${profile.id}`)
+      .is('acknowledged_at', null)
+      .neq('status', 'โพสต์แล้ว')
+      .then(({ count, error }: { count: number | null; error: { message: string } | null }) => {
+        if (!error) setMyTaskCount(count ?? 0)
+      })
+  }, [profile?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isAdmin) return
@@ -134,28 +151,28 @@ export default function Sidebar({
 
   const initials = (profile?.name?.[0] || user?.email?.[0] || '?').toUpperCase()
 
-  // Shared nav content — used in both desktop sidebar and mobile drawer
-  function NavContent({ isMobile = false }: { isMobile?: boolean }) {
+  // Shared nav content — desktop sidebar only
+  function NavContent() {
     return (
       <>
         {/* ── Logo ── */}
         <div className={`border-b border-slate-200 transition-all duration-200 flex items-center ${
-          !isMobile && collapsed ? 'px-3 py-4 justify-center' : 'px-4 py-4 justify-between'
+          collapsed ? 'px-3 py-4 justify-center' : 'px-4 py-4 justify-between'
         }`}>
           <Link href="/dashboard" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity min-w-0">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
               style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
               <span className="text-white font-bold text-sm">N</span>
             </div>
-            {(isMobile || !collapsed) && (
+            {!collapsed && (
               <div className="min-w-0 overflow-hidden">
                 <p className="font-semibold text-slate-900 text-sm leading-none whitespace-nowrap">{companyName}</p>
                 <p className="text-[11px] text-slate-400 mt-0.5 truncate">{companyTagline}</p>
               </div>
             )}
           </Link>
-          {/* Desktop collapse button */}
-          {!isMobile && !collapsed && (
+          {/* Collapse button */}
+          {!collapsed && (
             <button
               onClick={() => setCollapsed(true)}
               title="ย่อ sidebar"
@@ -164,22 +181,10 @@ export default function Sidebar({
               <IconChevronLeft />
             </button>
           )}
-          {/* Mobile close button */}
-          {isMobile && (
-            <button
-              onClick={onMobileClose}
-              className="shrink-0 ml-2 w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-              aria-label="ปิด menu"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
-          )}
         </div>
 
-        {/* Desktop expand button when collapsed */}
-        {!isMobile && collapsed && (
+        {/* Expand button when collapsed */}
+        {collapsed && (
           <button
             onClick={() => setCollapsed(false)}
             title="ขยาย sidebar"
@@ -190,15 +195,15 @@ export default function Sidebar({
         )}
 
         {/* ── Nav ── */}
-        <nav className={`flex-1 py-2 overflow-y-auto overflow-x-hidden ${(!isMobile && collapsed) ? 'px-2' : 'px-2'}`}>
+        <nav className="flex-1 py-2 overflow-y-auto overflow-x-hidden px-2">
           {visibleGroups.map((group, gi) => (
             <div key={gi} className={gi > 0 ? 'mt-1' : ''}>
-              {(!isMobile && !collapsed || isMobile) && group.label && (
+              {!collapsed && group.label && (
                 <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400 select-none">
                   {group.label}
                 </p>
               )}
-              {!isMobile && collapsed && gi > 0 && (
+              {collapsed && gi > 0 && (
                 <div className="my-1.5 mx-1 border-t border-slate-100" />
               )}
               <div className="space-y-0.5">
@@ -207,7 +212,6 @@ export default function Sidebar({
                   const badge =
                     path === '/team'     && pendingCount > 0 ? pendingCount :
                     path === '/my-tasks' && myTaskCount  > 0 ? myTaskCount  : 0
-                  const isCollapsed = !isMobile && collapsed
 
                   return (
                     <div key={path} className="relative group/nav">
@@ -215,21 +219,21 @@ export default function Sidebar({
                         href={path}
                         prefetch={true}
                         className={`flex items-center gap-2.5 rounded-xl text-sm font-medium transition-all
-                          ${isCollapsed ? 'px-2.5 py-2.5 justify-center' : 'px-3 py-2.5'}
+                          ${collapsed ? 'px-2.5 py-2.5 justify-center' : 'px-3 py-2.5'}
                           ${active
                             ? 'bg-indigo-50 text-indigo-700 shadow-sm'
                             : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
                       >
                         <span className="shrink-0 relative">
                           <Icon />
-                          {isCollapsed && badge > 0 && (
+                          {collapsed && badge > 0 && (
                             <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-indigo-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
                               {badge > 9 ? '9+' : badge}
                             </span>
                           )}
                         </span>
 
-                        {!isCollapsed && (
+                        {!collapsed && (
                           <>
                             <span className="truncate">{label}</span>
                             {badge > 0 && (
@@ -242,8 +246,8 @@ export default function Sidebar({
                         )}
                       </Link>
 
-                      {/* Tooltip — only when desktop collapsed */}
-                      {isCollapsed && (
+                      {/* Tooltip — only when collapsed */}
+                      {collapsed && (
                         <div className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50
                           opacity-0 group-hover/nav:opacity-100 transition-opacity duration-100">
                           <div className="bg-slate-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">
@@ -266,13 +270,13 @@ export default function Sidebar({
         </nav>
 
         {/* ── User ── */}
-        <div className={`border-t border-slate-200 py-3 ${(!isMobile && collapsed) ? 'px-2' : 'px-2'}`}>
-          <div className={`flex items-center gap-2 rounded-xl px-2 py-2 mb-1 ${(!isMobile && collapsed) ? 'justify-center' : ''}`}>
+        <div className={`border-t border-slate-200 py-3 px-2`}>
+          <div className={`flex items-center gap-2 rounded-xl px-2 py-2 mb-1 ${collapsed ? 'justify-center' : ''}`}>
             <div className="w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs shrink-0"
               style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)', color: '#4f46e5' }}>
               {initials}
             </div>
-            {(isMobile || !collapsed) && (
+            {!collapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-slate-900 truncate">{profile?.name || user?.email}</p>
                 {profile && (
@@ -284,7 +288,7 @@ export default function Sidebar({
             )}
           </div>
 
-          {(!isMobile && collapsed) ? (
+          {collapsed ? (
             <div className="relative group/logout">
               <button
                 onClick={() => supabase.auth.signOut()}
@@ -328,31 +332,12 @@ export default function Sidebar({
   }
 
   return (
-    <>
-      {/* ── Desktop sidebar (md+) ─── */}
-      <aside
-        className="relative hidden md:flex flex-col h-screen shrink-0 bg-white border-r border-slate-200 transition-[width] duration-200 ease-in-out"
-        style={{ width: collapsed ? '64px' : '208px' }}
-      >
-        <NavContent />
-      </aside>
-
-      {/* ── Mobile drawer overlay ─── */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/40 md:hidden"
-          onClick={onMobileClose}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* ── Mobile drawer panel ─── */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col w-[240px] bg-white border-r border-slate-200 shadow-xl transition-transform duration-250 ease-in-out md:hidden
-          ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
-      >
-        <NavContent isMobile />
-      </aside>
-    </>
+    /* ── Desktop sidebar (md+) only ─── */
+    <aside
+      className="relative hidden md:flex flex-col h-screen shrink-0 bg-white border-r border-slate-200 transition-[width] duration-200 ease-in-out"
+      style={{ width: collapsed ? '64px' : '208px' }}
+    >
+      <NavContent />
+    </aside>
   )
 }

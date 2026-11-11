@@ -2,12 +2,17 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import Link from 'next/link'
 import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
-import { ProfileProvider, type Profile } from '@/lib/profile-context'
+import { ProfileProvider, useIsAdmin, type Profile } from '@/lib/profile-context'
 import { AppSettingsProvider } from '@/lib/app-settings'
 import { ToastContainer } from '@/components/Toast'
+import {
+  IconDashboard, IconBox, IconFileText, IconBarChart,
+  IconTrendingUp, IconCheckSquare,
+} from '@/lib/icons'
 
 // ─── Page label map for mobile header ───────────────────────────────────────
 const PAGE_LABELS: Record<string, string> = {
@@ -23,6 +28,64 @@ const PAGE_LABELS: Record<string, string> = {
   '/settings':  'ตั้งค่า',
 }
 
+// ─── Bottom nav tabs (5 tabs แสดงบน bottom bar) ─────────────────────────────
+const BOTTOM_TABS = [
+  { path: '/dashboard', label: 'หน้าหลัก', Icon: IconDashboard },
+  { path: '/contents',  label: 'Content',   Icon: IconFileText },
+  { path: '/my-tasks',  label: 'งานของฉัน', Icon: IconCheckSquare },
+  { path: '/ads',       label: 'Ads',        Icon: IconBarChart },
+  { path: '/sales',     label: 'Sales',      Icon: IconTrendingUp },
+]
+
+// ─── BottomNav component ─────────────────────────────────────────────────────
+function BottomNav({ profile, myTaskCount, pendingCount }: {
+  profile: Profile | null
+  myTaskCount: number
+  pendingCount: number
+}) {
+  const pathname = usePathname()
+  const isAdmin = useIsAdmin()
+
+  return (
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div className="flex">
+        {BOTTOM_TABS.map(({ path, label, Icon }) => {
+          const active = pathname === path
+          const badge =
+            path === '/my-tasks' && myTaskCount > 0 ? myTaskCount :
+            path === '/team'     && pendingCount > 0 && isAdmin ? pendingCount : 0
+
+          return (
+            <Link
+              key={path}
+              href={path}
+              prefetch={true}
+              className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 relative transition-colors
+                ${active ? 'text-indigo-600' : 'text-slate-400'}`}
+            >
+              <span className="relative">
+                <Icon size={22} />
+                {badge > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-indigo-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+                    {badge > 9 ? '9+' : badge}
+                  </span>
+                )}
+              </span>
+              <span className={`text-[10px] font-medium leading-none ${active ? 'text-indigo-600' : 'text-slate-400'}`}>
+                {label}
+              </span>
+              {active && (
+                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-indigo-500 rounded-b-full" />
+              )}
+            </Link>
+          )
+        })}
+      </div>
+    </nav>
+  )
+}
+
 // Shared layout for authenticated app pages.
 // Guards auth + approval status, then provides profile to all children via context.
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -30,14 +93,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [myTaskCount, setMyTaskCount] = useState(0)
+  const [pendingCount, setPendingCount] = useState(0)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
   const initializing = useRef(false)
-
-  // Close mobile nav on route change
-  useEffect(() => { setMobileNavOpen(false) }, [pathname])
 
   async function init(sessionUser: User) {
     if (initializing.current) return
@@ -65,6 +126,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     setProfile(data as Profile)
     setLoading(false)
+
+    // Load badge counts after profile is set
+    if (data.role === 'admin') {
+      supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('approval_status', 'pending')
+        .then(({ count, error }: { count: number | null; error: { message: string } | null }) => {
+          if (!error) setPendingCount(count ?? 0)
+        })
+    }
+    supabase
+      .from('contents')
+      .select('id', { count: 'exact', head: true })
+      .or(`producer_id.eq.${data.id},approver_id.eq.${data.id},assigned_to_id.eq.${data.id}`)
+      .is('acknowledged_at', null)
+      .neq('status', 'โพสต์แล้ว')
+      .then(({ count, error }: { count: number | null; error: { message: string } | null }) => {
+        if (!error) setMyTaskCount(count ?? 0)
+      })
   }
 
   useEffect(() => {
@@ -109,19 +190,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <ProfileProvider profile={profile}>
       <AppSettingsProvider>
-        {/* ── Mobile top bar ── */}
-        <header className="md:hidden fixed top-0 left-0 right-0 z-30 h-14 bg-white border-b border-slate-200 flex items-center px-4 gap-3">
-          <button
-            onClick={() => setMobileNavOpen(v => !v)}
-            className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors -ml-1"
-            aria-label="เปิด menu"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
-          </button>
+        {/* ── Mobile top bar (page title only — no hamburger) ── */}
+        <header className="md:hidden fixed top-0 left-0 right-0 z-30 h-12 bg-white border-b border-slate-200 flex items-center px-4">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
               style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
@@ -136,14 +206,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             user={user}
             profile={profile}
             onCollapse={setSidebarCollapsed}
-            mobileOpen={mobileNavOpen}
-            onMobileClose={() => setMobileNavOpen(false)}
           />
-          {/* pt-14 on mobile to clear the fixed top bar */}
-          <main className="flex-1 overflow-y-auto min-w-0 pt-14 md:pt-0">
+          {/* pt-12 on mobile to clear the fixed top bar, pb-16 to clear the bottom nav */}
+          <main className="flex-1 overflow-y-auto min-w-0 pt-12 pb-16 md:pt-0 md:pb-0">
             {children}
           </main>
         </div>
+
+        {/* ── Mobile bottom nav ── */}
+        <BottomNav
+          profile={profile}
+          myTaskCount={myTaskCount}
+          pendingCount={pendingCount}
+        />
+
         <ToastContainer />
       </AppSettingsProvider>
     </ProfileProvider>

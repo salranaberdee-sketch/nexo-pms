@@ -151,22 +151,22 @@ function LivePreview({ data, loading }: { data: LiveReportData | null; loading: 
       {data.products.length > 0 && (
         <div>
           <p className={`${sectionLabelCls} mb-2`}>สินค้า ({data.products.length})</p>
-          <div className={tableWrapCls}>
-            <table className="w-full text-sm">
+          <div className={`${tableWrapCls} overflow-x-auto`}>
+            <table className="w-full text-sm min-w-[360px]">
               <thead>
                 <tr className="border-b border-slate-100">
                   {['Product ID', 'ชื่อ', 'Brand', 'สถานะ'].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-400">{h}</th>
+                    <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {data.products.slice(0, 5).map(p => (
                   <tr key={p.product_id} className="border-b border-slate-50 hover:bg-slate-50/60">
-                    <td className="px-4 py-2 font-mono text-xs text-slate-600">{p.product_id}</td>
+                    <td className="px-4 py-2 font-mono text-xs text-slate-600 whitespace-nowrap">{p.product_id}</td>
                     <td className="px-4 py-2 text-slate-800 font-medium">{p.name}</td>
-                    <td className="px-4 py-2 text-slate-500">{p.brand ?? '—'}</td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2 text-slate-500 whitespace-nowrap">{p.brand ?? '—'}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">
                       <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{p.status}</span>
                     </td>
                   </tr>
@@ -188,12 +188,12 @@ function LivePreview({ data, loading }: { data: LiveReportData | null; loading: 
       {data.sales.length > 0 && (
         <div>
           <p className={`${sectionLabelCls} mb-2`}>ยอดขาย ({data.sales.length} รอบ)</p>
-          <div className={tableWrapCls}>
-            <table className="w-full text-sm">
+          <div className={`${tableWrapCls} overflow-x-auto`}>
+            <table className="w-full text-sm min-w-[400px]">
               <thead>
                 <tr className="border-b border-slate-100">
                   {['Product', 'ช่วงเวลา', 'เป้า', 'จริง', '%'].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-400">{h}</th>
+                    <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -202,10 +202,10 @@ function LivePreview({ data, loading }: { data: LiveReportData | null; loading: 
                   const p = pct(s.actual_sales, s.sales_target_amount)
                   return (
                     <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/60">
-                      <td className="px-4 py-2 font-mono text-xs text-slate-600">{s.product_id}</td>
-                      <td className="px-4 py-2 text-xs text-slate-500">{s.period_start} → {s.period_end}</td>
-                      <td className="px-4 py-2 text-xs text-slate-700">{fmt(s.sales_target_amount, '฿')}</td>
-                      <td className="px-4 py-2 text-xs font-semibold text-slate-800">{fmt(s.actual_sales, '฿')}</td>
+                      <td className="px-4 py-2 font-mono text-xs text-slate-600 whitespace-nowrap">{s.product_id}</td>
+                      <td className="px-4 py-2 text-xs text-slate-500 whitespace-nowrap">{s.period_start} → {s.period_end}</td>
+                      <td className="px-4 py-2 text-xs text-slate-700 whitespace-nowrap">{fmt(s.sales_target_amount, '฿')}</td>
+                      <td className="px-4 py-2 text-xs font-semibold text-slate-800 whitespace-nowrap">{fmt(s.actual_sales, '฿')}</td>
                       <td className="px-4 py-2">
                         <span className={`text-xs font-bold ${p >= 100 ? 'text-emerald-600' : p >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
                           {p}%
@@ -224,24 +224,24 @@ function LivePreview({ data, loading }: { data: LiveReportData | null; loading: 
       {data.ads.length > 0 && (
         <div>
           <p className={`${sectionLabelCls} mb-2`}>Ads ({data.ads.length} campaigns)</p>
-          <div className={tableWrapCls}>
-            <table className="w-full text-sm">
+          <div className={`${tableWrapCls} overflow-x-auto`}>
+            <table className="w-full text-sm min-w-[480px]">
               <thead>
                 <tr className="border-b border-slate-100">
                   {['Campaign', 'เดือน', 'ใช้ไป', 'Leads', 'CPL', 'ROAS'].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-400">{h}</th>
+                    <th key={h} className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {data.ads.slice(0, 5).map((a, i) => (
                   <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/60">
-                    <td className="px-4 py-2 text-xs font-medium text-slate-800 max-w-[160px] truncate">{a.campaign_name}</td>
-                    <td className="px-4 py-2 text-xs text-slate-500">{a.month ?? '—'}</td>
-                    <td className="px-4 py-2 text-xs text-slate-700">{fmt(a.budget_spent ?? 0, '฿')}</td>
+                    <td className="px-4 py-2 text-xs font-medium text-slate-800 max-w-[200px] truncate">{a.campaign_name}</td>
+                    <td className="px-4 py-2 text-xs text-slate-500 whitespace-nowrap">{a.month ?? '—'}</td>
+                    <td className="px-4 py-2 text-xs text-slate-700 whitespace-nowrap">{fmt(a.budget_spent ?? 0, '฿')}</td>
                     <td className="px-4 py-2 text-xs font-semibold">{a.leads ?? 0}</td>
-                    <td className="px-4 py-2 text-xs text-slate-600">{fmt(Math.round(a.cpl ?? 0), '฿')}</td>
-                    <td className="px-4 py-2 text-xs font-semibold text-indigo-600">{a.roas ?? 0}x</td>
+                    <td className="px-4 py-2 text-xs text-slate-600 whitespace-nowrap">{fmt(Math.round(a.cpl ?? 0), '฿')}</td>
+                    <td className="px-4 py-2 text-xs font-semibold text-indigo-600 whitespace-nowrap">{a.roas ?? 0}x</td>
                   </tr>
                 ))}
               </tbody>

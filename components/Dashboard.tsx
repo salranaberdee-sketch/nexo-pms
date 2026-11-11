@@ -621,61 +621,101 @@ export default function Dashboard() {
                 รัน migration แล้วเพิ่ม Lead พร้อมระบุ content เพื่อดูข้อมูล ROI
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-100">
-                      <th className="text-left px-5 py-3 text-xs font-medium text-slate-400">#</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-slate-400">Content</th>
-                      <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">Leads</th>
-                      <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">Revenue</th>
-                      <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">ต้นทุนรวม</th>
-                      <th className="text-right px-5 py-3 text-xs font-medium text-slate-400">ROI</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {roiData.slice(0, 5).map((r, i) => {
-                      const roi = Number(r.roi || 0)
-                      const roiPct = r.roi_pct !== null ? Number(r.roi_pct) : null
-                      const isPositive = roi > 0
-                      return (
-                        <tr key={r.content_id} className="hover:bg-slate-50/60 transition-colors last:border-0 border-b border-slate-100/60">
-                          <td className="px-5 py-3 text-xs text-slate-400 tabular-nums">{i + 1}</td>
-                          <td className="px-4 py-3 max-w-[200px]">
-                            <div className="truncate font-medium text-slate-900" title={r.title}>{r.title}</div>
-                            <div className="text-xs text-slate-400">{r.product_id} · {r.type}</div>
-                          </td>
-                          <td className="px-4 py-3 text-right text-sm tabular-nums text-slate-600">
-                            {Number(r.total_leads) > 0 ? (
-                              <span>{r.closed_leads}<span className="text-slate-300">/{r.total_leads}</span></span>
-                            ) : <span className="text-slate-300">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-right text-sm tabular-nums font-medium text-emerald-600">
-                            {Number(r.deal_revenue) > 0 ? `฿${Number(r.deal_revenue).toLocaleString()}` : <span className="text-slate-300">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-right text-sm tabular-nums text-slate-500">
-                            {Number(r.total_cost) > 0 ? `฿${Number(r.total_cost).toLocaleString()}` : <span className="text-slate-300">—</span>}
-                          </td>
-                          <td className="px-5 py-3 text-right tabular-nums">
-                            {Number(r.total_cost) > 0 ? (
-                              <div>
-                                <span className={`text-sm font-bold ${isPositive ? 'text-emerald-600' : roi < 0 ? 'text-red-500' : 'text-slate-400'}`}>
-                                  {roi > 0 ? '+' : ''}฿{roi.toLocaleString()}
-                                </span>
-                                {roiPct !== null && (
-                                  <p className={`text-xs ${isPositive ? 'text-emerald-500' : 'text-slate-400'}`}>
-                                    {roiPct > 0 ? '+' : ''}{roiPct}%
-                                  </p>
-                                )}
-                              </div>
-                            ) : <span className="text-slate-300 text-sm">—</span>}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                {/* Desktop table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100">
+                        <th className="text-left px-5 py-3 text-xs font-medium text-slate-400">#</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-slate-400">Content</th>
+                        <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">Leads</th>
+                        <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">Revenue</th>
+                        <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">ต้นทุนรวม</th>
+                        <th className="text-right px-5 py-3 text-xs font-medium text-slate-400">ROI</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {roiData.slice(0, 5).map((r, i) => {
+                        const roi = Number(r.roi || 0)
+                        const roiPct = r.roi_pct !== null ? Number(r.roi_pct) : null
+                        const isPositive = roi > 0
+                        return (
+                          <tr key={r.content_id} className="hover:bg-slate-50/60 transition-colors last:border-0 border-b border-slate-100/60">
+                            <td className="px-5 py-3 text-xs text-slate-400 tabular-nums">{i + 1}</td>
+                            <td className="px-4 py-3 max-w-[200px]">
+                              <div className="truncate font-medium text-slate-900" title={r.title}>{r.title}</div>
+                              <div className="text-xs text-slate-400">{r.product_id} · {r.type}</div>
+                            </td>
+                            <td className="px-4 py-3 text-right text-sm tabular-nums text-slate-600">
+                              {Number(r.total_leads) > 0 ? (
+                                <span>{r.closed_leads}<span className="text-slate-300">/{r.total_leads}</span></span>
+                              ) : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="px-4 py-3 text-right text-sm tabular-nums font-medium text-emerald-600">
+                              {Number(r.deal_revenue) > 0 ? `฿${Number(r.deal_revenue).toLocaleString()}` : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="px-4 py-3 text-right text-sm tabular-nums text-slate-500">
+                              {Number(r.total_cost) > 0 ? `฿${Number(r.total_cost).toLocaleString()}` : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="px-5 py-3 text-right tabular-nums">
+                              {Number(r.total_cost) > 0 ? (
+                                <div>
+                                  <span className={`text-sm font-bold ${isPositive ? 'text-emerald-600' : roi < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                                    {roi > 0 ? '+' : ''}฿{roi.toLocaleString()}
+                                  </span>
+                                  {roiPct !== null && (
+                                    <p className={`text-xs ${isPositive ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                      {roiPct > 0 ? '+' : ''}{roiPct}%
+                                    </p>
+                                  )}
+                                </div>
+                              ) : <span className="text-slate-300 text-sm">—</span>}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Mobile card list */}
+                <div className="md:hidden divide-y divide-slate-100">
+                  {roiData.slice(0, 5).map((r, i) => {
+                    const roi = Number(r.roi || 0)
+                    const roiPct = r.roi_pct !== null ? Number(r.roi_pct) : null
+                    const isPositive = roi > 0
+                    return (
+                      <div key={r.content_id} className="px-4 py-3 flex items-start gap-3">
+                        <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-400 text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-900 truncate">{r.title}</p>
+                          <p className="text-xs text-slate-400">{r.product_id} · {r.type}</p>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            {Number(r.total_leads) > 0 && (
+                              <span className="text-xs text-slate-500">{r.closed_leads}/{r.total_leads} leads</span>
+                            )}
+                            {Number(r.deal_revenue) > 0 && (
+                              <span className="text-xs text-emerald-600 font-medium">฿{Number(r.deal_revenue).toLocaleString()}</span>
+                            )}
+                          </div>
+                        </div>
+                        {Number(r.total_cost) > 0 && (
+                          <div className="shrink-0 text-right">
+                            <span className={`text-sm font-bold ${isPositive ? 'text-emerald-600' : roi < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                              {roi > 0 ? '+' : ''}฿{roi.toLocaleString()}
+                            </span>
+                            {roiPct !== null && (
+                              <p className={`text-xs ${isPositive ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                {roiPct > 0 ? '+' : ''}{roiPct}%
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
             )}
           </div>
 
@@ -719,11 +759,11 @@ export default function Dashboard() {
                             </div>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end max-w-[120px] sm:max-w-none">
                           {person.contents.length > 0 && <span className="text-xs text-violet-600 bg-violet-50 px-2 py-1 rounded-lg font-medium">{person.contents.length} content</span>}
                           {person.ads.length > 0      && <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-lg font-medium">{person.ads.length} ads</span>}
                           {person.products.length > 0 && <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-medium">{person.products.length} product</span>}
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={`text-slate-300 transition-transform ${isExpanded ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9" /></svg>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={`text-slate-300 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9" /></svg>
                         </div>
                       </button>
                       {isExpanded && (
@@ -799,21 +839,22 @@ export default function Dashboard() {
               <h2 className="text-sm font-semibold text-slate-900">สถานะทุก Product</h2>
               <span className="text-xs text-slate-400">{products.length} รายการ</span>
             </div>
-            <div className="overflow-x-auto">
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100">
-                    <th className="text-left px-5 py-3 text-xs font-medium text-slate-400">Product ID</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-slate-400">ชื่อสินค้า</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-slate-400">แบรนด์</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-slate-400">สถานะ</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">เป้า</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">ยอดจริง</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">% สำเร็จ</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">ADS ใช้จริง</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">เหลือวัน</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-400">Content</th>
-                    <th className="text-right px-5 py-3 text-xs font-medium text-red-400">เกินกำหนด</th>
+                    <th className="text-left px-5 py-3 text-xs font-medium text-slate-400 whitespace-nowrap">Product ID</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 whitespace-nowrap">ชื่อสินค้า</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 whitespace-nowrap">แบรนด์</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-slate-400 whitespace-nowrap">สถานะ</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-400 whitespace-nowrap">เป้า</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-400 whitespace-nowrap">ยอดจริง</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-400 whitespace-nowrap">% สำเร็จ</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-400 whitespace-nowrap">ADS ใช้จริง</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-400 whitespace-nowrap">เหลือวัน</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-slate-400 whitespace-nowrap">Content</th>
+                    <th className="text-right px-5 py-3 text-xs font-medium text-red-400 whitespace-nowrap">เกินกำหนด</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -881,6 +922,58 @@ export default function Dashboard() {
                   })}
                 </tbody>
               </table>
+            </div>
+            {/* Mobile card list */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {products.length === 0 ? (
+                <p className="px-5 py-8 text-center text-sm text-slate-400">ยังไม่มี Product ในระบบ</p>
+              ) : products.map(p => {
+                const s = salesByProduct.get(p.product_id)
+                const c = contentsByProduct.get(p.product_id) || []
+                const adsForProduct = adsByProduct.get(p.product_id) || []
+                const target = Number(s?.sales_target_amount || 0)
+                const actual = Number(s?.actual_sales || 0)
+                const rowPct = target > 0 ? Math.round((actual / target) * 100) : 0
+                const barColor = rowPct >= 80 ? 'bg-emerald-500' : rowPct >= 40 ? 'bg-amber-400' : 'bg-blue-500'
+                const adsSpent = adsForProduct.reduce((sum: number, a: any) => sum + Number(a.budget_spent || 0), 0)
+                const TODAY_STR = new Date().toISOString().split('T')[0]
+                const overdueContents = c.filter((x: any) => x.status !== 'โพสต์แล้ว' && x.deadline && x.deadline < TODAY_STR)
+                const daysLeft = s?.period_end ? Math.max(0, Math.round((new Date(s.period_end).getTime() - TODAY_MS) / 86400000)) : null
+                const isActive = activePanel === 'product' && activePanelProduct === p.product_id
+                return (
+                  <button key={p.id} type="button"
+                    onClick={() => openPanel(isActive ? null : 'product', p.product_id)}
+                    className={`w-full text-left px-4 py-3.5 transition-colors ${isActive ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs text-slate-400">{p.product_id}</span>
+                          <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${productStatusStyle[p.status] || 'bg-slate-100 text-slate-400'}`}>{p.status}</span>
+                          {overdueContents.length > 0 && (
+                            <span className="text-xs font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-md">เกิน {overdueContents.length}</span>
+                          )}
+                        </div>
+                        <p className="text-sm font-semibold text-slate-900 mt-1 truncate">{p.name}</p>
+                        {p.brand && <p className="text-xs text-slate-400">{p.brand}</p>}
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm font-semibold text-slate-900">฿{actual.toLocaleString()}</p>
+                        <p className="text-xs text-slate-400">{rowPct}% ของเป้า</p>
+                      </div>
+                    </div>
+                    <div className="mt-2.5">
+                      <div className="w-full h-1 rounded-full overflow-hidden bg-slate-100">
+                        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(rowPct, 100)}%` }} />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
+                      <span>Content {c.filter((x: any) => x.status === 'โพสต์แล้ว').length}/{c.length}</span>
+                      {adsSpent > 0 && <span>ADS ฿{adsSpent.toLocaleString()}</span>}
+                      {daysLeft !== null && <span className={daysLeft <= 3 ? 'text-red-500 font-medium' : daysLeft <= 7 ? 'text-amber-500 font-medium' : ''}>เหลือ {daysLeft} วัน</span>}
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
