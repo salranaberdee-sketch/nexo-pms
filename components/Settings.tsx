@@ -6,6 +6,7 @@ import { useIsAdmin, useProfile } from '@/lib/profile-context'
 import { showToast } from './Toast'
 import { inputCls, btnPrimary, btnSecondary, tableWrapCls } from '@/lib/cx'
 import ContentTypeManager from './ContentTypeManager'
+import { usePwa } from '@/lib/use-pwa'
 
 type Setting = { key: string; value: string; description: string; updated_at: string }
 type SettingsMap = Record<string, string>
@@ -117,7 +118,200 @@ function FieldRow({ label, description, children }: {
   )
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── PWA Install Section ──────────────────────────────────────────────────────
+
+function IconSmartphone() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+      <line x1="12" y1="18" x2="12.01" y2="18"/>
+    </svg>
+  )
+}
+
+function InstallSection() {
+  const {
+    isInstalled,
+    platform,
+    canInstall,
+    updateReady,
+    promptInstall,
+    applyUpdate,
+    dismissUpdate,
+    openInExternalBrowser,
+  } = usePwa()
+
+  const [installing, setInstalling] = useState(false)
+
+  const PLATFORM_LABEL: Record<string, string> = {
+    ios: 'iOS (Safari)',
+    android: 'Android (Chrome)',
+    desktop: 'Desktop (Chrome / Edge)',
+    line: 'LINE Browser',
+    unknown: 'Browser ทั่วไป',
+  }
+
+  async function handleInstall() {
+    setInstalling(true)
+    const result = await promptInstall()
+    setInstalling(false)
+    if (result === 'accepted') showToast('ติดตั้งแอปสำเร็จ 🎉')
+    else if (result === 'dismissed') showToast('ยกเลิกการติดตั้ง', 'error')
+  }
+
+  return (
+    <Section
+      icon={<IconSmartphone />}
+      title="ติดตั้งแอป (PWA)"
+      description="เข้าใช้งาน Nexo PMS เหมือน native app — ไม่ต้องผ่าน browser"
+    >
+      {/* Status row */}
+      <FieldRow
+        label="สถานะการติดตั้ง"
+        description={`กำลังใช้งานบน: ${PLATFORM_LABEL[platform] ?? platform}`}
+      >
+        <div className="flex items-center gap-2">
+          {isInstalled ? (
+            <span className="inline-flex items-center gap-1.5 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full font-medium">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              ติดตั้งแล้ว
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-sm text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full font-medium">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              ยังไม่ได้ติดตั้ง
+            </span>
+          )}
+        </div>
+      </FieldRow>
+
+      {/* Install action — only when NOT installed */}
+      {!isInstalled && (
+        <FieldRow
+          label="วิธีติดตั้ง"
+          description="เลือกวิธีที่เหมาะกับ device ของคุณ"
+        >
+          <div className="space-y-3">
+
+            {/* LINE IAB */}
+            {platform === 'line' && (
+              <div className="rounded-xl border border-[#06C755]/30 bg-[#06C755]/5 p-4 space-y-2">
+                <p className="text-sm font-medium text-slate-800">🟢 เปิดใน Browser ก่อน</p>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  LINE browser ไม่รองรับการติดตั้ง PWA — กดปุ่มด้านล่างเพื่อเปิดหน้านี้ใน Safari หรือ Chrome แล้วติดตั้งจากที่นั่น
+                </p>
+                <button
+                  onClick={openInExternalBrowser}
+                  className="flex items-center gap-1.5 text-xs font-semibold bg-[#06C755] hover:bg-[#05b34b] text-white px-3 py-2 rounded-lg transition-colors"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                  เปิดใน Browser
+                </button>
+              </div>
+            )}
+
+            {/* iOS */}
+            {platform === 'ios' && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2">
+                <p className="text-sm font-medium text-slate-800">📱 วิธีติดตั้งบน iPhone / iPad</p>
+                <ol className="text-xs text-slate-600 space-y-1.5 pl-4 list-decimal leading-relaxed">
+                  <li>กดปุ่ม <strong>แชร์</strong> (□↑) ที่ toolbar ด้านล่างของ Safari</li>
+                  <li>เลื่อนหาแล้วกด <strong>"เพิ่มบนหน้าจอโฮม"</strong></li>
+                  <li>กด <strong>เพิ่ม</strong> มุมขวาบน</li>
+                </ol>
+                <p className="text-xs text-slate-400">แอปจะปรากฏบน Home Screen เหมือน app ปกติ</p>
+              </div>
+            )}
+
+            {/* Android / Desktop — native prompt */}
+            {(platform === 'android' || platform === 'desktop') && canInstall && (
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 space-y-2">
+                <p className="text-sm font-medium text-slate-800">
+                  {platform === 'desktop' ? '💻 ติดตั้งบน Desktop' : '📱 ติดตั้งบน Android'}
+                </p>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  {platform === 'desktop'
+                    ? 'ติดตั้งเป็น Desktop App — เปิดได้จาก Start Menu / Dock โดยไม่ต้องเปิด browser'
+                    : 'ติดตั้งบน Home Screen เหมือน app ปกติ ใช้งานได้ offline บางส่วน'}
+                </p>
+                <button
+                  onClick={handleInstall}
+                  disabled={installing}
+                  className={`flex items-center gap-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg transition-colors ${installing ? 'opacity-60 cursor-not-allowed' : ''}`}
+                >
+                  {installing ? (
+                    <>
+                      <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity=".3"/>
+                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="4" strokeLinecap="round"/>
+                      </svg>
+                      กำลังติดตั้ง…
+                    </>
+                  ) : (
+                    <>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                      ติดตั้งเลย
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Fallback: browser doesn't support install prompt yet */}
+            {(platform === 'android' || platform === 'desktop') && !canInstall && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Browser ยังไม่แสดง prompt ติดตั้ง — ลองกดเมนู <strong>⋮</strong> ใน Chrome แล้วเลือก <strong>"Add to Home screen"</strong> หรือ <strong>"Install app"</strong>
+                </p>
+              </div>
+            )}
+
+          </div>
+        </FieldRow>
+      )}
+
+      {/* Already installed — show update status */}
+      {isInstalled && (
+        <FieldRow label="เวอร์ชัน" description="ตรวจสอบ / อัปเดตแอป">
+          {updateReady ? (
+            <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3">
+              <span className="text-sm text-indigo-800 font-medium flex-1">
+                🔄 มีเวอร์ชันใหม่พร้อมติดตั้ง
+              </span>
+              <button
+                onClick={applyUpdate}
+                className="text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg transition-colors"
+              >
+                อัปเดตเลย
+              </button>
+              <button
+                onClick={dismissUpdate}
+                className="text-xs text-slate-400 hover:text-slate-700 transition-colors"
+              >
+                ทีหลัง
+              </button>
+            </div>
+          ) : (
+            <span className="text-sm text-slate-500">ใช้เวอร์ชันล่าสุดแล้ว ✓</span>
+          )}
+        </FieldRow>
+      )}
+    </Section>
+  )
+}
+
+
 
 export default function Settings() {
   const isAdmin = useIsAdmin()
@@ -469,6 +663,9 @@ export default function Settings() {
           >
             <ContentTypeManager />
           </Section>
+
+          {/* ── ติดตั้งแอป ───────────────────────────────────── */}
+          <InstallSection />
 
         </div>
       )}

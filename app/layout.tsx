@@ -19,6 +19,10 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Nexo PMS",
   },
+  // Android Chrome (older) equivalent of apple-mobile-web-app-capable
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
   icons: {
     icon: [
       { url: "/icon-96x96.png", sizes: "96x96", type: "image/png" },

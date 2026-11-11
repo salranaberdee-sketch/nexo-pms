@@ -12,6 +12,21 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  // Strip LINE's openExternalBrowser param after LINE hands off to system browser.
+  // Uses `missing` to only match when the param IS present (prevents redirect loop).
+  // The client-side cleanup in InstallPrompt.tsx is a belt-and-suspenders fallback.
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "query", key: "openExternalBrowser" }],
+        // Explicit destination without the param — Next.js drops unmatched query keys
+        destination: "/:path*",
+        permanent: false,
+      },
+    ];
+  },
+
   async headers() {
     return [
       {

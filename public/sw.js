@@ -1,29 +1,30 @@
 // Nexo PMS Service Worker
-// Handles offline caching and background sync
+// Cache strategy + offline fallback + update notifications
 
-const CACHE_NAME = "nexo-pms-v1";
-const OFFLINE_URL = "/offline";
+// Bump this when deploying to bust old caches
+const CACHE_VERSION = "nexo-pms-v2";
+const CACHE_NAME = CACHE_VERSION;
 
-// Assets to pre-cache on install (app shell)
+// App shell — only cache pages that exist as real routes (not redirects)
 const PRECACHE_ASSETS = [
-  "/",
   "/dashboard",
+  "/icon-96x96.png",
   "/icon-192x192.png",
   "/icon-512x512.png",
   "/apple-touch-icon.png",
 ];
 
-// Install: pre-cache app shell
+// ── Install: pre-cache app shell ─────────────────────────────────────────────
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
       .then((cache) => cache.addAll(PRECACHE_ASSETS))
-      .then(() => self.skipWaiting())
+      .then(() => self.skipWaiting()) // take over immediately
   );
 });
 
-// Activate: remove old caches
+// ── Activate: clean up old caches + notify clients an update happened ────────
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
@@ -36,31 +37,39 @@ self.addEventListener("activate", (event) => {
         )
       )
       .then(() => self.clients.claim())
+      .then(() => {
+        // Tell every open tab that a new version is live → show refresh toast
+        return self.clients
+          .matchAll({ type: "window", includeUncontrolled: true })
+          .then((clients) => {
+            clients.forEach((client) =>
+              client.postMessage({ type: "SW_UPDATED", version: CACHE_VERSION })
+            );
+          });
+      })
   );
 });
 
-// Fetch strategy:
-// - Supabase API calls → network-only (always fresh)
-// - Next.js _next/static → cache-first (immutable)
-// - Pages/navigation → network-first, fall back to cache
+// ── Fetch strategy ───────────────────────────────────────────────────────────
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET and chrome-extension requests
+  // Skip non-GET, non-http, and chrome-extension requests
   if (request.method !== "GET") return;
   if (!url.protocol.startsWith("http")) return;
 
-  // Network-only: Supabase API and auth endpoints
+  // Network-only: Supabase API, auth endpoints, Next.js image optimization
   if (
     url.hostname.includes("supabase.co") ||
-    url.pathname.startsWith("/api/")
+    url.pathname.startsWith("/api/") ||
+    url.pathname.startsWith("/_next/image")
   ) {
     event.respondWith(fetch(request));
     return;
   }
 
-  // Cache-first: Next.js static assets (hashed filenames — safe to cache forever)
+  // Cache-first: Next.js static assets (hashed filenames — immutable)
   if (url.pathname.startsWith("/_next/static/")) {
     event.respondWith(
       caches.match(request).then((cached) => {
@@ -77,11 +86,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Network-first: pages and other requests
+  // Network-first: pages + other resources — offline fallback to cache
   event.respondWith(
     fetch(request)
       .then((response) => {
-        // Cache successful HTML responses for offline fallback
+        // Cache successful HTML navigation responses for offline fallback
         if (response.ok && request.mode === "navigate") {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
@@ -89,20 +98,29 @@ self.addEventListener("fetch", (event) => {
         return response;
       })
       .catch(() => {
-        // Offline fallback: return cached version if available
         return caches.match(request).then((cached) => {
           if (cached) return cached;
-          // For navigation requests, return cached dashboard as last resort
+          // Last resort for navigation: return offline page or cached dashboard
           if (request.mode === "navigate") {
-            return caches.match("/dashboard");
+            return (
+              caches.match("/offline") ||
+              caches.match("/dashboard") ||
+              new Response(
+                '<!DOCTYPE html><html><body style="font-family:sans-serif;padding:2rem;background:#0f172a;color:#94a3b8"><h2>ออฟไลน์อยู่</h2><p>ไม่มีอินเทอร์เน็ต กรุณาตรวจสอบการเชื่อมต่อ</p></body></html>',
+                { headers: { "Content-Type": "text/html; charset=utf-8" } }
+              )
+            );
           }
-          return new Response("Offline", { status: 503 });
+          return new Response("Offline", {
+            status: 503,
+            headers: { "Content-Type": "text/plain" },
+          });
         });
       })
   );
 });
 
-// Push notification handler
+// ── Push notification handler ─────────────────────────────────────────────────
 self.addEventListener("push", (event) => {
   if (!event.data) return;
 
@@ -123,7 +141,7 @@ self.addEventListener("push", (event) => {
   );
 });
 
-// Notification click: open or focus the app
+// ── Notification click: open or focus the app ────────────────────────────────
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const targetUrl = event.notification.data?.url || "/dashboard";
@@ -132,17 +150,27 @@ self.addEventListener("notificationclick", (event) => {
     clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
-        // Focus existing window if open
         for (const client of clientList) {
           if (client.url.includes(self.location.origin) && "focus" in client) {
             client.navigate(targetUrl);
             return client.focus();
           }
         }
-        // Otherwise open new window
         if (clients.openWindow) {
           return clients.openWindow(targetUrl);
         }
+      })
+  );
+});
+
+// ── Push subscription change: re-subscribe when subscription expires ─────────
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    self.registration.pushManager
+      .subscribe(event.oldSubscription.options)
+      .then((subscription) => {
+        // TODO: send updated subscription to backend when push is wired up
+        console.log("[SW] Push subscription renewed:", subscription.endpoint);
       })
   );
 });
