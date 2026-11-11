@@ -62,7 +62,7 @@ export default function ContentTypeManager() {
   const [draggingId, setDraggingId] = useState<number | null>(null)
   const [dragOverId, setDragOverId] = useState<number | null>(null)
 
-  const canManage = useCan('insert', 'content_types')
+  const canManage = useCan('insert', 'content_types')  // admin/manager
   const supabase  = createClient()
 
   // ── Add ───────────────────────────────────────────────────────────────────
@@ -94,14 +94,37 @@ export default function ContentTypeManager() {
   async function saveEdit(id: number) {
     const name = editName.trim().toUpperCase()
     if (!name) return
+    const original = contentTypes.find(t => t.id === id)
+    if (!original) return
+
+    // Check duplicate name (excluding self)
+    if (contentTypes.some(t => t.id !== id && t.name === name)) {
+      showToast(`ประเภท "${name}" มีอยู่แล้ว`, 'error'); return
+    }
+
     const { error } = await supabase
       .from('content_types')
       .update({ name, color: editColor })
       .eq('id', id)
     if (error) { showToast(error.message, 'error'); return }
+
+    // If name changed → cascade update all contents that use the old name
+    if (original.name !== name) {
+      const { error: cascadeErr } = await supabase
+        .from('contents')
+        .update({ type: name })
+        .eq('type', original.name)
+      if (cascadeErr) {
+        showToast(`แก้ content ที่ใช้ประเภทนี้ไม่สำเร็จ: ${cascadeErr.message}`, 'error')
+        // Still update local state for the type itself
+      }
+    }
+
     setContentTypes(prev => prev.map(t => t.id === id ? { ...t, name, color: editColor } : t))
     setEditingId(null)
-    showToast('แก้ไขประเภทแล้ว')
+    showToast(original.name !== name
+      ? `เปลี่ยน "${original.name}" → "${name}" แล้ว (content ทั้งหมดได้รับการอัปเดต)`
+      : 'แก้ไขประเภทแล้ว')
   }
 
   // ── Delete ─────────────────────────────────────────────────────────────────
