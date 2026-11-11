@@ -34,6 +34,7 @@ const PERMISSION_MATRIX: Record<string, Record<PermissionAction, string[]>> = {
   categories:             { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
   content_assets:         { insert: ['admin', 'manager', 'editor'],     update: ['admin', 'manager', 'editor'],     delete: ['admin', 'manager'] },
   content_assignment_log: { insert: ['admin', 'manager'],                update: [],                                  delete: [] },
+  content_types:          { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
   app_settings:           { insert: ['admin'],                            update: ['admin'],                           delete: ['admin'] },
   report_schedules:       { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin', 'manager'] },
 }
