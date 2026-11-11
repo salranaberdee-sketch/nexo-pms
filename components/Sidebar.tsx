@@ -50,8 +50,11 @@ export default function Sidebar({
       .from('profiles')
       .select('id', { count: 'exact', head: true })
       .eq('approval_status', 'pending')
-      .then(({ count }: { count: number | null }) => setPendingCount(count ?? 0))
-  }, [supabase, isAdmin])
+      .then(({ count, error }: { count: number | null; error: { message: string } | null }) => {
+        if (!error) setPendingCount(count ?? 0)
+        // Silently ignore errors — badge is non-critical UI
+      })
+  }, [isAdmin]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!profile?.id) return
@@ -61,8 +64,11 @@ export default function Sidebar({
       .or(`producer_id.eq.${profile.id},approver_id.eq.${profile.id},assigned_to_id.eq.${profile.id}`)
       .is('acknowledged_at', null)
       .neq('status', 'โพสต์แล้ว')
-      .then(({ count }: { count: number | null }) => setMyTaskCount(count ?? 0))
-  }, [supabase, profile?.id])
+      .then(({ count, error }: { count: number | null; error: { message: string } | null }) => {
+        if (!error) setMyTaskCount(count ?? 0)
+        // Silently ignore errors — badge is non-critical UI
+      })
+  }, [profile?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Nav grouped by category — rule: items that share the same data domain or workflow stage stay together.
   // Content group: Content pipeline + My Tasks (my tasks = content assigned to me)

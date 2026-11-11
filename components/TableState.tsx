@@ -41,8 +41,9 @@ export function EmptyState({ message = 'ยังไม่มีข้อมู�
   )
 }
 
-// Local date today as YYYY-MM-DD (timezone-safe for date-string comparisons).
-export function todayStr(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+/**
+ * @deprecated Import `todayStr` from `@/lib/utils` instead.
+ * Kept here as a re-export so existing component imports continue to work
+ * without a migration sweep.
+ */
+export { todayStr } from '@/lib/utils'

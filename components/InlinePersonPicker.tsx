@@ -1,8 +1,12 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
+import type { ProfileOption } from '@/lib/types'
+import { useClickOutside } from '@/lib/hooks'
 
-export type ProfileOption = { id: string; name: string; role: string; brand_access?: string[] }
+// Re-export so existing `import { type ProfileOption } from '@/components/InlinePersonPicker'`
+// imports continue to compile without changes.
+export type { ProfileOption }
 
 // Minimal inline assignee chip for table rows.
 // Idle: avatar + name, no border — clean.
@@ -29,16 +33,9 @@ export default function InlinePersonPicker({
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (!open) return
-    function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
-  }, [open])
+  useClickOutside(ref, () => setOpen(false), open)
 
-  const initial = display ? display[0].toUpperCase() : null
+  const firstChar = display ? display[0].toUpperCase() : null
 
   // ── Read-only (viewer) ──────────────────────────────────────
   if (disabled) {
@@ -46,7 +43,7 @@ export default function InlinePersonPicker({
       <div className="inline-flex items-center gap-1.5">
         <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0
           ${display ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-300'}`}>
-          {initial ?? '—'}
+          {firstChar ?? '—'}
         </span>
         <span className="text-sm text-slate-500 truncate max-w-[100px]">{display || '—'}</span>
       </div>
@@ -66,7 +63,7 @@ export default function InlinePersonPicker({
         {/* Avatar */}
         <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors
           ${display ? 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-200' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200'}`}>
-          {initial ?? (
+          {firstChar ?? (
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
             </svg>

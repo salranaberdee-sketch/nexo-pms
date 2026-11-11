@@ -1,6 +1,10 @@
 'use client'
 
-export type ProfileOption = { id: string; name: string }
+import type { ProfileOption } from '@/lib/types'
+
+// Re-export so existing `import { type ProfileOption } from '@/components/ProfilePicker'`
+// imports continue to compile without changes.
+export type { ProfileOption }
 
 // Reusable dropdown that lists all approved profiles.
 // Accepts profiles as a prop — fetch once in the parent and pass down,

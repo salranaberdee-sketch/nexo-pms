@@ -10,6 +10,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
+import { parseCSV } from '@/lib/utils'
 
 export type SettingsMap = Record<string, string>
 
@@ -21,28 +22,28 @@ export type AppSettingsValue = {
   loading:  boolean
   reload:   () => Promise<void>
   // Convenience getters with fallback defaults
-  companyName:    string
-  companyTagline: string
-  channels:       string[]   // content_channels split by comma
-  defaultChannel: string
-  productTypes:   string[]   // product_types split by comma
-  brands:         string[]   // brands split by comma
+  companyName:     string
+  companyTagline:  string
+  channels:        string[]  // content_channels split by comma
+  defaultChannel:  string
+  productTypes:    string[]  // product_types split by comma
+  brands:          string[]  // brands split by comma
   fiscalYearStart: string    // "01" – "12"
   salesPeriodDays: number
-}
-
-function parseList(raw: string | undefined): string[] {
-  if (!raw) return []
-  return raw.split(',').map(s => s.trim()).filter(Boolean)
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useAppSettings(): AppSettingsValue {
   const [settings, setSettings] = useState<SettingsMap>({})
   const [loading, setLoading]   = useState(true)
-  const supabase = createClient()
 
+  // `reload` has stable identity ([] deps) because createClient() returns the
+  // module-level singleton — the reference never changes between renders.
+  // Previously `supabase` was listed as a dep, causing `reload` to get a new
+  // reference on every render (even though the underlying client was unchanged),
+  // which made the useEffect re-run on every render.
   const reload = useCallback(async () => {
+    const supabase = createClient()
     const { data } = await supabase.from('app_settings').select('key, value')
     if (data) {
       const map: SettingsMap = {}
@@ -50,9 +51,11 @@ export function useAppSettings(): AppSettingsValue {
       setSettings(map)
     }
     setLoading(false)
-  }, [supabase])
+  }, []) // stable — supabase singleton needs no dep
 
   useEffect(() => { reload() }, [reload])
+
+  const channelList = parseCSV(settings.content_channels)
 
   return {
     settings,
@@ -60,12 +63,12 @@ export function useAppSettings(): AppSettingsValue {
     reload,
     companyName:     settings.company_name     ?? 'Nexo PMS',
     companyTagline:  settings.company_tagline   ?? 'Product Management System',
-    channels:        parseList(settings.content_channels) .length > 0
-                       ? parseList(settings.content_channels)
+    channels:        channelList.length > 0
+                       ? channelList
                        : ['Facebook', 'Line', 'TikTok', 'YouTube', 'Instagram', 'X', 'Website'],
     defaultChannel:  settings.default_channel   ?? 'Facebook',
-    productTypes:    parseList(settings.product_types),
-    brands:          parseList(settings.brands),
+    productTypes:    parseCSV(settings.product_types),
+    brands:          parseCSV(settings.brands),
     fiscalYearStart: settings.fiscal_year_start ?? '01',
     salesPeriodDays: parseInt(settings.sales_period_days ?? '30', 10) || 30,
   }
