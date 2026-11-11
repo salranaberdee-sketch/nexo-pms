@@ -13,6 +13,7 @@ import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
 import ContentAssets, { type ContentAsset } from './ContentAssets'
 import { useContentTypes, type ContentType } from './ContentTypeManager'
+import ContentTypeManager from './ContentTypeManager'
 import { useSettings } from '@/lib/app-settings'
 import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, tdCls, tableWrapCls } from '@/lib/cx'
 import { IconPlus, IconPencil, IconTrash, IconChevronDown } from '@/lib/icons'
@@ -440,6 +441,9 @@ export default function Contents() {
   const [visibleCount, setVisibleCount] = useState(10)
   useEffect(() => { setVisibleCount(10) }, [filterProduct, filterStatus, search, dateFrom, dateTo])
 
+  // Tab: 'list' | 'types'
+  const [activeTab, setActiveTab] = useState<'list' | 'types'>('list')
+
   return (
     <div className="p-6 space-y-5">
 
@@ -449,13 +453,50 @@ export default function Contents() {
           <h1 className="text-xl font-semibold text-slate-900">Content</h1>
           <p className="text-sm text-slate-400 mt-0.5">ติดตามสถานะการผลิต Content ทุกชิ้น</p>
         </div>
-        {canInsert && (
+        {activeTab === 'list' && canInsert && (
           <button onClick={() => { setAddForm({ ...EMPTY_ADD_FORM }); setAddError(''); setShowAdd(true) }}
             className={btnPrimary}>
             <IconPlus />เพิ่ม Content
           </button>
         )}
       </div>
+
+      {/* ── Tabs ──────────────────────────────────────────────── */}
+      <div className="flex gap-1 border-b border-slate-100">
+        <button
+          onClick={() => setActiveTab('list')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === 'list'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          รายการ Content
+        </button>
+        <button
+          onClick={() => setActiveTab('types')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === 'types'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          ประเภท
+        </button>
+      </div>
+
+      {/* ── Tab: ประเภท ───────────────────────────────────────── */}
+      {activeTab === 'types' && (
+        <div className="max-w-lg">
+          <div className="bg-white border border-slate-200 rounded-2xl p-5">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">จัดการประเภท Content</p>
+            <ContentTypeManager />
+          </div>
+        </div>
+      )}
+
+      {/* ── Tab: รายการ (guard) ───────────────────────────────── */}
+      {activeTab === 'list' && (<>
 
       {loadError && (
         <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600 flex items-center gap-3">
@@ -702,6 +743,9 @@ export default function Contents() {
           )}
         </div>
       </div>
+
+      {/* end of 'list' tab */}
+      </>)}
 
       {/* ── DELETE confirm ─────────────────────────────────────── */}
       <ConfirmModal
