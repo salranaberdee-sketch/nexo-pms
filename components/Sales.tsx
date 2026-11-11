@@ -546,11 +546,7 @@ export default function Sales() {
               <div key={s.id} className="p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-slate-900 text-sm">{product?.name || s.product_id}</span>
-                      <StatusSelect value={s.status ?? 'ยังไม่เปิดขาย'} options={SALES_STATUS_OPTIONS} styleMap={salesStatusStyle}
-                        disabled={!canUpdate} onChange={v => updateStatus(s.id, v)} />
-                    </div>
+                    <p className="font-semibold text-slate-900 text-sm truncate">{product?.name || s.product_id}</p>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="font-mono text-xs text-slate-400">{s.product_id}</span>
                       {product?.business_type && <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{product.business_type}</span>}
@@ -568,6 +564,11 @@ export default function Sales() {
                       </button>
                     )}
                   </div>
+                </div>
+                {/* Status — แยกแถวเพื่อป้องกัน dropdown ทับ content */}
+                <div>
+                  <StatusSelect value={s.status ?? 'ยังไม่เปิดขาย'} options={SALES_STATUS_OPTIONS} styleMap={salesStatusStyle}
+                    disabled={!canUpdate} onChange={v => updateStatus(s.id, v)} />
                 </div>
                 {/* Progress bar */}
                 <div>
