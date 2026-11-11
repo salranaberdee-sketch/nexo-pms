@@ -107,12 +107,12 @@ function FieldRow({ label, description, children }: {
   label: string; description?: string | React.ReactNode; children: React.ReactNode
 }) {
   return (
-    <div className="flex gap-6 py-4 border-b border-slate-100 last:border-0 items-start">
-      <div className="w-48 shrink-0">
+    <div className="flex flex-col md:flex-row md:gap-6 py-4 border-b border-slate-100 last:border-0 items-start gap-2">
+      <div className="md:w-48 md:shrink-0 w-full">
         <p className="text-sm font-medium text-slate-700">{label}</p>
         {description && <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{description}</p>}
       </div>
-      <div className="flex-1">{children}</div>
+      <div className="flex-1 w-full">{children}</div>
     </div>
   )
 }
@@ -237,17 +237,17 @@ export default function Settings() {
   }
 
   return (
-    <div className="p-6 space-y-5 max-w-3xl">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5 max-w-3xl">
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">ตั้งค่าระบบ</h1>
+          <h1 className="text-lg md:text-xl font-semibold text-slate-900">ตั้งค่าระบบ</h1>
           <p className="text-sm text-slate-400 mt-0.5">กำหนดข้อมูลบริษัทและค่าเริ่มต้นทั่วระบบ</p>
         </div>
         {isDirty && (
-          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 shadow-sm shrink-0">
-            <span className="text-xs text-amber-700 font-medium mr-1">มีการเปลี่ยนแปลงที่ยังไม่บันทึก</span>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 shadow-sm shrink-0">
+            <span className="text-xs text-amber-700 font-medium">มีการเปลี่ยนแปลงที่ยังไม่บันทึก</span>
             <button onClick={discard}
               className="text-xs text-slate-500 hover:text-slate-700 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition-colors">
               ยกเลิก

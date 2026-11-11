@@ -201,16 +201,16 @@ export default function Team() {
   useEffect(() => { setVisibleCount(10) }, [filter, search, dateFrom, dateTo])
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5">
 
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-slate-900">จัดการสมาชิก</h1>
+        <h1 className="text-lg md:text-xl font-semibold text-slate-900">จัดการสมาชิก</h1>
         <p className="text-sm text-slate-400 mt-0.5">อนุมัติ ปฏิเสธ และกำหนดบทบาทของผู้ใช้ในระบบ</p>
       </div>
 
       {/* ── Summary cards ─────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
         {[
           { key: 'pending',  label: 'รออนุมัติ',   count: pendingCount,  color: 'text-amber-600',   ring: 'border-amber-300 ring-amber-100' },
           { key: 'approved', label: 'อนุมัติแล้ว', count: approvedCount, color: 'text-emerald-600', ring: 'border-emerald-300 ring-emerald-100' },
@@ -261,13 +261,13 @@ export default function Team() {
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาชื่อหรืออีเมล..." />
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 flex-wrap">
               <span className="text-xs text-slate-400 whitespace-nowrap">จาก</span>
               <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
+                className="border border-slate-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700 w-32" />
               <span className="text-xs text-slate-400">ถึง</span>
               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
+                className="border border-slate-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700 w-32" />
               {(dateFrom || dateTo) && (
                 <button onClick={() => { setDateFrom(''); setDateTo('') }}
                   className="text-xs text-slate-400 hover:text-red-500 transition-colors px-1.5 py-1 rounded-lg hover:bg-red-50">✕</button>
@@ -283,7 +283,7 @@ export default function Team() {
             )}
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50/60 border-b border-slate-100">
@@ -380,6 +380,83 @@ export default function Team() {
           </table>
           {visibleCount < filtered.length && (
             <div className="px-4 py-4 border-t border-slate-100 text-center">
+              <button onClick={() => setVisibleCount(v => v + 10)}
+                className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
+                ดูเพิ่มเติม ({filtered.length - visibleCount} คน)
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile card list */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {loading ? (
+            <div className="p-6 text-center text-sm text-slate-400">กำลังโหลด...</div>
+          ) : filtered.length === 0 ? (
+            <div className="p-6 text-center text-sm text-slate-400">ไม่พบสมาชิก</div>
+          ) : filtered.slice(0, visibleCount).map(p => {
+            const isSelf = p.id === me.id
+            const displayApproval = approvalLabel[p.approval_status] || p.approval_status
+            return (
+              <div key={p.id} className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm shrink-0"
+                      style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)', color: '#4f46e5' }}>
+                      {p.name?.[0]?.toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-slate-900 text-sm">{p.name}</span>
+                        {isSelf && <span className="text-[10px] bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full font-medium">คุณ</span>}
+                      </div>
+                      <p className="text-xs text-slate-400 truncate">{p.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={`text-xs px-2 py-1 rounded-lg font-medium ${approvalStatusStyle[p.approval_status] || 'bg-slate-100 text-slate-500'}`}>
+                      {displayApproval}
+                    </span>
+                    {canDelete && !isSelf && (
+                      <button onClick={() => setConfirmDelete(p.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                        <IconTrash />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative inline-flex">
+                    <select value={p.role} onChange={e => changeRole(p.id, e.target.value)}
+                      disabled={isSelf}
+                      className={`appearance-none cursor-pointer text-xs font-medium pl-2 pr-6 py-1 rounded-lg border border-current/20 focus:outline-none ${roleStyle[p.role] || 'bg-slate-100 text-slate-500'} ${isSelf ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                      {ROLES.map(r => <option key={r} value={r} className="bg-white text-slate-700">{r}</option>)}
+                    </select>
+                    {!isSelf && (
+                      <svg className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 opacity-60" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    )}
+                  </div>
+                  <StatusSelect value={displayApproval} options={APPROVAL_DISPLAY_OPTIONS} styleMap={approvalDisplayStyle}
+                    disabled={isSelf}
+                    onChange={v => {
+                      const rawValue = thaiToApproval[v]
+                      if (!rawValue) return
+                      if (rawValue === 'rejected' && p.approval_status === 'approved') {
+                        setConfirmSuspend(p.id); return
+                      }
+                      applyApproval(p.id, rawValue)
+                    }} />
+                  {p.role === 'editor' && (
+                    <button type="button" onClick={() => openBrandAccess(p.id, p.brand_access || [])}
+                      className={`text-xs px-2 py-1 rounded-lg font-medium transition-colors ${(p.brand_access || []).length === 0 ? 'text-red-400 bg-red-50 border border-red-100' : 'text-teal-700 bg-teal-50 border border-teal-100'}`}>
+                      {(p.brand_access || []).length === 0 ? 'ไม่มีสิทธิ์ Brand' : `${(p.brand_access || []).length} brand`}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+          {visibleCount < filtered.length && (
+            <div className="p-4 text-center">
               <button onClick={() => setVisibleCount(v => v + 10)}
                 className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
                 ดูเพิ่มเติม ({filtered.length - visibleCount} คน)

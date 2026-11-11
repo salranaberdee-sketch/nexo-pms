@@ -735,17 +735,17 @@ export default function Report() {
   const deleteTarget = confirmDelete !== null ? schedules.find(s => s.id === confirmDelete) : null
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       {/* ── Page Header ── */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
+          <h1 className="text-lg md:text-xl font-semibold text-slate-900 flex items-center gap-2">
             <IconBarChart2 />
             Report
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">ภาพรวมข้อมูลเชิงลึก · Export · ตั้งเวลาส่ง Email</p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 flex-wrap">
           <button onClick={() => setShowExportPanel(v => !v)} className={btnSecondary}>
             <IconDownload />
             Export / ส่ง Email

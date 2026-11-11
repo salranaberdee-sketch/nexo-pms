@@ -254,12 +254,12 @@ export default function Sales() {
   useEffect(() => { setVisibleCount(10) }, [search, filterCategory, filterStatus, dateFrom, dateTo])
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Sales</h1>
+          <h1 className="text-lg md:text-xl font-semibold text-slate-900">Sales</h1>
           <p className="text-sm text-slate-400 mt-0.5">ยอดขายรวม — เหลือ {daysLeft} วัน ถึงสิ้นรอบ</p>
         </div>
         {canInsert && (
@@ -278,7 +278,7 @@ export default function Sales() {
       )}
 
       {/* ── Summary cards ─────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
         <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-indigo-500" />
           <p className="text-xs text-slate-400 mb-2.5 mt-1">ยอดขายรวม</p>
@@ -401,7 +401,7 @@ export default function Sales() {
           </div>
           <span className="text-xs text-slate-400 whitespace-nowrap tabular-nums">{filteredAndSearched.length} รายการ</span>
         </div>
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50/60 border-b border-slate-100">
@@ -526,6 +526,83 @@ export default function Sales() {
             </div>
           )}
         </div>
+
+        {/* Mobile card list */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {loading ? (
+            <div className="p-6 text-center text-sm text-slate-400">กำลังโหลด...</div>
+          ) : filteredAndSearched.length === 0 ? (
+            <div className="p-6 text-center text-sm text-slate-400">ไม่พบข้อมูล</div>
+          ) : filteredAndSearched.slice(0, visibleCount).map(s => {
+            const product = productMap.get(s.product_id)
+            const target  = Number(s.sales_target_amount)
+            const actual  = Number(s.actual_sales)
+            const received = Number(s.actual_received)
+            const rowGap  = Math.max(0, target - actual)
+            const pct     = target > 0 ? Math.round((actual / target) * 100) : 0
+            const colPct  = actual > 0 ? Math.round((received / actual) * 100) : 0
+            const barColor = pct >= 80 ? 'bg-emerald-500' : pct >= 40 ? 'bg-amber-400' : 'bg-blue-500'
+            return (
+              <div key={s.id} className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-slate-900 text-sm">{product?.name || s.product_id}</span>
+                      <StatusSelect value={s.status ?? 'ยังไม่เปิดขาย'} options={SALES_STATUS_OPTIONS} styleMap={salesStatusStyle}
+                        disabled={!canUpdate} onChange={v => updateStatus(s.id, v)} />
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className="font-mono text-xs text-slate-400">{s.product_id}</span>
+                      {product?.business_type && <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{product.business_type}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {canUpdate && (
+                      <button onClick={() => openEdit(s)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors">
+                        <IconPencil />
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button onClick={() => setConfirmDelete(s.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors">
+                        <IconTrash />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {/* Progress bar */}
+                <div>
+                  <div className="flex justify-between text-xs mb-1.5">
+                    <span className="text-slate-500">ยอดจริง <span className="font-semibold text-slate-800">฿{actual.toLocaleString()}</span></span>
+                    <span className="text-slate-400">เป้า ฿{target.toLocaleString()}</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full overflow-hidden bg-slate-100">
+                    <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                  </div>
+                  <div className="flex justify-between text-xs mt-1">
+                    <span className="text-slate-500">{pct}% สำเร็จ</span>
+                    {rowGap > 0 && <span className="text-red-500">ขาด ฿{rowGap.toLocaleString()}</span>}
+                    {rowGap === 0 && actual > 0 && <span className="text-emerald-600">ปิดเป้าแล้ว ✓</span>}
+                  </div>
+                </div>
+                {/* Received */}
+                {actual > 0 && (
+                  <div className="flex justify-between text-xs text-slate-500">
+                    <span>รับเงินจริง ฿{received.toLocaleString()}</span>
+                    <span className={colPct >= 80 ? 'text-emerald-600' : colPct >= 50 ? 'text-amber-600' : 'text-red-500'}>เก็บได้ {colPct}%</span>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {visibleCount < filteredAndSearched.length && (
+            <div className="p-4 text-center">
+              <button onClick={() => setVisibleCount(v => v + 10)}
+                className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
+                ดูเพิ่มเติม ({filteredAndSearched.length - visibleCount} รายการ)
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── DELETE confirm ─────────────────────────────────────── */}
@@ -544,8 +621,8 @@ export default function Sales() {
 
       {/* ── ADD modal ──────────────────────────────────────────── */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="เพิ่มเป้ายอดขายใหม่" width="max-w-lg">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="col-span-1 sm:col-span-2">
             <Field label="Product" required>
               <select value={addForm.product_id} onChange={e => setAddForm({ ...addForm, product_id: e.target.value })} className={selectCls}>
                 <option value="">เลือก Product</option>
@@ -585,8 +662,8 @@ export default function Sales() {
 
       {/* ── EDIT modal ─────────────────────────────────────────── */}
       <Modal open={!!editingRow} onClose={() => setEditingRow(null)} title={`แก้ไขยอดขาย — ${editingRow?.product_id}`} width="max-w-lg">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="col-span-1 sm:col-span-2">
             <Field label="Product" required>
               <select value={editVal.product_id} onChange={e => setEditVal(v => ({ ...v, product_id: e.target.value }))} className={selectCls}>
                 <option value="">เลือก Product</option>

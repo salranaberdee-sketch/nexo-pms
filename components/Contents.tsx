@@ -455,12 +455,12 @@ export default function Contents() {
   }
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5">
 
       {/* ── Page header ───────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Content</h1>
+          <h1 className="text-lg md:text-xl font-semibold text-slate-900">Content</h1>
           <p className="text-sm text-slate-400 mt-0.5">ติดตามสถานะการผลิต Content ทุกชิ้น</p>
         </div>
         {activeTab === 'list' && canInsert && (
@@ -533,17 +533,17 @@ export default function Contents() {
       <div className="flex gap-2 flex-wrap items-center">
         <SearchInput value={search} onChange={setSearch} placeholder="ค้นหาชื่อ, Hook, Product, ผู้รับผิดชอบ..." />
         <select value={filterProduct} onChange={e => setFilterProduct(e.target.value)}
-          className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700">
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700 max-w-full">
           <option value="all">ทุก Product</option>
           {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_id} — {p.name}</option>)}
         </select>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 flex-wrap">
           <span className="text-xs text-slate-400 whitespace-nowrap">กำหนดส่ง จาก</span>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
+            className="border border-slate-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700 w-32" />
           <span className="text-xs text-slate-400">ถึง</span>
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
+            className="border border-slate-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700 w-32" />
         </div>
         {hasFilters && (
           <button onClick={() => { setFilterProduct('all'); setFilterStatus('all'); setSearch(''); setDateFrom(''); setDateTo('') }}
@@ -558,7 +558,7 @@ export default function Contents() {
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
           <span className="text-sm text-slate-400 tabular-nums">{filtered.length} / {contents.length} รายการ</span>
         </div>
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50/60 border-b border-slate-100">
@@ -747,6 +747,69 @@ export default function Contents() {
             </div>
           )}
         </div>
+
+        {/* Mobile card list (hidden md+) */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {loading ? (
+            <div className="p-6 text-center text-sm text-slate-400">กำลังโหลด...</div>
+          ) : filtered.length === 0 ? (
+            <div className="p-6 text-center text-sm text-slate-400">ไม่พบ Content ที่ตรงเงื่อนไข</div>
+          ) : filtered.slice(0, visibleCount).map(c => {
+            const overdue = c.deadline && c.deadline < TODAY && c.status !== DONE_STATUS
+            const daysUntil = c.deadline && c.status !== DONE_STATUS
+              ? Math.round((new Date(c.deadline).getTime() - TODAY_MS) / 86400000) : null
+            const soon = !overdue && daysUntil !== null && daysUntil >= 0 && daysUntil <= SOON_DAYS
+            const daysLate = overdue ? Math.round((TODAY_MS - new Date(c.deadline!).getTime()) / 86400000) : 0
+            return (
+              <div key={c.id} className={`p-4 space-y-2 ${overdue ? 'bg-red-50/40' : soon ? 'bg-amber-50/40' : ''}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${typeStyleOf(contentTypes, c.type)}`}>{c.type}</span>
+                      <span className="font-mono text-xs text-slate-400">{c.product_id} #{c.seq}</span>
+                    </div>
+                    <p className="text-sm font-medium text-slate-900 leading-snug">{c.title}</p>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {c.channel && <span className="text-xs text-slate-400">{c.channel}</span>}
+                      {c.assigned_to && <span className="text-xs text-slate-500">👤 {c.assigned_to}</span>}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <StatusSelect value={c.status ?? ''} options={STATUSES} styleMap={statusStyle}
+                      disabled={!canUpdate} onChange={v => updateStatus(c.id, v)} />
+                    {c.deadline && (
+                      <span className={`text-xs font-medium whitespace-nowrap ${overdue ? 'text-red-600' : soon ? 'text-amber-600' : 'text-slate-400'}`}>
+                        {overdue ? `เลย ${daysLate} วัน` : soon ? `⚡ อีก ${daysUntil} วัน` : new Date(c.deadline!).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {canUpdate && (
+                    <button onClick={() => openEdit(c)} className="flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-600 px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 border border-slate-200 transition-colors">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      แก้ไข
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button onClick={() => setConfirmDelete(c.id)} className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-500 px-2.5 py-1.5 rounded-lg hover:bg-red-50 border border-transparent transition-colors">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                      ลบ
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+          {visibleCount < filtered.length && (
+            <div className="p-4 text-center">
+              <button onClick={() => setVisibleCount(v => v + 10)}
+                className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
+                ดูเพิ่มเติม ({filtered.length - visibleCount} รายการ)
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* end of 'list' tab */}
@@ -767,7 +830,7 @@ export default function Contents() {
 
       {/* ── ADD modal ──────────────────────────────────────────── */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="เพิ่ม Content ใหม่" width="max-w-2xl">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Product" required>
             <select value={addForm.product_id}
               onChange={e => setAddForm(f => ({ ...f, product_id: e.target.value }))}
@@ -884,7 +947,7 @@ export default function Contents() {
 
       {/* ── EDIT modal ─────────────────────────────────────────── */}
       <Modal open={!!editingRow} onClose={() => setEditingRow(null)} title={`แก้ไข Content — ${editingRow?.product_id} #${editingRow?.seq}`} width="max-w-2xl">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Product" required>
             <select value={editForm.product_id} onChange={e => setEditForm(f => ({ ...f, product_id: e.target.value }))} className={selectCls}>
               <option value="">เลือก Product</option>

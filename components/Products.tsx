@@ -329,12 +329,12 @@ export default function Products() {
   const paginated = filtered.slice(0, visibleCount)
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5">
 
       {/* Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Products</h1>
+          <h1 className="text-lg md:text-xl font-semibold text-slate-900">Products</h1>
           <p className="text-sm text-slate-400 mt-0.5">จัดการ Product ID และข้อมูลสินค้า</p>
         </div>
         {canInsert && (
@@ -405,15 +405,15 @@ export default function Products() {
       {/* ── Table ─────────────────────────────────────────────── */}
       <div className={tableWrapCls}>
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 flex-1 flex-wrap">
-            <SearchInput value={search} onChange={setSearch} placeholder="ค้นหา Product ID, ชื่อ, แบรนด์, ผู้รับผิดชอบ..." />
-            <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
+            <SearchInput value={search} onChange={setSearch} placeholder="ค้นหา Product ID, ชื่อ, แบรนด์..." />
+            <div className="flex items-center gap-1 shrink-0 flex-wrap">
               <span className="text-xs text-slate-400 whitespace-nowrap">จาก</span>
               <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
+                className="border border-slate-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700 w-32" />
               <span className="text-xs text-slate-400">ถึง</span>
               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                className="border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700" />
+                className="border border-slate-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-700 w-32" />
               {(dateFrom || dateTo) && (
                 <button onClick={() => { setDateFrom(''); setDateTo('') }}
                   className="text-xs text-slate-400 hover:text-red-500 transition-colors px-1.5 py-1 rounded-lg hover:bg-red-50">✕</button>
@@ -422,7 +422,8 @@ export default function Products() {
           </div>
           <span className="text-xs text-slate-400 whitespace-nowrap tabular-nums">{filtered.length} / {products.length} รายการ</span>
         </div>
-        <div className="overflow-x-auto">
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50/60 border-b border-slate-100">
@@ -506,6 +507,56 @@ export default function Products() {
             </div>
           )}
         </div>
+
+        {/* Mobile card list (hidden md+) */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {loading ? (
+            <div className="p-6 text-center text-sm text-slate-400">กำลังโหลด...</div>
+          ) : paginated.length === 0 ? (
+            <div className="p-6 text-center text-sm text-slate-400">ยังไม่มีสินค้าที่ตรงเงื่อนไข</div>
+          ) : paginated.map(p => (
+            <div key={p.id} className="p-4 hover:bg-slate-50 transition-colors">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-slate-900 text-sm">{p.name}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${statusStyle[p.status ?? ''] || 'bg-slate-100 text-slate-500'}`}>
+                      {p.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="font-mono text-xs text-slate-400">{p.product_id}</span>
+                    {p.brand && <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{p.brand}</span>}
+                    {p.business_type && <span className="text-xs text-slate-400">{p.business_type}</span>}
+                  </div>
+                  {p.owner && (
+                    <p className="text-xs text-slate-400 mt-1">ผู้รับผิดชอบ: {p.owner}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {canUpdate && (
+                    <button onClick={() => startEdit(p)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button onClick={() => openDeleteConfirm(p.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          {visibleCount < filtered.length && (
+            <div className="p-4 text-center">
+              <button onClick={() => setVisibleCount(v => v + 10)}
+                className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
+                ดูเพิ่มเติม ({filtered.length - visibleCount} รายการ)
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Add / Edit Modal */}
@@ -516,7 +567,7 @@ export default function Products() {
         width="max-w-2xl"
       >
         {/* ── Basic info ── */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Product ID" hint="รูปแบบ XXX-YYY-NNN" required={!editingId}>
             <input
               placeholder="เช่น MED-PSY-002"

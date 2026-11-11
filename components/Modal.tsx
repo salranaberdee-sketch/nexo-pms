@@ -40,21 +40,21 @@ export default function Modal({
   return (
     // Backdrop
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4"
       style={{ backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
-      {/* Panel */}
+      {/* Panel — full screen on mobile, centered popup on sm+ */}
       <div
         ref={panelRef}
-        className={`relative bg-white rounded-2xl shadow-2xl w-full ${width} flex flex-col max-h-[90vh]`}
+        className={`relative bg-white sm:rounded-2xl rounded-t-2xl shadow-2xl w-full ${width} flex flex-col max-h-[95vh] sm:max-h-[90vh]`}
         style={{ animation: 'modalIn 0.15s ease-out both' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
           <h2 className="text-base font-semibold text-slate-900">{title}</h2>
           <button
             onClick={onClose}
@@ -68,15 +68,21 @@ export default function Modal({
         </div>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto px-6 py-5 flex-1">
+        <div className="overflow-y-auto px-5 py-5 flex-1">
           {children}
         </div>
       </div>
 
       <style>{`
         @keyframes modalIn {
-          from { opacity: 0; transform: scale(0.96) translateY(8px); }
-          to   { opacity: 1; transform: scale(1)    translateY(0);   }
+          from { opacity: 0; transform: scale(0.98) translateY(10px); }
+          to   { opacity: 1; transform: scale(1)    translateY(0);    }
+        }
+        @media (max-width: 639px) {
+          @keyframes modalIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0);    }
+          }
         }
       `}</style>
     </div>

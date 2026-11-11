@@ -48,8 +48,7 @@ type LeadFormType = typeof EMPTY_FORM
 
 // Hoisted outside Leads so React doesn't remount it on every parent render.
 // Previously defined inside Leads which caused input to lose focus on every state change.
-function LeadForm({ form, setForm, products, adsOpts, contentsOpts, profileOptions }: {
-  form: LeadFormType
+function LeadForm({ form, setForm, products, adsOpts, contentsOpts, profileOptions }: {  form: LeadFormType
   setForm: (f: LeadFormType) => void
   products: any[]
   adsOpts: any[]
@@ -57,8 +56,7 @@ function LeadForm({ form, setForm, products, adsOpts, contentsOpts, profileOptio
   profileOptions: ProfileOption[]
 }) {
   return (
-    <div className="grid grid-cols-2 gap-4">
-      {/* Attribution */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">      {/* Attribution */}
       <Field label="สินค้า / บริการ" required>
         <select value={form.product_id} onChange={e => setForm({ ...form, product_id: e.target.value, ad_id: '', content_id: '' })} className={selectCls}>
           <option value="">เลือกสินค้า</option>
@@ -380,12 +378,11 @@ export default function Leads() {
   const editFilteredContents = useMemo(() => contents.filter(c => !editForm.product_id || c.product_id === editForm.product_id), [contents, editForm.product_id])
 
   return (
-    <div className="p-6 space-y-5">
-
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5">
       {/* ── Page header ───────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Leads</h1>
+          <h1 className="text-lg md:text-xl font-semibold text-slate-900">Leads</h1>
           <p className="text-sm text-slate-400 mt-0.5">ติดตาม Lead ตั้งแต่รับจนปิดการขาย</p>
         </div>
         {canInsert && (
@@ -404,7 +401,7 @@ export default function Leads() {
       )}
 
       {/* ── Summary cards ─────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         {(
           [
             { label: 'Leads ทั้งหมด',   value: totalLeads.toLocaleString(),      meta: 'ทุก status',              color: 'bg-indigo-500' },
@@ -456,7 +453,7 @@ export default function Leads() {
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
           <span className="text-sm text-slate-400 tabular-nums">{filtered.length} รายการ</span>
         </div>
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50/60 border-b border-slate-100">
@@ -551,6 +548,69 @@ export default function Leads() {
           </table>
           {visibleCount < filtered.length && (
             <div className="px-4 py-4 border-t border-slate-100 text-center">
+              <button onClick={() => setVisibleCount(v => v + 15)}
+                className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
+                ดูเพิ่มเติม ({filtered.length - visibleCount} รายการ)
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile card list */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {loading ? (
+            <div className="p-6 text-center text-sm text-slate-400">กำลังโหลด...</div>
+          ) : filtered.length === 0 ? (
+            <div className="p-6 text-center text-sm text-slate-400">ยังไม่มี Lead</div>
+          ) : filtered.slice(0, visibleCount).map(l => {
+            const product = productMap.get(l.product_id)
+            const ad      = l.ad_id ? adMap.get(l.ad_id) : null
+            const content = l.content_id ? contentMap.get(l.content_id) : null
+            return (
+              <div key={l.id} className="p-4 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{l.product_id}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${(leadStatusStyle as Record<string, string>)[l.status] || 'bg-slate-100 text-slate-500'}`}>{l.status}</span>
+                    </div>
+                    {product && <p className="text-sm font-medium text-slate-900 mt-1">{product.name}</p>}
+                    <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-slate-400">
+                      <span className="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{channelLabel[l.channel_in] || l.channel_in}</span>
+                      {l.owner_name && <span>{l.owner_name}</span>}
+                      {ad && <span>{ad.campaign_name}</span>}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    {Number(l.deal_amount) > 0 && (
+                      <span className="text-sm font-semibold text-emerald-600">฿{Number(l.deal_amount).toLocaleString()}</span>
+                    )}
+                    {l.consent_given
+                      ? <span className="text-xs bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded">ยินยอม ✓</span>
+                      : <span className="text-xs bg-red-50 text-red-400 px-1.5 py-0.5 rounded">ยังไม่ยินยอม</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusSelect value={l.status} options={LEAD_STATUSES} styleMap={leadStatusStyle}
+                    disabled={!canUpdate} onChange={v => updateStatus(l.id, v)} />
+                  {canUpdate && (
+                    <button onClick={() => openEdit(l)} className="flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-600 px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 border border-slate-200 transition-colors">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      แก้ไข
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button onClick={() => setConfirmDelete(l.id)} className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-500 px-2.5 py-1.5 rounded-lg hover:bg-red-50 border border-transparent transition-colors">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                      ลบ
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+          {visibleCount < filtered.length && (
+            <div className="p-4 text-center">
               <button onClick={() => setVisibleCount(v => v + 15)}
                 className="text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
                 ดูเพิ่มเติม ({filtered.length - visibleCount} รายการ)

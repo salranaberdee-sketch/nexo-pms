@@ -562,13 +562,13 @@ export default function Dashboard() {
   return (
     <div className="flex h-full">
       {/* ── Main content ─────────────────────────────────────── */}
-      <div className={`flex-1 overflow-y-auto transition-all duration-300 ${activePanel ? 'lg:mr-[380px]' : ''}`}>
-        <div className="p-6 space-y-6">
+      <div className={`flex-1 overflow-y-auto transition-all duration-300 ${activePanel ? 'md:mr-[380px]' : ''}`}>
+        <div className="p-4 md:p-6 space-y-4 md:space-y-6">
 
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-semibold text-slate-900">Dashboard</h1>
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h1 className="text-lg md:text-xl font-semibold text-slate-900">Dashboard</h1>
               <p className="text-sm text-slate-400 mt-0.5">ภาพรวมทุก Product{updatedLabel && ` — อัปเดต ${updatedLabel}`}</p>
             </div>
             <div className="flex items-center gap-2">
@@ -596,7 +596,7 @@ export default function Dashboard() {
           )}
 
           {/* KPI cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
             <KPICard label="ยอดขายจริง" value={`฿${totalActual.toLocaleString()}`} sub={`เป้า ฿${totalTarget.toLocaleString()}`} pct={pct} accent="emerald" icon="baht" active={activePanel === 'sales'} onClick={() => openPanel(activePanel === 'sales' ? null : 'sales')} />
             <KPICard label="งบ Ads คงเหลือ" value={`฿${(totalBudget - totalSpent).toLocaleString()}`} sub={`ใช้ไป ฿${totalSpent.toLocaleString()}`} accent="amber" icon="ads" active={activePanel === 'ads'} onClick={() => openPanel(activePanel === 'ads' ? null : 'ads')} />
             <KPICard label="Leads รวม" value={totalLeads.toLocaleString()} sub={`${ads.length} campaigns`} accent="blue" icon="trending" active={activePanel === 'leads'} onClick={() => openPanel(activePanel === 'leads' ? null : 'leads')} />
@@ -890,7 +890,7 @@ export default function Dashboard() {
               <h2 className="text-sm font-semibold text-slate-900">งานของฉัน</h2>
               <span className="text-xs text-slate-400">{myTasks.totalTasks} รายการ</span>
             </div>
-            <div className="grid grid-cols-3 gap-3 p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4">
               <Link href="/contents" className="p-5 rounded-xl hover:shadow-md hover:-translate-y-0.5 transition-all block bg-violet-50">
                 <p className="text-xs text-slate-400 mb-2">Content ที่รับผิดชอบ</p>
                 <p className="text-2xl font-semibold text-slate-900 leading-none">{myTasks.myContents.length}</p>
@@ -916,10 +916,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Detail Panel (slide in from right) ──────────────── */}
+      {/* ── Detail Panel (full-screen on mobile, slide from right on desktop) ── */}
       {activePanel && (
         <div
-          className="fixed top-0 right-0 h-screen w-[380px] bg-white border-l border-slate-200 shadow-xl z-40 flex flex-col">
+          className="fixed inset-0 md:inset-auto md:top-0 md:right-0 md:h-screen md:w-[380px] bg-white border-l border-slate-200 shadow-xl z-40 flex flex-col overflow-hidden"
+          style={{ top: 'var(--mobile-header-height, 56px)' }}
+        >
           {/* Panel header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
             <h3 className="text-sm font-semibold text-slate-900">{panelTitles[activePanel]}</h3>

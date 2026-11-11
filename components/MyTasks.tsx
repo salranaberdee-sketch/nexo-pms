@@ -468,12 +468,11 @@ export default function MyTasks() {
   )
 
   return (
-    <div className="p-6 space-y-5">
-
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">งานของฉัน</h1>
+          <h1 className="text-lg md:text-xl font-semibold text-slate-900">งานของฉัน</h1>
           <p className="text-sm text-slate-400 mt-0.5">{me.name} · {me.role}</p>
         </div>
         <button onClick={load}

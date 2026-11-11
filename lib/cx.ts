@@ -59,3 +59,11 @@ export const tableWrapCls =
 // ── Page section header ──────────────────────────────────────────────────────
 export const sectionLabelCls =
   'text-[11px] font-semibold text-slate-400 uppercase tracking-widest'
+
+// ── Mobile-safe page padding ──────────────────────────────────────────────────
+/** Use instead of p-6 for top-level page wrapper */
+export const pagePadCls = 'p-4 md:p-6 space-y-4 md:space-y-5'
+
+// ── Mobile card — used as row replacement on small screens ────────────────────
+export const mobileCardCls =
+  'bg-white rounded-2xl border border-slate-100 p-4 shadow-sm'
