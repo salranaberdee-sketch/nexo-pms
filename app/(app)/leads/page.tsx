@@ -5,3 +5,5 @@ export const metadata = { title: 'Leads — Nexo PMS' }
 export default function LeadsPage() {
   return <Leads />
 }
+
+export const instant = false
