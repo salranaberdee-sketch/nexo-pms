@@ -8,7 +8,7 @@
  * No new DB schema needed; RLS allows SELECT on all tables for authenticated users.
  */
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useProfile } from '@/lib/profile-context'
@@ -207,10 +207,92 @@ export default function UserProfile() {
   const [nameVal,      setNameVal]      = useState(me.name)
   const [savingName,   setSavingName]   = useState(false)
 
+  // Avatar
+  const [avatarUrl,     setAvatarUrl]    = useState<string | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+
   // Content tab filter
   const [roleFilter, setRoleFilter] = useState<'all' | 'assigned_to_id' | 'producer_id' | 'approver_id' | 'poster_id'>('all')
 
-  // ── Load all data in parallel ─────────────────────────────
+  // ── Load avatar on mount ─────────────────────────────────
+  useEffect(() => {
+    supabase
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', me.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.avatar_url) setAvatarUrl(data.avatar_url)
+      })
+  }, [me.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Avatar upload with client-side autoresize ─────────────
+  const uploadAvatar = useCallback(async (file: File) => {
+    // Validate file type
+    const ALLOWED = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
+    if (!ALLOWED.includes(file.type)) {
+      showToast('รองรับเฉพาะ JPG, PNG, WebP, GIF', 'error')
+      return
+    }
+
+    setUploadingAvatar(true)
+
+    try {
+      // Autoresize: draw onto a canvas capped at 256×256px, preserve aspect ratio
+      const resized = await new Promise<Blob>((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => {
+          const MAX = 256
+          let { width, height } = img
+          if (width > MAX || height > MAX) {
+            if (width > height) { height = Math.round(height * (MAX / width));  width = MAX }
+            else                { width  = Math.round(width  * (MAX / height)); height = MAX }
+          }
+          const canvas = document.createElement('canvas')
+          canvas.width  = width
+          canvas.height = height
+          canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
+          canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob failed')), 'image/webp', 0.85)
+        }
+        img.onerror = () => reject(new Error('Image load failed'))
+        img.src = URL.createObjectURL(file)
+      })
+
+      // Upload to avatars/{userId}/avatar.webp — overwrites previous
+      const path = `${me.id}/avatar.webp`
+      const { error: upErr } = await supabase.storage
+        .from('avatars')
+        .upload(path, resized, { contentType: 'image/webp', upsert: true })
+      if (upErr) throw upErr
+
+      // Get public URL
+      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+      // Add cache-buster so browser reloads the new image
+      const publicUrl = `${urlData.publicUrl}?v=${Date.now()}`
+
+      // Persist to profiles.avatar_url — Supabase first, then setState
+      const { error: dbErr } = await supabase
+        .from('profiles')
+        .update({ avatar_url: urlData.publicUrl })
+        .eq('id', me.id)
+      if (dbErr) throw dbErr
+
+      setAvatarUrl(publicUrl)
+      showToast('อัปเดตรูปโปรไฟล์แล้ว')
+    } catch (e: any) {
+      showToast(`อัปโหลดไม่สำเร็จ: ${e.message}`, 'error')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }, [me.id, supabase]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) uploadAvatar(file)
+    // Reset input so the same file can be re-selected
+    e.target.value = ''
+  }
   useEffect(() => {
     async function load() {
       setLoadError('')
@@ -369,10 +451,53 @@ export default function UserProfile() {
       {/* ── Profile Card ──────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
         <div className="flex items-start gap-4">
-          {/* Avatar */}
-          <div className="w-16 h-16 rounded-full flex items-center justify-center font-bold text-xl shrink-0 select-none"
-            style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)', color: '#4f46e5' }}>
-            {(me.name?.[0] || me.email?.[0] || '?').toUpperCase()}
+          {/* Avatar — click to upload */}
+          <div className="relative shrink-0 group/avatar">
+            {/* Hidden file input */}
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+              onChange={handleAvatarChange}
+              className="sr-only"
+              aria-label="อัปโหลดรูปโปรไฟล์"
+            />
+            {/* Avatar circle — image or initials fallback */}
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={uploadingAvatar}
+              className="w-16 h-16 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 relative"
+              title="เปลี่ยนรูปโปรไฟล์"
+            >
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="รูปโปรไฟล์" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center font-bold text-xl select-none"
+                  style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)', color: '#4f46e5' }}>
+                  {(me.name?.[0] || me.email?.[0] || '?').toUpperCase()}
+                </div>
+              )}
+              {/* Hover overlay */}
+              <div className={`absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-0.5 transition-opacity ${
+                uploadingAvatar ? 'opacity-100' : 'opacity-0 group-hover/avatar:opacity-100'
+              }`}>
+                {uploadingAvatar ? (
+                  <svg className="animate-spin text-white" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity=".3"/>
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="4" strokeLinecap="round"/>
+                  </svg>
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                      <circle cx="12" cy="13" r="4"/>
+                    </svg>
+                    <span className="text-white text-[9px] font-medium leading-none">แก้ไข</span>
+                  </>
+                )}
+              </div>
+            </button>
           </div>
 
           {/* Info */}

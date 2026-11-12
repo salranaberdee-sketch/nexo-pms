@@ -849,6 +849,7 @@ export type Database = {
           approval_status: string
           approved_at: string | null
           approved_by: string | null
+          avatar_url: string | null
           brand_access: string[] | null
           created_at: string | null
           email: string
@@ -861,6 +862,7 @@ export type Database = {
           approval_status?: string
           approved_at?: string | null
           approved_by?: string | null
+          avatar_url?: string | null
           brand_access?: string[] | null
           created_at?: string | null
           email: string
@@ -873,6 +875,7 @@ export type Database = {
           approval_status?: string
           approved_at?: string | null
           approved_by?: string | null
+          avatar_url?: string | null
           brand_access?: string[] | null
           created_at?: string | null
           email?: string
@@ -1177,4 +1180,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
