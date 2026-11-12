@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useCan } from '@/lib/profile-context'
 import ProfilePicker from './ProfilePicker'
@@ -11,6 +12,7 @@ import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
 import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, thRightCls, tdCls, tdRightCls, tableWrapCls, sectionLabelCls } from '@/lib/cx'
 import { useSettings } from '@/lib/app-settings'
+import AdsSettingsPanel from './AdsSettingsPanel'
 import { IconPlus, IconPencil, IconTrash } from '@/lib/icons'
 import type { Tables } from '@/src/types/database'
 
@@ -277,6 +279,17 @@ export default function Ads() {
   // Content dropdown filtered by product
   const contentMap = useMemo(() => new Map(contents.map(c => [c.id, c])), [contents])
 
+  // Tab: sync with ?tab= URL param
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const activeTab: 'list' | 'settings' = searchParams.get('tab') === 'settings' ? 'settings' : 'list'
+  function setActiveTab(tab: 'list' | 'settings') {
+    const params = new URLSearchParams(searchParams.toString())
+    if (tab === 'list') params.delete('tab')
+    else params.set('tab', tab)
+    router.replace(`/ads?${params.toString()}`)
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-5">
 
@@ -286,7 +299,7 @@ export default function Ads() {
           <h1 className="text-lg md:text-xl font-semibold text-slate-900">Ads</h1>
           <p className="text-sm text-slate-400 mt-0.5">ติดตามแคมเปญโฆษณาและ ROI</p>
         </div>
-        {canInsert && (
+        {activeTab === 'list' && canInsert && (
           <button onClick={() => { setAddForm({ ...EMPTY_ADD_FORM }); setAddError(''); setShowAdd(true) }}
             className={btnPrimary}>
             <IconPlus />เพิ่มแคมเปญ
@@ -294,6 +307,20 @@ export default function Ads() {
         )}
       </div>
 
+      {/* ── Tabs ───────────────────────────────────────────── */}
+      <div className="flex gap-1 border-b border-slate-100">
+        <button onClick={() => setActiveTab('list')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'list' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+          รายการแคมเปญ
+        </button>
+        <button onClick={() => setActiveTab('settings')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'settings' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+          ตั้งค่า
+        </button>
+      </div>
+
+      {/* ── Tab: รายการ ────────────────────────────────────── */}
+      {activeTab === 'list' && (<>
       {loadError && (
         <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600 flex items-center gap-3">
           <span className="flex-1">โหลดข้อมูลไม่สำเร็จ: {loadError}</span>
@@ -713,6 +740,11 @@ export default function Ads() {
           <button onClick={() => setEditingRow(null)} className="px-5 py-2.5 text-sm text-slate-500 rounded-xl hover:bg-slate-100 transition-colors">ยกเลิก</button>
         </div>
       </Modal>
+      </>
+      )}
+
+      {/* ── Tab: ตั้งค่า ─────────────────────────────────────── */}
+      {activeTab === 'settings' && <AdsSettingsPanel />}
     </div>
   )
 }

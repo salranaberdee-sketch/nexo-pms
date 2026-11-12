@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useCan } from '@/lib/profile-context'
 import SearchInput from './SearchInput'
@@ -10,6 +11,7 @@ import Modal, { Field, ConfirmModal } from './Modal'
 import { useCategories } from './CategoryManager'
 import StatusSelect from './StatusSelect'
 import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, thRightCls, tdCls, tdRightCls, tableWrapCls } from '@/lib/cx'
+import SalesSettingsPanel from './SalesSettingsPanel'
 import { IconPlus, IconPencil, IconTrash } from '@/lib/icons'
 import { salesStatusStyle } from '@/lib/status-styles'
 import type { Tables } from '@/src/types/database'
@@ -253,6 +255,17 @@ export default function Sales() {
   const [visibleCount, setVisibleCount] = useState(10)
   useEffect(() => { setVisibleCount(10) }, [search, filterCategory, filterStatus, dateFrom, dateTo])
 
+  // Tab: sync with ?tab= URL param
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const activeTab: 'list' | 'settings' = searchParams.get('tab') === 'settings' ? 'settings' : 'list'
+  function setActiveTab(tab: 'list' | 'settings') {
+    const params = new URLSearchParams(searchParams.toString())
+    if (tab === 'list') params.delete('tab')
+    else params.set('tab', tab)
+    router.replace(`/sales?${params.toString()}`)
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-5">
 
@@ -262,7 +275,7 @@ export default function Sales() {
           <h1 className="text-lg md:text-xl font-semibold text-slate-900">Sales</h1>
           <p className="text-sm text-slate-400 mt-0.5">ยอดขายรวม — เหลือ {daysLeft} วัน ถึงสิ้นรอบ</p>
         </div>
-        {canInsert && (
+        {activeTab === 'list' && canInsert && (
           <button onClick={() => { setAddForm({ product_id: '', period_start: '', period_end: '', sales_target_amount: '', sales_target_count: '', status: 'ยังไม่เปิดขาย' }); setAddError(''); setShowAdd(true) }}
             className={btnPrimary}>
             <IconPlus />เพิ่มเป้ายอดขาย
@@ -270,6 +283,20 @@ export default function Sales() {
         )}
       </div>
 
+      {/* ── Tabs ───────────────────────────────────────────── */}
+      <div className="flex gap-1 border-b border-slate-100">
+        <button onClick={() => setActiveTab('list')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'list' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+          รายการยอดขาย
+        </button>
+        <button onClick={() => setActiveTab('settings')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'settings' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+          ตั้งค่า
+        </button>
+      </div>
+
+      {/* ── Tab: รายการ ────────────────────────────────────── */}
+      {activeTab === 'list' && (<>
       {loadError && (
         <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600 flex items-center gap-3">
           <span className="flex-1">โหลดข้อมูลไม่สำเร็จ: {loadError}</span>
@@ -707,6 +734,11 @@ export default function Sales() {
           <button onClick={() => setEditingRow(null)} className="px-5 py-2.5 text-sm text-slate-500 rounded-xl hover:bg-slate-100 transition-colors">ยกเลิก</button>
         </div>
       </Modal>
+      </>
+      )}
+
+      {/* ── Tab: ตั้งค่า ─────────────────────────────────────── */}
+      {activeTab === 'settings' && <SalesSettingsPanel />}
     </div>
   )
 }

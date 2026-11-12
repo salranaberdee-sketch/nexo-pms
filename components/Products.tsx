@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, useMemo } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useCan } from '@/lib/profile-context'
 import ProfilePicker from './ProfilePicker'
@@ -12,6 +13,7 @@ import { showToast } from './Toast'
 import Modal, { Field, ConfirmModal } from './Modal'
 import CategoryManager, { useCategories } from './CategoryManager'
 import { useSettings } from '@/lib/app-settings'
+import ProductSettingsPanel from './ProductSettingsPanel'
 import { inputCls, selectCls, btnPrimary, btnSecondary, btnDanger, thCls, tdCls, tableWrapCls } from '@/lib/cx'
 import { IconPlus, IconPencil, IconTrash, IconCopy } from '@/lib/icons'
 import { productStatusStyle as statusStyle } from '@/lib/status-styles'
@@ -35,7 +37,6 @@ export default function Products() {
   const [loading, setLoading]               = useState(true)
   const [loadError, setLoadError]           = useState('')
   const [showForm, setShowForm]             = useState(false)
-  const [showCategoryManager, setShowCategoryManager] = useState(false)
   const [saving, setSaving]                 = useState(false)
   const [error, setError]                   = useState('')
   const [search, setSearch]                 = useState('')
@@ -324,6 +325,17 @@ export default function Products() {
   useEffect(() => { setVisibleCount(10) }, [filterStatus, filterCategory, search, dateFrom, dateTo])
   const paginated = filtered.slice(0, visibleCount)
 
+  // Tab: sync with ?tab= URL param
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const activeTab: 'list' | 'settings' = searchParams.get('tab') === 'settings' ? 'settings' : 'list'
+  function setActiveTab(tab: 'list' | 'settings') {
+    const params = new URLSearchParams(searchParams.toString())
+    if (tab === 'list') params.delete('tab')
+    else params.set('tab', tab)
+    router.replace(`/products?${params.toString()}`)
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-5">
 
@@ -333,16 +345,8 @@ export default function Products() {
           <h1 className="text-lg md:text-xl font-semibold text-slate-900">Products</h1>
           <p className="text-sm text-slate-400 mt-0.5">จัดการ Product ID และข้อมูลสินค้า</p>
         </div>
-        {canInsert && (
+        {activeTab === 'list' && canInsert && (
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowCategoryManager(true)}
-              className={btnSecondary}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-                <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-              </svg>
-              หมวดหมู่
-            </button>
             <button onClick={openAdd} className={btnPrimary}>
               <IconPlus />เพิ่มสินค้า
             </button>
@@ -350,6 +354,23 @@ export default function Products() {
         )}
       </div>
 
+      {/* ── Tabs ───────────────────────────────────────────── */}
+      <div className="flex gap-1 border-b border-slate-100">
+        <button onClick={() => setActiveTab('list')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'list' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+          รายการสินค้า
+        </button>
+        <button onClick={() => setActiveTab('settings')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${activeTab === 'settings' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+          ตั้งค่า
+        </button>
+      </div>
+
+      {/* ── Tab: ตั้งค่า ─────────────────────────────────────── */}
+      {activeTab === 'settings' && <ProductSettingsPanel />}
+
+      {/* ── Tab: รายการ ────────────────────────────────────── */}
+      {activeTab === 'list' && (<>
       {loadError && (
         <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-600 flex items-center gap-3">
           <span className="flex-1">โหลดข้อมูลไม่สำเร็จ: {loadError}</span>
@@ -741,16 +762,6 @@ export default function Products() {
         </div>
       </Modal>
 
-      {/* Category Manager Modal */}
-      <Modal
-        open={showCategoryManager}
-        onClose={() => { setShowCategoryManager(false); reloadCategories() }}
-        title="จัดการหมวดหมู่"
-        width="max-w-sm"
-      >
-        <CategoryManager onClose={() => { setShowCategoryManager(false); reloadCategories() }} />
-      </Modal>
-
       {/* Delete confirm modal */}
       <ConfirmModal
         open={confirmDelete !== null}
@@ -777,6 +788,8 @@ export default function Products() {
           </>
         }
       />
+      </>
+      )}
     </div>
   )
 }
