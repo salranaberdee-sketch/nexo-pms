@@ -11,7 +11,7 @@ import { AppSettingsProvider } from '@/lib/app-settings'
 import { ToastContainer } from '@/components/Toast'
 import {
   IconDashboard, IconBox, IconFileText, IconBarChart,
-  IconTrendingUp, IconCheckSquare,
+  IconTrendingUp, IconCheckSquare, IconUser,
 } from '@/lib/icons'
 
 // ─── Page label map for mobile header ───────────────────────────────────────
@@ -26,6 +26,7 @@ const PAGE_LABELS: Record<string, string> = {
   '/report':    'Report',
   '/team':      'ทีม',
   '/settings':  'ตั้งค่า',
+  '/profile':   'โปรไฟล์',
 }
 
 // ─── Bottom nav tabs (5 tabs แสดงบน bottom bar) ─────────────────────────────
@@ -34,7 +35,7 @@ const BOTTOM_TABS = [
   { path: '/contents',  label: 'Content',   Icon: IconFileText },
   { path: '/my-tasks',  label: 'งานของฉัน', Icon: IconCheckSquare },
   { path: '/ads',       label: 'Ads',        Icon: IconBarChart },
-  { path: '/sales',     label: 'Sales',      Icon: IconTrendingUp },
+  { path: '/profile',   label: 'โปรไฟล์',   Icon: IconUser },
 ]
 
 // ─── BottomNav component ─────────────────────────────────────────────────────

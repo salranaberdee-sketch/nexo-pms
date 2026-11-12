@@ -10,7 +10,7 @@ import { useSettings } from '@/lib/app-settings'
 import {
   IconDashboard, IconBox, IconFileText, IconBarChart, IconBarChart2,
   IconTrendingUp, IconUserPlus, IconUsers, IconSettings, IconCheckSquare,
-  IconLogOut, IconChevronLeft, IconChevronRight,
+  IconLogOut, IconChevronLeft, IconChevronRight, IconUser,
 } from '@/lib/icons'
 import { roleStyle } from '@/lib/status-styles'
 
@@ -247,7 +247,15 @@ export default function Sidebar({
 
         {/* ── User ── */}
         <div className={`border-t border-slate-200 py-3 px-2`}>
-          <div className={`flex items-center gap-2 rounded-xl px-2 py-2 mb-1 ${collapsed ? 'justify-center' : ''}`}>
+          <Link
+            href="/profile"
+            className={`flex items-center gap-2 rounded-xl px-2 py-2 mb-1 transition-colors ${
+              collapsed ? 'hidden' : ''
+            } ${pathname === '/profile'
+              ? 'bg-indigo-50 text-indigo-700'
+              : 'hover:bg-slate-50'
+            }`}
+          >
             <div className="w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs shrink-0"
               style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)', color: '#4f46e5' }}>
               {initials}
@@ -262,7 +270,27 @@ export default function Sidebar({
                 )}
               </div>
             )}
-          </div>
+          </Link>
+
+          {/* Tooltip for collapsed avatar */}
+          {collapsed && (
+            <div className="relative group/profile-tip mb-1 flex justify-center">
+              <Link href="/profile"
+                className={`w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs ${
+                  pathname === '/profile' ? 'ring-2 ring-indigo-400' : ''
+                }`}
+                style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)', color: '#4f46e5' }}>
+                {initials}
+              </Link>
+              <div className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50
+                opacity-0 group-hover/profile-tip:opacity-100 transition-opacity duration-100">
+                <div className="bg-slate-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">
+                  {profile?.name || 'โปรไฟล์ของฉัน'}
+                </div>
+                <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800" />
+              </div>
+            </div>
+          )}
 
           {collapsed ? (
             <div className="relative group/logout">
