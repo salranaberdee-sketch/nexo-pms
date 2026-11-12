@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { useProfile, useCan } from '@/lib/profile-context'
+import { useProfile, useCan, useIsAdmin } from '@/lib/profile-context'
 import { showToast } from './Toast'
+import EmailSettings from './EmailSettings'
 import Modal, { Field, ConfirmModal } from './Modal'
 import { btnPrimary, btnSecondary, btnDanger, tableWrapCls, sectionLabelCls, inputCls, selectCls } from '@/lib/cx'
 import { IconPlus, IconTrash, IconPencil, IconDownload, IconMail, IconSend, IconClock, IconToggle, IconBarChart2 } from '@/lib/icons'
@@ -445,6 +446,7 @@ export default function Report() {
   const supabase = createClient()
   const profile  = useProfile()
   const canManage = useCan('insert', 'report_schedules')
+  const isAdmin = useIsAdmin()
 
   // Data
   const [schedules, setSchedules]       = useState<ReportSchedule[]>([])
@@ -454,6 +456,7 @@ export default function Report() {
   const [loading, setLoading]           = useState(true)
 
   // UI state
+  const [activeTab, setActiveTab]       = useState<'report' | 'email'>('report')
   const [showAdd, setShowAdd]           = useState(false)
   const [editingId, setEditingId]       = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
@@ -750,20 +753,43 @@ export default function Report() {
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">ภาพรวมข้อมูลเชิงลึก · Export · ตั้งเวลาส่ง Email</p>
         </div>
-        <div className="flex gap-2 shrink-0 flex-wrap">
-          <button onClick={() => setShowExportPanel(v => !v)} className={btnSecondary}>
-            <IconDownload />
-            Export / ส่ง Email
-          </button>
-          {canManage && (
-            <button onClick={openAdd} className={btnPrimary}>
-              <IconPlus />
-              ตั้ง Schedule
+        {activeTab === 'report' && (
+          <div className="flex gap-2 shrink-0 flex-wrap">
+            <button onClick={() => setShowExportPanel(v => !v)} className={btnSecondary}>
+              <IconDownload />
+              Export / ส่ง Email
             </button>
-          )}
-        </div>
+            {canManage && (
+              <button onClick={openAdd} className={btnPrimary}>
+                <IconPlus />
+                ตั้ง Schedule
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
+      {/* ── Tab bar ── */}
+      <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
+        <button onClick={() => setActiveTab('report')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
+            activeTab === 'report' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}>
+          Report
+        </button>
+        {isAdmin && (
+          <button onClick={() => setActiveTab('email')}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
+              activeTab === 'email' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}>
+            Email & การแจ้งเตือน
+          </button>
+        )}
+      </div>
+
+      {/* ── Report tab ── */}
+      {activeTab === 'report' && (
+      <>
       {/* ── On-demand Export Panel ── */}
       {showExportPanel && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
@@ -985,6 +1011,11 @@ export default function Report() {
         title="ยืนยันลบ Schedule"
         message={<>ลบ <strong>{deleteTarget?.name}</strong>? จะหยุดส่ง Report อัตโนมัติทันที</>}
       />
+      </>
+      )}
+
+      {/* ── Email tab ── */}
+      {activeTab === 'email' && <EmailSettings />}
     </div>
   )
 }
