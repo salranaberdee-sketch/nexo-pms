@@ -222,7 +222,7 @@ export default function UserProfile() {
       .select('avatar_url')
       .eq('id', me.id)
       .single()
-      .then(({ data }) => {
+      .then(({ data }: { data: { avatar_url: string | null } | null }) => {
         if (data?.avatar_url) setAvatarUrl(data.avatar_url)
       })
   }, [me.id]) // eslint-disable-line react-hooks/exhaustive-deps
