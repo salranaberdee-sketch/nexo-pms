@@ -325,14 +325,15 @@ export default function Leads() {
 
   // ── Inline status update ──────────────────────────────────────
   async function updateStatus(id: number, status: string) {
+    const closedAt = status === 'ปิดการขาย' ? new Date().toISOString().split('T')[0] : null
     const { error: updErr } = await supabase.from('leads').update({
       status,
-      ...(status === 'ปิดการขาย' ? { closed_at: new Date().toISOString() } : {}),
+      ...(status === 'ปิดการขาย' ? { closed_at: closedAt } : {}),
     }).eq('id', id)
     if (updErr) { showToast(updErr.message, 'error'); return }
     setLeads(prev => prev.map(l => l.id === id ? {
       ...l, status,
-      ...(status === 'ปิดการขาย' ? { closed_at: new Date().toISOString() } : {}),
+      ...(status === 'ปิดการขาย' ? { closed_at: closedAt } : {}),
     } : l))
   }
 

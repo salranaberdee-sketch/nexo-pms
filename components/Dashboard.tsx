@@ -7,9 +7,8 @@ import { useProfile } from '@/lib/profile-context'
 import { EmptyState } from './TableState'
 import { showToast } from './Toast'
 import { productStatusStyle, contentStatusStyle, salesStatusStyle } from '@/lib/status-styles'
+import { todayStr } from '@/lib/utils'
 
-const TODAY = new Date().toISOString().split('T')[0]
-const TODAY_MS = new Date(TODAY).getTime()
 const SOON_DAYS = 3
 
 type PanelType = 'sales' | 'ads' | 'leads' | 'contents' | 'product' | 'roi' | null
@@ -31,6 +30,10 @@ export default function Dashboard() {
   const [activePanelProduct, setActivePanelProduct] = useState<string | null>(null)
   const profile = useProfile()
   const supabase = createClient()
+
+  // Use local timezone (UTC+7) — not toISOString() which gives UTC
+  const TODAY = todayStr()
+  const TODAY_MS = new Date(TODAY).getTime()
 
   function openPanel(type: PanelType, productId?: string) {
     setActivePanel(type)
@@ -1037,7 +1040,7 @@ export default function Dashboard() {
           </div>
           {/* Panel body — scrollable */}
           <div className="flex-1 overflow-y-auto px-5 py-5">
-            <PanelContent />
+            {PanelContent()}
           </div>
         </div>
       )}

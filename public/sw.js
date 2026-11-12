@@ -2,7 +2,7 @@
 // Cache strategy + offline fallback + update notifications
 
 // Bump this when deploying to bust old caches
-const CACHE_VERSION = "nexo-pms-v2";
+const CACHE_VERSION = "nexo-pms-v3";
 const CACHE_NAME = CACHE_VERSION;
 
 // App shell — only cache pages that exist as real routes (not redirects)

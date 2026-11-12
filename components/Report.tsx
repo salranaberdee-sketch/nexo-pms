@@ -510,11 +510,16 @@ export default function Report() {
     setLoadingLive(false)
   }, [supabase])
 
+  // Load product list + schedules once on mount
   useEffect(() => {
     supabase.from('products').select('product_id, name').order('name').then((r: { data: any[] | null }) => setProducts(r.data ?? []))
     loadSchedules()
-    loadLiveData(exportDays)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reload live preview when exportDays changes
+  useEffect(() => {
+    loadLiveData(exportDays)
+  }, [exportDays]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── CRUD ─────────────────────────────────────────────────────
   function openAdd() {

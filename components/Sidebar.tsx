@@ -60,31 +60,7 @@ export default function Sidebar({
     supabase
       .from('contents')
       .select('id', { count: 'exact', head: true })
-      .or(`producer_id.eq.${profile.id},approver_id.eq.${profile.id},assigned_to_id.eq.${profile.id}`)
-      .is('acknowledged_at', null)
-      .neq('status', 'โพสต์แล้ว')
-      .then(({ count, error }: { count: number | null; error: { message: string } | null }) => {
-        if (!error) setMyTaskCount(count ?? 0)
-      })
-  }, [profile?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!isAdmin) return
-    supabase
-      .from('profiles')
-      .select('id', { count: 'exact', head: true })
-      .eq('approval_status', 'pending')
-      .then(({ count, error }: { count: number | null; error: { message: string } | null }) => {
-        if (!error) setPendingCount(count ?? 0)
-      })
-  }, [isAdmin]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!profile?.id) return
-    supabase
-      .from('contents')
-      .select('id', { count: 'exact', head: true })
-      .or(`producer_id.eq.${profile.id},approver_id.eq.${profile.id},assigned_to_id.eq.${profile.id}`)
+      .or(`producer_id.eq.${profile.id},approver_id.eq.${profile.id},assigned_to_id.eq.${profile.id},poster_id.eq.${profile.id}`)
       .is('acknowledged_at', null)
       .neq('status', 'โพสต์แล้ว')
       .then(({ count, error }: { count: number | null; error: { message: string } | null }) => {

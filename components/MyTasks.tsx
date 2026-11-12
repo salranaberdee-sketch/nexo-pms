@@ -343,7 +343,7 @@ export default function MyTasks() {
     if (assetsMap[contentId] !== undefined) return
     const { data } = await supabase
       .from('content_assets')
-      .select('id, content_id, asset_type, label, url, storage_path, file_size, mime_type, sort_order, uploaded_by, created_at')
+      .select('id, content_id, asset_type, category, label, url, storage_path, file_size, mime_type, sort_order, uploaded_by, created_at')
       .eq('content_id', contentId)
       .order('sort_order').order('created_at')
     setAssetsMap(prev => ({ ...prev, [contentId]: (data || []) as ContentAsset[] }))

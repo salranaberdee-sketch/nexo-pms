@@ -140,7 +140,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     supabase
       .from('contents')
       .select('id', { count: 'exact', head: true })
-      .or(`producer_id.eq.${data.id},approver_id.eq.${data.id},assigned_to_id.eq.${data.id}`)
+      .or(`producer_id.eq.${data.id},approver_id.eq.${data.id},assigned_to_id.eq.${data.id},poster_id.eq.${data.id}`)
       .is('acknowledged_at', null)
       .neq('status', 'โพสต์แล้ว')
       .then(({ count, error }: { count: number | null; error: { message: string } | null }) => {

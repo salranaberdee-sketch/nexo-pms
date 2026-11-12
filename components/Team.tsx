@@ -104,18 +104,14 @@ export default function Team() {
 
   async function applyApproval(id: string, newStatus: string) {
     setError('')
-    const oldStatus = profiles.find(p => p.id === id)?.approval_status
-    setProfiles(prev => prev.map(p => p.id === id ? { ...p, approval_status: newStatus } : p))
     const { error: updErr } = await supabase.from('profiles').update({
       approval_status: newStatus,
-      approved_by: me.id,
-      approved_at: new Date().toISOString(),
+      ...(newStatus === 'approved' ? { approved_by: me.id, approved_at: new Date().toISOString() } : {}),
     }).eq('id', id)
     if (updErr) {
-      // Immediate rollback — restore old status without waiting for reload
-      setProfiles(prev => prev.map(p => p.id === id ? { ...p, approval_status: oldStatus ?? p.approval_status } : p))
       setError(updErr.message)
     } else {
+      setProfiles(prev => prev.map(p => p.id === id ? { ...p, approval_status: newStatus } : p))
       showToast(newStatus === 'approved' ? 'อนุมัติแล้ว' : newStatus === 'rejected' ? 'ปฏิเสธแล้ว' : 'อัปเดตสถานะแล้ว')
     }
     setConfirmSuspend(null)
@@ -123,14 +119,11 @@ export default function Team() {
 
   async function changeRole(id: string, role: string) {
     setError('')
-    const oldRole = profiles.find(p => p.id === id)?.role
-    setProfiles(prev => prev.map(p => p.id === id ? { ...p, role } : p))
     const { error: updErr } = await supabase.from('profiles').update({ role }).eq('id', id)
     if (updErr) {
-      // Immediate rollback
-      setProfiles(prev => prev.map(p => p.id === id ? { ...p, role: oldRole ?? p.role } : p))
       setError(updErr.message)
     } else {
+      setProfiles(prev => prev.map(p => p.id === id ? { ...p, role } : p))
       showToast('เปลี่ยน role แล้ว')
     }
   }

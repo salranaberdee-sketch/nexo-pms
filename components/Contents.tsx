@@ -385,19 +385,14 @@ export default function Contents() {
 
   // ── Status / assignee — quick inline updates ─────────────────
   async function updateStatus(id: number, status: string) {
-    const old = contents.find(c => c.id === id)?.status
-    setContents(prev => prev.map(c => c.id === id ? { ...c, status } : c))
     const { error: updErr } = await supabase.from('contents').update({ status }).eq('id', id)
-    if (updErr) {
-      setContents(prev => prev.map(c => c.id === id ? { ...c, status: old ?? c.status } : c))
-      showToast(updErr.message, 'error')
-    }
+    if (updErr) { showToast(updErr.message, 'error'); return }
+    setContents(prev => prev.map(c => c.id === id ? { ...c, status } : c))
   }
 
   async function updateAssignee(id: number, assigned_to_id: string, assigned_to: string) {
     const old = contents.find(c => c.id === id)
     const prevId = old?.assigned_to_id || ''
-    setContents(prev => prev.map(c => c.id === id ? { ...c, assigned_to_id, assigned_to } : c))
     const { error: updErr } = await supabase.from('contents').update({
       assigned_to_id: assigned_to_id || null,
       assigned_to,
@@ -405,9 +400,11 @@ export default function Contents() {
     }).eq('id', id)
     if (updErr) {
       showToast(updErr.message, 'error')
-      setContents(prev => prev.map(c => c.id === id ? { ...c, assigned_to_id: old?.assigned_to_id ?? null, assigned_to: old?.assigned_to ?? null } : c))
-    } else if (assigned_to_id && assigned_to_id !== prevId) {
-      await logAssignment(id, 'assigned_to', assigned_to_id, assigned_to)
+    } else {
+      setContents(prev => prev.map(c => c.id === id ? { ...c, assigned_to_id, assigned_to } : c))
+      if (assigned_to_id && assigned_to_id !== prevId) {
+        await logAssignment(id, 'assigned_to', assigned_to_id, assigned_to)
+      }
     }
   }
 
@@ -491,7 +488,7 @@ export default function Contents() {
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          ประเภท
+          ตั้งค่า
         </button>
       </div>
 

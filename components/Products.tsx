@@ -134,7 +134,7 @@ export default function Products() {
         .from('products')
         .select('id, product_id, name, business_type, product_type, brand, owner, owner_id, status, notes, start_date, created_at')
         .order('created_at', { ascending: false }),
-      supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
+      supabase.from('profiles').select('id, name, role, brand_access').eq('approval_status', 'approved').order('name'),
     ])
     if (p.error) { setLoadError(p.error.message); setLoading(false); return }
     setProducts(p.data || [])
@@ -263,19 +263,15 @@ export default function Products() {
   }
 
   async function updateStatus(id: number, status: string) {
-    const old = products.find(p => p.id === id)?.status
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, status } : p))
     const { error: updErr } = await supabase.from('products').update({ status }).eq('id', id)
-    if (updErr) {
-      showToast(updErr.message, 'error')
-      setProducts(prev => prev.map(p => p.id === id ? { ...p, status: old ?? p.status } : p))
-    }
+    if (updErr) { showToast(updErr.message, 'error'); return }
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, status } : p))
   }
 
   async function updateOwner(id: number, owner_id: string, owner: string) {
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, owner_id, owner } : p))
     const { error: updErr } = await supabase.from('products').update({ owner_id: owner_id || null, owner }).eq('id', id)
-    if (updErr) { showToast(updErr.message, 'error'); await load() }
+    if (updErr) { showToast(updErr.message, 'error'); return }
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, owner_id, owner } : p))
   }
 
   function copyId(pid: string) {
