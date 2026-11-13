@@ -2,61 +2,75 @@
 
 /**
  * SalesSettingsPanel — settings tab inside /sales?tab=settings
- * Sections:
- *   1. หมวดหมู่ (Business Type) — categories table (admin/manager) — shared with Products
- *   2. สถานะยอดขาย (Workflow)   — read-only reference
- *   3. ปีงบ / รอบขาย             — shortcut link to /settings
+ *   1. หมวดหมู่ (Business Type)  — categories table (admin/manager) — shared with Products
+ *   2. Sales Target Presets      — app_settings.sales_target_presets (admin only)
+ *   3. สถานะยอดขาย (Workflow)    — read-only reference with descriptions
+ *   4. ปีงบ / รอบขาย             — shortcut link to /settings
  */
 
 import Link from 'next/link'
+import { useCan, useIsAdmin } from '@/lib/profile-context'
 import { salesStatusStyle } from '@/lib/status-styles'
-import { SectionCard, StatusReference } from './PageSettings'
+import { SectionCard, CsvListManager, StatusReference } from './PageSettings'
 import CategoryManager from './CategoryManager'
-import { useCan } from '@/lib/profile-context'
 
-// sales.status — CHECK constraint in DB, shown read-only here
 const SALES_STATUSES = [
-  { name: 'ยังไม่เปิดขาย', desc: 'สินค้ายังไม่เปิดขาย' },
-  { name: 'ยังไม่เริ่ม',   desc: 'เปิดขายแล้วแต่ยังไม่เริ่มตามเป้า' },
-  { name: 'กำลังขาย',      desc: 'กำลังขายตามเป้า' },
-  { name: 'ปิดเป้า',        desc: 'ครบ / เกินเป้าหมาย' },
+  { name: 'ยังไม่เปิดขาย', desc: 'สินค้ายังไม่ถึงวันเปิดขาย' },
+  { name: 'ยังไม่เริ่ม',   desc: 'เปิดขายแล้ว แต่ยังไม่เริ่มนับยอดตามเป้า' },
+  { name: 'กำลังขาย',      desc: 'กำลังดำเนินการขายตามเป้าหมาย' },
+  { name: 'ปิดเป้า',        desc: 'ยอดขายถึงหรือเกินเป้าหมายแล้ว' },
 ]
 
 export default function SalesSettingsPanel() {
-  const canManageCategories = useCan('insert', 'categories') // admin/manager
+  const isAdmin = useIsAdmin()
+  const canManageCategories = useCan('insert', 'categories')
 
   return (
     <div className="space-y-5 max-w-2xl">
 
-      {/* 1. หมวดหมู่ — ใช้ร่วมกับ Products page */}
+      {/* 1. หมวดหมู่ */}
       <SectionCard
         title="หมวดหมู่ (Business Type)"
-        description="กำหนดหมวดหมู่สินค้าที่ใช้ filter ยอดขาย — ใช้ร่วมกับหน้า Products"
+        description="จัดกลุ่มยอดขายตามหมวดหมู่สินค้า — ใช้ร่วมกับหน้า Products"
         badge={!canManageCategories ? 'admin/manager เท่านั้น' : undefined}
       >
         <CategoryManager />
       </SectionCard>
 
-      {/* 2. สถานะ — read-only */}
+      {/* 2. Target Presets */}
+      <SectionCard
+        title="เป้ายอดขาย Presets (฿)"
+        description="ค่าเป้าหมายที่ใช้บ่อย — ลากเรียงลำดับได้"
+        badge={!isAdmin ? 'admin เท่านั้น' : undefined}
+      >
+        <CsvListManager
+          settingKey="sales_target_presets"
+          canManage={isAdmin}
+          inputPlaceholder="เช่น 100000, 500000, 1000000..."
+          emptyLabel="ยังไม่มี target preset"
+        />
+      </SectionCard>
+
+      {/* 3. สถานะ */}
       <SectionCard
         title="สถานะยอดขาย (Workflow)"
-        description="ลำดับสถานะของเป้ายอดขาย — fixed, แก้ไขผ่าน migration เท่านั้น"
+        description="ลำดับสถานะของเป้ายอดขาย — แก้ไขผ่าน DB migration เท่านั้น"
       >
         <StatusReference statuses={SALES_STATUSES} statusStyle={salesStatusStyle} />
       </SectionCard>
 
-      {/* 3. ปีงบ / รอบขาย — shortcut */}
+      {/* 4. ปีงบ / รอบขาย */}
       <SectionCard
         title="ปีงบประมาณ / รอบขาย"
-        description="ตั้งค่าเดือนเริ่มปีงบและจำนวนวันต่อรอบขาย"
+        description="เดือนเริ่มปีงบและจำนวนวันต่อรอบ — ส่งผลต่อ KPI ใน Sales และ Dashboard"
       >
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-slate-500">
-            ตั้งค่าที่นี่จะส่งผลต่อการคำนวณ KPI ใน Sales และ Dashboard
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-slate-500 leading-relaxed">
+            ตั้งค่าที่ <strong>Settings → ปีงบประมาณ / รอบขาย</strong>
           </p>
           <Link
             href="/settings"
-            className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+            className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap shrink-0"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3"/>

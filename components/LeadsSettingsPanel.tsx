@@ -2,59 +2,63 @@
 
 /**
  * LeadsSettingsPanel — settings tab inside /leads?tab=settings
- * Sections:
- *   1. สถานะ Lead (Workflow)     — read-only reference
- *   2. ช่องทางรับ Lead            — read-only reference
- *
- * Leads has no editable lookup today (statuses + intake channel are hardcoded
- * in the UI). The tab is informational only for now.
+ *   1. ช่องทางรับ Lead  — app_settings.lead_channels (admin only) ← NOW EDITABLE
+ *   2. แหล่งที่มา (UTM) — app_settings.lead_sources (admin only) ← NEW
+ *   3. สถานะ Lead       — read-only workflow reference with descriptions
  */
 
+import { useIsAdmin } from '@/lib/profile-context'
 import { leadStatusStyle } from '@/lib/status-styles'
-import { SectionCard, StatusReference } from './PageSettings'
+import { SectionCard, CsvListManager, StatusReference } from './PageSettings'
 
-// leads.status — plain text in DB, shown read-only here
 const LEAD_STATUSES = [
-  { name: 'ใหม่' },
-  { name: 'ติดต่อแล้ว' },
-  { name: 'ผ่านเกณฑ์' },
-  { name: 'ปิดการขาย' },
-  { name: 'ไม่สำเร็จ' },
-]
-
-// leads.channel_in — plain text in DB, shown read-only here
-const LEAD_CHANNELS = [
-  { name: 'form',   label: 'กรอกฟอร์ม' },
-  { name: 'LINE',   label: 'LINE' },
-  { name: 'inbox',  label: 'Inbox / ข้อความ' },
-  { name: 'phone',  label: 'โทรศัพท์' },
-  { name: 'other',  label: 'อื่นๆ' },
+  { name: 'ใหม่',         desc: 'เพิ่งรับ lead เข้ามา ยังไม่ได้ติดต่อ' },
+  { name: 'ติดต่อแล้ว',  desc: 'ติดต่อหาลูกค้าแล้ว กำลัง follow up' },
+  { name: 'ผ่านเกณฑ์',   desc: 'ลูกค้าสนใจจริง พร้อมพิจารณาซื้อ' },
+  { name: 'ปิดการขาย',   desc: 'ลูกค้าซื้อแล้ว ✓ บันทึก deal_amount' },
+  { name: 'ไม่สำเร็จ',   desc: 'ลูกค้าไม่สนใจ หรือเกินเวลา follow up' },
 ]
 
 export default function LeadsSettingsPanel() {
+  const isAdmin = useIsAdmin()
+
   return (
     <div className="space-y-5 max-w-2xl">
 
-      {/* 1. สถานะ — read-only */}
+      {/* 1. ช่องทางรับ Lead — now editable */}
       <SectionCard
-        title="สถานะ Lead (Workflow)"
-        description="ลำดับสถานะของ Lead ตั้งแต่รับจนปิดการขาย — fixed, แก้ไขผ่าน migration เท่านั้น"
+        title="ช่องทางรับ Lead (channel_in)"
+        description="ช่องทางที่ลูกค้าติดต่อเข้ามา — ใช้ใน dropdown ฟอร์มเพิ่ม Lead"
+        badge={!isAdmin ? 'admin เท่านั้น' : undefined}
       >
-        <StatusReference statuses={LEAD_STATUSES} statusStyle={leadStatusStyle} />
+        <CsvListManager
+          settingKey="lead_channels"
+          canManage={isAdmin}
+          inputPlaceholder="เช่น LINE, Form, โทรศัพท์, Walk-in..."
+          emptyLabel="ยังไม่มีช่องทาง"
+        />
       </SectionCard>
 
-      {/* 2. ช่องทางรับ Lead — read-only */}
+      {/* 2. Lead Sources (UTM) — new */}
       <SectionCard
-        title="ช่องทางรับ Lead"
-        description="รายการช่องทางที่ลูกค้าติดต่อเข้ามา — fixed, แก้ไขผ่าน migration เท่านั้น"
+        title="แหล่งที่มา (utm_source)"
+        description="แหล่งที่มาของ traffic ที่ใช้ใน UTM tracking เช่น Facebook, Google"
+        badge={!isAdmin ? 'admin เท่านั้น' : undefined}
       >
-        <div className="flex flex-wrap gap-2">
-          {LEAD_CHANNELS.map(c => (
-            <span key={c.name} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600">
-              {c.label}
-            </span>
-          ))}
-        </div>
+        <CsvListManager
+          settingKey="lead_sources"
+          canManage={isAdmin}
+          inputPlaceholder="เช่น Facebook, Google, TikTok, referral..."
+          emptyLabel="ยังไม่มีแหล่งที่มา"
+        />
+      </SectionCard>
+
+      {/* 3. สถานะ */}
+      <SectionCard
+        title="สถานะ Lead (Workflow)"
+        description="Pipeline ของ lead ตั้งแต่รับจนปิดการขาย — แก้ไขผ่าน DB migration เท่านั้น"
+      >
+        <StatusReference statuses={LEAD_STATUSES} statusStyle={leadStatusStyle} />
       </SectionCard>
 
     </div>
