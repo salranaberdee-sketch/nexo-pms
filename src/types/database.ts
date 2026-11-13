@@ -646,6 +646,104 @@ export type Database = {
           },
         ]
       }
+      orders: {
+        Row: {
+          amount_paid: number
+          created_at: string
+          discount: number
+          id: number
+          lead_id: number | null
+          notes: string | null
+          order_date: string
+          paid_at: string | null
+          payment_method: string
+          payment_status: string
+          product_id: string
+          quantity: number
+          receipt_number: string | null
+          sale_period_id: number | null
+          service_name: string
+          staff_id: string | null
+          staff_name: string | null
+          total_amount: number | null
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          amount_paid?: number
+          created_at?: string
+          discount?: number
+          id?: number
+          lead_id?: number | null
+          notes?: string | null
+          order_date?: string
+          paid_at?: string | null
+          payment_method?: string
+          payment_status?: string
+          product_id: string
+          quantity?: number
+          receipt_number?: string | null
+          sale_period_id?: number | null
+          service_name: string
+          staff_id?: string | null
+          staff_name?: string | null
+          total_amount?: number | null
+          unit_price?: number
+          updated_at?: string
+        }
+        Update: {
+          amount_paid?: number
+          created_at?: string
+          discount?: number
+          id?: number
+          lead_id?: number | null
+          notes?: string | null
+          order_date?: string
+          paid_at?: string | null
+          payment_method?: string
+          payment_status?: string
+          product_id?: string
+          quantity?: number
+          receipt_number?: string | null
+          sale_period_id?: number | null
+          service_name?: string
+          staff_id?: string | null
+          staff_name?: string | null
+          total_amount?: number | null
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "orders_sale_period_id_fkey"
+            columns: ["sale_period_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_briefs: {
         Row: {
           benefits: string | null
@@ -1199,4 +1297,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

@@ -53,3 +53,18 @@ export const approvalStatusStyle: Record<string, string> = {
   pending:  'bg-amber-50 text-amber-700',
   rejected: 'bg-red-50 text-red-600',
 }
+/** orders.payment_status */
+export const orderPaymentStatusStyle: Record<string, string> = {
+  pending:  'bg-amber-50 text-amber-700',
+  partial:  'bg-blue-50 text-blue-700',
+  paid:     'bg-emerald-50 text-emerald-700',
+  refunded: 'bg-red-50 text-red-500',
+}
+/** orders.payment_method — display labels (not a style map, but kept here as a companion) */
+export const orderPaymentMethodLabel: Record<string, string> = {
+  transfer: 'โอนเงิน',
+  cash:     'เงินสด',
+  credit:   'บัตรเครดิต',
+  qr:       'QR Code',
+  other:    'อื่นๆ',
+}

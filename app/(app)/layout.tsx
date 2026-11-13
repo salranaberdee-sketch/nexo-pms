@@ -22,6 +22,7 @@ const PAGE_LABELS: Record<string, string> = {
   '/my-tasks':  'งานของฉัน',
   '/ads':       'Ads',
   '/leads':     'Leads',
+  '/orders':    'Orders',
   '/sales':     'Sales',
   '/report':    'Report',
   '/team':      'ทีม',
