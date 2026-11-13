@@ -10,7 +10,7 @@ import { useSettings } from '@/lib/app-settings'
 import {
   IconDashboard, IconBox, IconFileText, IconBarChart, IconBarChart2,
   IconTrendingUp, IconUserPlus, IconUsers, IconSettings, IconCheckSquare,
-  IconLogOut, IconChevronLeft, IconChevronRight, IconUser,
+  IconLogOut, IconChevronLeft, IconChevronRight, IconUser, IconDatabase,
 } from '@/lib/icons'
 import { roleStyle } from '@/lib/status-styles'
 
@@ -114,8 +114,9 @@ export default function Sidebar({
       label: 'จัดการ',
       adminOnly: true,
       items: [
-        { path: '/team',     label: 'ทีม',       Icon: IconUsers },
-        { path: '/settings', label: 'ตั้งค่า',   Icon: IconSettings },
+        { path: '/team',     label: 'ทีม',          Icon: IconUsers },
+        { path: '/settings', label: 'ตั้งค่า',      Icon: IconSettings },
+        { path: '/backup',   label: 'สำรองข้อมูล', Icon: IconDatabase },
       ],
     },
   ]

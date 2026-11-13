@@ -26,6 +26,7 @@ const PAGE_LABELS: Record<string, string> = {
   '/report':    'Report',
   '/team':      'ทีม',
   '/settings':  'ตั้งค่า',
+  '/backup':    'สำรองข้อมูล',
   '/profile':   'โปรไฟล์',
 }
 
