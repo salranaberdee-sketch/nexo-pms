@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
@@ -128,133 +128,211 @@ export default function MyTasks() {
   const [filterBrand, setFilterBrand]   = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [expandedId, setExpandedId]     = useState<string | null>(null) // `${id}-${role}`
-  const [actioning, setActioning]       = useState<string | null>(null)  // `${id}-${action}`
+  // ── Fix #4: use Set for exact-match actioning keys instead of string prefix check ──
+  const [actioning, setActioning]       = useState<Set<string>>(new Set())
   const [assetsMap, setAssetsMap]       = useState<Record<number, ContentAsset[]>>({})
   const supabase = createClient()
 
-  async function load() {
+  // ── Fix #3: request counter — prevents a stale fetch from overwriting newer state ──
+  // Pattern: increment on every load call, capture the value, check before every setState.
+  // Works for both me.id changes and rapid "รีเฟรช" button clicks.
+  const reqRef = useRef(0)
+
+  // ── Fix #3: wrap load in useCallback — re-created only when me.id or canManage changes ──
+  const load = useCallback(async () => {
     setLoadError('')
     setLoading(true)
-    const [cRes, pRes, prRes, logRes] = await Promise.all([
-      // My tasks
-      supabase
-        .from('contents')
-        .select(`id, product_id, seq, type, title, objective, hook, format_size, channel,
+    const reqId = ++reqRef.current
+
+    const CONTENT_SELECT = `id, product_id, seq, type, title, objective, hook, format_size, channel,
                  file_link, post_link, issues,
                  status, deadline, scheduled_post_date, actual_post_date, actual_submit_date,
                  acknowledged_at, assigned_date,
                  producer, producer_id, approver, approver_id,
-                 assigned_to, assigned_to_id, poster, poster_id`)
-        .or(`producer_id.eq.${me.id},approver_id.eq.${me.id},assigned_to_id.eq.${me.id},poster_id.eq.${me.id}`),
-      // All contents (for team view — manager/admin only)
-      canManage
-        ? supabase
-            .from('contents')
-            .select(`id, product_id, seq, type, title, objective, hook, format_size, channel,
-                     file_link, post_link, issues,
-                     status, deadline, scheduled_post_date, actual_post_date, actual_submit_date,
-                     acknowledged_at, assigned_date,
-                     producer, producer_id, approver, approver_id,
-                     assigned_to, assigned_to_id, poster, poster_id`)
-            .in('status', ACTIVE_STATUSES)
-        : Promise.resolve({ data: [], error: null }),
-      supabase.from('products').select('product_id, name, brand'),
-      supabase
-        .from('content_assignment_log')
-        .select('content_id, role, assigned_by_id, assigned_by_name, assigned_at')
-        .order('assigned_at', { ascending: false }),
-    ])
-    if (cRes.error) { setLoadError(cRes.error.message); setLoading(false); return }
+                 assigned_to, assigned_to_id, poster, poster_id`
 
-    // Fetch approved profiles (for team view reassignment)
-    if (canManage) {
-      const { data: pr } = await supabase
-        .from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name')
-      setProfiles(pr || [])
-    }
+    try {
+      // ── Phase 1: contents (mine + team) + products in parallel ────────────
+      const [cRes, pRes, prRes] = await Promise.all([
+        // Q1: My tasks — contents where I hold any role
+        supabase
+          .from('contents')
+          .select(CONTENT_SELECT)
+          .or(`producer_id.eq.${me.id},approver_id.eq.${me.id},assigned_to_id.eq.${me.id},poster_id.eq.${me.id}`),
+        // Q2: All active contents (team view — manager/admin only)
+        canManage
+          ? supabase
+              .from('contents')
+              .select(CONTENT_SELECT)
+              .in('status', ACTIVE_STATUSES)
+          : Promise.resolve({ data: [] as any[], error: null }),
+        // Q3: Products (name + brand lookup)
+        supabase.from('products').select('product_id, name, brand'),
+      ])
 
-    const productMap = new Map<string, { product_id: string; name: string; brand: string }>(
-      (prRes.data || []).map((p: any) => [p.product_id, p]),
-    )
+      // Discard if a newer request has already started
+      if (reqRef.current !== reqId) return
 
-    function buildTasks(rows: any[]): MyTask[] {
-      const result: MyTask[] = []
-      for (const c of rows) {
-        const product = productMap.get(c.product_id)
-        const brand   = product?.brand || ''
-        const pname   = product?.name  || c.product_id
+      // Surface errors from all three queries — not just Q1
+      const phase1Error = cRes.error || pRes.error || prRes.error
+      if (phase1Error) { setLoadError(phase1Error.message); setLoading(false); return }
 
-        const roles: MyTask['myRole'][] = []
-        if (c.producer_id   === me.id) roles.push('producer')
-        if (c.approver_id   === me.id) roles.push('approver')
-        if (c.assigned_to_id === me.id && c.producer_id !== me.id) roles.push('assigned_to')
-        // poster role: only if not already producer (producer handles กำหนดโพสต์→โพสต์แล้ว too)
-        if (c.poster_id === me.id && c.producer_id !== me.id) roles.push('poster')
+      // ── Fix #1: deduplicated union of ids from Q1 + Q2 ───────────────────
+      // Set handles overlap when manager is also assigned to some content
+      const myIds   = (cRes.data  || []).map((c: any) => c.id as number)
+      const teamIds = (pRes.data  || []).map((c: any) => c.id as number)
+      const allIds  = [...new Set([...myIds, ...teamIds])]
 
-        // For non-my-tasks items (team view) just push once as 'producer' placeholder
-        if (roles.length === 0) roles.push('producer')
-
-        for (const role of roles) {
-          const log = (logRes.data || []).find((l: any) => l.content_id === c.id && l.role === role)
-          result.push({
-            id:                  c.id,
-            product_id:          c.product_id,
-            product_name:        pname,
-            seq:                 c.seq,
-            type:                c.type || 'GRAPHIC',
-            title:               c.title,
-            objective:           c.objective,
-            hook:                c.hook,
-            format_size:         c.format_size,
-            channel:             c.channel || 'Facebook',
-            file_link:           c.file_link,
-            post_link:           c.post_link,
-            issues:              c.issues,
-            status:              c.status || 'รอผลิต',
-            deadline:            c.deadline,
-            scheduled_post_date: c.scheduled_post_date,
-            actual_post_date:    c.actual_post_date,
-            actual_submit_date:  c.actual_submit_date,
-            acknowledged_at:     c.acknowledged_at,
-            assigned_date:       c.assigned_date,
-            assigned_by:         log?.assigned_by_name || '',
-            assigned_by_id:      log?.assigned_by_id   || '',
-            producer:            c.producer     || '',
-            producer_id:         c.producer_id  || null,
-            approver:            c.approver     || '',
-            approver_id:         c.approver_id  || null,
-            assigned_to:         c.assigned_to  || '',
-            assigned_to_id:      c.assigned_to_id || null,
-            poster:              c.poster     || '',
-            poster_id:           c.poster_id  || null,
-            myRole:              role,
-            brand,
-          })
-        }
+      // ── Fix #1: batch log queries to avoid PostgREST URL length limits ────
+      // 200 ids/batch ≈ 1.6 KB per URL — safe for all major proxies.
+      // Batches run in parallel so latency ≈ slowest batch, not n × latency.
+      async function fetchLogBatched(ids: number[]): Promise<any[]> {
+        if (ids.length === 0) return []
+        const BATCH = 200
+        const batches: number[][] = []
+        for (let i = 0; i < ids.length; i += BATCH) batches.push(ids.slice(i, i + BATCH))
+        const results = await Promise.all(
+          batches.map(batch =>
+            supabase
+              .from('content_assignment_log')
+              .select('content_id, role, assigned_by_id, assigned_by_name, assigned_at')
+              .in('content_id', batch)
+              .order('assigned_at', { ascending: false })
+          )
+        )
+        // log is supplementary data — warn on error but don't fail the whole load
+        results.forEach(r => { if (r.error) console.warn('assignment_log batch error:', r.error.message) })
+        // Merge all batches. Each batch is sorted desc within itself; a given
+        // content_id only appears in one batch, so .find() on the merged array
+        // still returns the latest log entry for that content+role pair.
+        return results.flatMap(r => r.data || [])
       }
-      return result
+
+      // ── Phase 2: assignment_log (filtered + batched) + profiles in parallel ─
+      const [logData, profilesRes] = await Promise.all([
+        fetchLogBatched(allIds),
+        canManage
+          ? supabase
+              .from('profiles')
+              .select('id, name, role')
+              .eq('approval_status', 'approved')
+              .order('name')
+          : Promise.resolve({ data: [] as any[], error: null }),
+      ])
+
+      // Discard again after the second await
+      if (reqRef.current !== reqId) return
+
+      if (canManage) setProfiles(profilesRes.data || [])
+
+      const productMap = new Map<string, { product_id: string; name: string; brand: string }>(
+        (prRes.data || []).map((p: any) => [p.product_id, p]),
+      )
+
+      // ── Fix #3 (perf): pre-build a Map for log lookup instead of O(n×m) find() ──
+      // Key: `${content_id}-${role}` → first match = most recent entry (sorted desc)
+      const logMap = new Map<string, any>()
+      for (const l of (logData || [])) {
+        const k = `${l.content_id}-${l.role}`
+        if (!logMap.has(k)) logMap.set(k, l)   // keep first (= latest, since sorted desc)
+      }
+
+      function buildTasks(rows: any[]): MyTask[] {
+        const result: MyTask[] = []
+        for (const c of rows) {
+          const product = productMap.get(c.product_id)
+          const brand   = product?.brand || ''
+          const pname   = product?.name  || c.product_id
+
+          const roles: MyTask['myRole'][] = []
+          if (c.producer_id    === me.id) roles.push('producer')
+          if (c.approver_id    === me.id) roles.push('approver')
+          if (c.assigned_to_id === me.id && c.producer_id !== me.id) roles.push('assigned_to')
+          // poster role: only if not already producer (producer handles กำหนดโพสต์→โพสต์แล้ว too)
+          if (c.poster_id === me.id && c.producer_id !== me.id) roles.push('poster')
+
+          // For non-my-tasks items (team view) just push once as 'producer' placeholder
+          if (roles.length === 0) roles.push('producer')
+
+          for (const role of roles) {
+            const log = logMap.get(`${c.id}-${role}`)
+            result.push({
+              id:                  c.id,
+              product_id:          c.product_id,
+              product_name:        pname,
+              seq:                 c.seq,
+              type:                c.type || 'GRAPHIC',
+              title:               c.title,
+              objective:           c.objective,
+              hook:                c.hook,
+              format_size:         c.format_size,
+              channel:             c.channel || 'Facebook',
+              file_link:           c.file_link,
+              post_link:           c.post_link,
+              issues:              c.issues,
+              status:              c.status || 'รอผลิต',
+              deadline:            c.deadline,
+              scheduled_post_date: c.scheduled_post_date,
+              actual_post_date:    c.actual_post_date,
+              actual_submit_date:  c.actual_submit_date,
+              acknowledged_at:     c.acknowledged_at,
+              assigned_date:       c.assigned_date,
+              assigned_by:         log?.assigned_by_name || '',
+              assigned_by_id:      log?.assigned_by_id   || '',
+              producer:            c.producer     || '',
+              producer_id:         c.producer_id  || null,
+              approver:            c.approver     || '',
+              approver_id:         c.approver_id  || null,
+              assigned_to:         c.assigned_to  || '',
+              assigned_to_id:      c.assigned_to_id || null,
+              poster:              c.poster     || '',
+              poster_id:           c.poster_id  || null,
+              myRole:              role,
+              brand,
+            })
+          }
+        }
+        return result
+      }
+
+      setTasks(buildTasks(cRes.data || []))
+      setTeamTasks(buildTasks(pRes.data || []))
+      setLoading(false)
+
+    } catch (e: any) {
+      // Network failure or unexpected throw — only update state if this is still
+      // the latest request (a newer load may have already set its own error/loading state)
+      if (reqRef.current === reqId) {
+        setLoadError(e?.message || 'โหลดข้อมูลไม่สำเร็จ')
+        setLoading(false)
+      }
     }
+  }, [me.id, canManage]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    setTasks(buildTasks(cRes.data || []))
-    setTeamTasks(buildTasks(pRes.data || []))
-    setLoading(false)
-  }
-
-  useEffect(() => { load() }, [me.id])
+  // ── Fix #3: depend on `load` identity — fires when me.id OR canManage changes ──
+  // load() is a useCallback that re-creates only when [me.id, canManage] changes,
+  // so this effect does not loop. The request counter inside load() handles
+  // concurrent calls from rapid button clicks.
+  useEffect(() => { load() }, [load])
 
   // ── Acknowledge ──────────────────────────────────────────────
   async function acknowledge(task: MyTask) {
     if (task.acknowledged_at) return
     const key = `${task.id}-ack`
-    setActioning(key)
+    // Guard double-submit: button is disabled while actioning, but check here too
+    if (actioning.has(key)) return
+    setActioning(prev => new Set(prev).add(key))
     const now = new Date().toISOString()
-    const { error } = await supabase.from('contents').update({
-      acknowledged_at: now, acknowledged_by: me.id,
-    }).eq('id', task.id)
-    setActioning(null)
-    if (error) { showToast(error.message, 'error'); return }
-    updateLocalTask(task.id, task.myRole, { acknowledged_at: now })
-    showToast('รับงานแล้ว')
+    try {
+      const { error } = await supabase.from('contents').update({
+        acknowledged_at: now, acknowledged_by: me.id,
+      }).eq('id', task.id)
+      if (error) { showToast(error.message, 'error'); return }
+      updateLocalTask(task.id, task.myRole, { acknowledged_at: now })
+      showToast('รับงานแล้ว')
+    } finally {
+      setActioning(prev => { const s = new Set(prev); s.delete(key); return s })
+    }
   }
 
   // ── Advance status (next step) ────────────────────────────────
@@ -262,13 +340,15 @@ export default function MyTasks() {
     const nextStatus = NEXT_STATUS[task.myRole]?.[task.status]
     if (!nextStatus) return
     const key = `${task.id}-advance`
-    setActioning(key)
+    setActioning(prev => new Set(prev).add(key))
     const payload: Record<string, unknown> = { status: nextStatus }
+    // ── Use todayStr() (Asia/Bangkok) consistently — not toISOString() (UTC) ──
+    // toISOString() gives UTC date which is "yesterday" in TH during 00:00–07:00
     if (nextStatus === 'โพสต์แล้ว' && !task.actual_post_date) {
-      payload.actual_post_date = new Date().toISOString().split('T')[0]
+      payload.actual_post_date = todayStr()
     }
     if (nextStatus === 'รออนุมัติ' && !task.actual_submit_date) {
-      payload.actual_submit_date = new Date().toISOString().split('T')[0]
+      payload.actual_submit_date = todayStr()
     }
     if (extraFields?.file_link)           payload.file_link           = extraFields.file_link
     if (extraFields?.post_link)           payload.post_link           = extraFields.post_link
@@ -278,64 +358,81 @@ export default function MyTasks() {
       payload.acknowledged_at = new Date().toISOString()
       payload.acknowledged_by = me.id
     }
-    const { error } = await supabase.from('contents').update(payload).eq('id', task.id)
-    setActioning(null)
-    if (error) { showToast(error.message, 'error'); return }
-    updateLocalTask(task.id, task.myRole, { status: nextStatus, ...payload } as Partial<MyTask>)
-    showToast(`อัปเดตเป็น "${nextStatus}" แล้ว`)
+    try {
+      const { error } = await supabase.from('contents').update(payload).eq('id', task.id)
+      if (error) { showToast(error.message, 'error'); return }
+      updateLocalTask(task.id, task.myRole, { status: nextStatus, ...payload } as Partial<MyTask>)
+      showToast(`อัปเดตเป็น "${nextStatus}" แล้ว`)
+    } finally {
+      setActioning(prev => { const s = new Set(prev); s.delete(key); return s })
+    }
   }
 
   // ── Reject (approver sends back) ──────────────────────────────
   async function rejectContent(task: MyTask, issues: string) {
     const key = `${task.id}-reject`
-    setActioning(key)
-    const { error } = await supabase.from('contents').update({
-      status: 'ผลิตอยู่',
-      issues: issues || null,
-    }).eq('id', task.id)
-    setActioning(null)
-    if (error) { showToast(error.message, 'error'); return }
-    updateLocalTask(task.id, task.myRole, { status: 'ผลิตอยู่', issues })
-    showToast('ส่งกลับแก้ไขแล้ว')
+    setActioning(prev => new Set(prev).add(key))
+    try {
+      const { error } = await supabase.from('contents').update({
+        status: 'ผลิตอยู่',
+        issues: issues || null,
+      }).eq('id', task.id)
+      if (error) { showToast(error.message, 'error'); return }
+      updateLocalTask(task.id, task.myRole, { status: 'ผลิตอยู่', issues })
+      showToast('ส่งกลับแก้ไขแล้ว')
+    } finally {
+      setActioning(prev => { const s = new Set(prev); s.delete(key); return s })
+    }
   }
 
   // ── Inline field update ────────────────────────────────────────
   async function updateField(task: MyTask, fields: Record<string, unknown>) {
     const key = `${task.id}-field`
-    setActioning(key)
-    const { error } = await supabase.from('contents').update(fields).eq('id', task.id)
-    setActioning(null)
-    if (error) { showToast(error.message, 'error'); return }
-    updateLocalTask(task.id, task.myRole, fields as Partial<MyTask>)
+    setActioning(prev => new Set(prev).add(key))
+    try {
+      const { error } = await supabase.from('contents').update(fields).eq('id', task.id)
+      if (error) { showToast(error.message, 'error'); return }
+      updateLocalTask(task.id, task.myRole, fields as Partial<MyTask>)
+    } finally {
+      setActioning(prev => { const s = new Set(prev); s.delete(key); return s })
+    }
   }
 
   // ── Reassign (manager/admin) ──────────────────────────────────
   async function reassign(task: MyTask, roleField: 'producer_id' | 'approver_id' | 'assigned_to_id' | 'poster_id', personId: string, personName: string) {
     const nameField = roleField.replace('_id', '') as 'producer' | 'approver' | 'assigned_to' | 'poster'
     const logRole   = nameField as 'producer' | 'approver' | 'assigned_to'
-    const payload: Record<string, unknown> = {
-      [roleField]: personId || null,
-      [nameField]: personName,
+    const key = `${task.id}-reassign-${roleField}`
+    setActioning(prev => new Set(prev).add(key))
+    try {
+      const payload: Record<string, unknown> = {
+        [roleField]: personId || null,
+        [nameField]: personName,
+      }
+      if (logRole === 'producer' && personId !== (task.producer_id || '')) {
+        payload.acknowledged_at = null
+        payload.acknowledged_by = null
+      }
+      const { error } = await supabase.from('contents').update(payload).eq('id', task.id)
+      if (error) { showToast(error.message, 'error'); return }
+      // Log assignment (only for the 3 roles that content_assignment_log tracks)
+      if (personId && (logRole === 'producer' || logRole === 'approver' || logRole === 'assigned_to')) {
+        const { error: logError } = await supabase.from('content_assignment_log').insert([{
+          content_id:       task.id,
+          role:             logRole,
+          assigned_to_id:   personId,
+          assigned_to_name: personName,
+          assigned_by_id:   me.id,
+          assigned_by_name: me.name,
+        }])
+        // log failure is non-fatal — content update already succeeded
+        if (logError) console.warn('assignment_log insert failed:', logError.message)
+      }
+      updateLocalTask(task.id, task.myRole, { [nameField]: personName, [roleField]: personId || null } as Partial<MyTask>)
+      showToast('มอบหมายงานแล้ว')
+    } finally {
+      setActioning(prev => { const s = new Set(prev); s.delete(key); return s })
     }
-    if (logRole === 'producer' && personId !== (task.producer_id || '')) {
-      payload.acknowledged_at = null
-      payload.acknowledged_by = null
-    }
-    const { error } = await supabase.from('contents').update(payload).eq('id', task.id)
-    if (error) { showToast(error.message, 'error'); return }
-    // Log assignment (only for the 3 roles that content_assignment_log tracks)
-    if (personId && (logRole === 'producer' || logRole === 'approver' || logRole === 'assigned_to')) {
-      await supabase.from('content_assignment_log').insert([{
-        content_id:       task.id,
-        role:             logRole,
-        assigned_to_id:   personId,
-        assigned_to_name: personName,
-        assigned_by_id:   me.id,
-        assigned_by_name: me.name,
-      }])
-    }
-    updateLocalTask(task.id, task.myRole, { [nameField]: personName, [roleField]: personId || null } as Partial<MyTask>)
-    showToast('มอบหมายงานแล้ว')
   }
 
   // ── Assets ────────────────────────────────────────────────────
@@ -554,7 +651,24 @@ export default function MyTasks() {
               ).filter(g => grouped[g.key].length > 0).map(({ key, label, accent }) => (
                 <div key={key} className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${accent}`}>
                   <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-slate-700">{label}</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-semibold text-slate-700">{label}</h2>
+                      {/* ── Fix #5: show overdue warning inside "งานใหม่" group ──
+                          Tasks land here (not in "เกิน Deadline") due to first-match-wins priority.
+                          A badge makes it visible without changing the grouping order. */}
+                      {key === 'new' && (() => {
+                        // group "งานใหม่" cannot contain done tasks by grouping logic,
+                        // but guard explicitly for safety when reading the code
+                        const overdueInNew = grouped.new.filter(
+                          t => t.status !== DONE_STATUS && t.deadline && t.deadline < TODAY
+                        ).length
+                        return overdueInNew > 0 ? (
+                          <span className="text-[10px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
+                            {overdueInNew} เกิน deadline
+                          </span>
+                        ) : null
+                      })()}
+                    </div>
                     <span className="text-xs text-slate-400 tabular-nums">{grouped[key].length} รายการ</span>
                   </div>
                   <div className="divide-y divide-slate-50">
@@ -672,7 +786,8 @@ function TaskRow({
   expandKey:       string
   expanded:        boolean
   onToggleExpand:  () => void
-  actioning:       string | null
+  // ── Fix #4: Set<string> instead of string | null — exact-match per action key ──
+  actioning:       Set<string>
   onAcknowledge:   (t: MyTask) => void
   onAdvance:       (t: MyTask, extra?: Partial<MyTask>) => void
   onReject:        (t: MyTask, issues: string) => void
@@ -695,7 +810,9 @@ function TaskRow({
 
   const nextStatus  = NEXT_STATUS[myRole]?.[task.status]
   const advLabel    = ADVANCE_LABEL[myRole]?.[task.status]
-  const isActioning = actioning?.startsWith(`${task.id}-`)
+  // ── Fix #4: prefix-with-delimiter check — safe against id=1 matching id=10,
+  //    and automatically covers any future action keys added for this content. ──
+  const isActioning = [...actioning].some(k => k.startsWith(`${task.id}-`))
 
   // Expand state for reject/advance forms
   const [showRejectForm, setShowRejectForm]     = useState(false)
@@ -728,10 +845,24 @@ function TaskRow({
       setShowAdvanceForm(true)
       return
     }
+    // ── Validate required fields before calling onAdvance ──────────────────
+    // Spec: each transition has a mandatory field — block if empty
+    if (needsFileLink && !advFileLink.trim()) {
+      showToast('กรุณาใส่ลิงก์ไฟล์งานก่อนส่งอนุมัติ', 'error')
+      return
+    }
+    if (needsSchedDate && !advSchedDate) {
+      showToast('กรุณาระบุวันที่กำหนดโพสต์', 'error')
+      return
+    }
+    if (needsPostLink && !advPostLink.trim()) {
+      showToast('กรุณาใส่ลิงก์โพสต์จริง', 'error')
+      return
+    }
     onAdvance(task, {
-      file_link:           advFileLink  || undefined,
-      post_link:           advPostLink  || undefined,
-      scheduled_post_date: advSchedDate || undefined,
+      file_link:           advFileLink.trim()  || undefined,
+      post_link:           advPostLink.trim()  || undefined,
+      scheduled_post_date: advSchedDate        || undefined,
     })
     setShowAdvanceForm(false)
   }
@@ -853,7 +984,11 @@ function TaskRow({
           </div>
 
           {/* ─── Actions by role ─── */}
-
+          {/* In Team tab (showReassign=true) the row represents someone else's work —
+              hide acknowledge/advance/reject so manager cannot accidentally change
+              another person's status. Reassign section below remains visible. */}
+          {!showReassign && (
+            <>
           {/* Acknowledge */}
           {!isDone && !task.acknowledged_at && (
             <div className="flex items-center gap-2 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
@@ -988,6 +1123,8 @@ function TaskRow({
               placeholder="https://drive.google.com/..."
               onSave={val => onUpdateField(task, { file_link: val || null })}
             />
+          )}
+            </>
           )}
 
           {/* Reassign — manager/admin */}
