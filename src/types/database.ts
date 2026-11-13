@@ -549,6 +549,7 @@ export type Database = {
           owner_id: string | null
           owner_name: string | null
           product_id: string
+          sales_id: number | null
           status: string
           updated_at: string | null
           utm_campaign: string | null
@@ -570,6 +571,7 @@ export type Database = {
           owner_id?: string | null
           owner_name?: string | null
           product_id: string
+          sales_id?: number | null
           status?: string
           updated_at?: string | null
           utm_campaign?: string | null
@@ -591,6 +593,7 @@ export type Database = {
           owner_id?: string | null
           owner_name?: string | null
           product_id?: string
+          sales_id?: number | null
           status?: string
           updated_at?: string | null
           utm_campaign?: string | null
@@ -633,6 +636,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "products"
             referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "leads_sales_id_fkey"
+            columns: ["sales_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -966,8 +976,11 @@ export type Database = {
         Row: {
           actual_received: number | null
           actual_sales: number | null
+          closed_leads_amount: number
+          closed_leads_count: number
           created_at: string | null
           id: number
+          lead_source: string
           period_end: string
           period_start: string
           product_id: string
@@ -979,8 +992,11 @@ export type Database = {
         Insert: {
           actual_received?: number | null
           actual_sales?: number | null
+          closed_leads_amount?: number
+          closed_leads_count?: number
           created_at?: string | null
           id?: number
+          lead_source?: string
           period_end: string
           period_start: string
           product_id: string
@@ -992,8 +1008,11 @@ export type Database = {
         Update: {
           actual_received?: number | null
           actual_sales?: number | null
+          closed_leads_amount?: number
+          closed_leads_count?: number
           created_at?: string | null
           id?: number
+          lead_source?: string
           period_end?: string
           period_start?: string
           product_id?: string
@@ -1180,3 +1199,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

@@ -20,6 +20,7 @@ export default function Dashboard() {
   const [ads, setAds] = useState<any[]>([])
   const [profiles, setProfiles] = useState<any[]>([])
   const [roiData, setRoiData] = useState<any[]>([])
+  const [closedLeadsInfo, setClosedLeadsInfo] = useState<{ linkedCount: number; unlinkedCount: number; totalLeadRevenue: number; totalClosed: number }>({ linkedCount: 0, unlinkedCount: 0, totalLeadRevenue: 0, totalClosed: 0 })
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [loadError, setLoadError] = useState('')
@@ -51,13 +52,14 @@ export default function Dashboard() {
   async function load(silent = false) {
     if (!silent) setRefreshing(true)
     setLoadError('')
-    const [p, s, c, a, pr, roi] = await Promise.all([
+    const [p, s, c, a, pr, roi, ld] = await Promise.all([
       supabase.from('products').select('id, product_id, name, brand, status, owner_id'),
-      supabase.from('sales').select('product_id, sales_target_amount, actual_sales, actual_received, status, period_start, period_end'),
+      supabase.from('sales').select('product_id, sales_target_amount, actual_sales, actual_received, status, period_start, period_end, closed_leads_count, closed_leads_amount, lead_source'),
       supabase.from('contents').select('id, product_id, seq, title, status, assigned_to_id, assigned_to, producer_id, approver_id, poster_id, deadline'),
       supabase.from('ads').select('id, campaign_name, product_id, month, budget_total, budget_allocated, budget_spent, budget_remaining, leads, clicks, reach, cpl, roas, managed_by_id, managed_by'),
       supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
       supabase.from('v_content_roi').select('content_id, product_id, seq, title, type, production_cost, ad_cost_share, total_cost, total_leads, closed_leads, deal_revenue, roi, roi_pct, conversion_rate').order('deal_revenue', { ascending: false }).limit(20),
+      supabase.from('leads').select('id, status, deal_amount, sales_id').eq('status', 'ปิดการขาย'),
     ])
     const err = p.error || s.error || c.error || a.error || pr.error
     if (err) { setLoadError(err.message); setRefreshing(false); setLoading(false); return }
@@ -68,6 +70,12 @@ export default function Dashboard() {
     setProfiles(pr.data || [])
     // roi view may not exist yet (before migration) — ignore error gracefully
     if (!roi.error) setRoiData(roi.data || [])
+    // leads — same (table just got new cols)
+    const closedLeads = ld.data || []
+    const linkedCount = closedLeads.filter((l: any) => l.sales_id !== null).length
+    const unlinkedCount = closedLeads.length - linkedCount
+    const totalLeadRevenue = closedLeads.filter((l: any) => l.sales_id).reduce((s: number, l: any) => s + Number(l.deal_amount || 0), 0)
+    setClosedLeadsInfo({ linkedCount, unlinkedCount, totalLeadRevenue, totalClosed: closedLeads.length })
     setLastUpdated(new Date())
     setLoading(false)
     setRefreshing(false)
@@ -169,6 +177,16 @@ export default function Dashboard() {
               <p className="text-xs text-slate-400 mt-0.5">{sales.length} product</p>
             </div>
           </div>
+          {/* Lead-linked revenue summary */}
+          {closedLeadsInfo.totalLeadRevenue > 0 && (
+            <div className="bg-indigo-50 rounded-xl p-3.5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-indigo-700">มาจาก Leads</p>
+                <p className="text-xs text-indigo-500 mt-0.5">{closedLeadsInfo.linkedCount} leads ปิดการขาย</p>
+              </div>
+              <p className="text-lg font-bold text-indigo-700">฿{closedLeadsInfo.totalLeadRevenue.toLocaleString()}</p>
+            </div>
+          )}
           <div>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">รายละเอียดแต่ละ Product</p>
             <div className="space-y-2">
@@ -260,7 +278,7 @@ export default function Dashboard() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-blue-50 rounded-xl p-4">
-              <p className="text-xs text-slate-500 mb-1">Leads รวม</p>
+              <p className="text-xs text-slate-500 mb-1">Leads รวม (Ads)</p>
               <p className="text-xl font-bold text-blue-700">{totalLeads.toLocaleString()}</p>
               <p className="text-xs text-slate-400 mt-0.5">{ads.length} campaigns</p>
             </div>
@@ -272,8 +290,32 @@ export default function Dashboard() {
               <p className="text-xs text-slate-400 mt-0.5">บาท/lead</p>
             </div>
           </div>
+          {/* Leads CRM summary */}
+          {closedLeadsInfo.totalClosed > 0 && (
+            <div className="bg-white rounded-xl border border-slate-100 p-4 space-y-3">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">ปิดการขาย (CRM Leads)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-2xl font-bold text-emerald-600">{closedLeadsInfo.totalClosed}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Lead ปิดแล้วทั้งหมด</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-indigo-600">฿{closedLeadsInfo.totalLeadRevenue.toLocaleString()}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">บันทึกใน Sales แล้ว</p>
+                </div>
+              </div>
+              {closedLeadsInfo.unlinkedCount > 0 && (
+                <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-100 rounded-lg px-3.5 py-2.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-500 shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <p className="text-xs text-amber-700">
+                    <span className="font-semibold">{closedLeadsInfo.unlinkedCount} Lead</span> ยังไม่เชื่อมกับ Sales — ไปกดปุ่ม "บันทึกยอดขาย" ที่หน้า Leads
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Leads แต่ละแคมเปญ</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Leads แต่ละแคมเปญ (Ads)</p>
             {sorted.length === 0 ? (
               <p className="text-sm text-slate-400 text-center py-6">ยังไม่มีข้อมูล Leads</p>
             ) : (
@@ -602,7 +644,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
             <KPICard label="ยอดขายจริง" value={`฿${totalActual.toLocaleString()}`} sub={`เป้า ฿${totalTarget.toLocaleString()}`} pct={pct} accent="emerald" icon="baht" active={activePanel === 'sales'} onClick={() => openPanel(activePanel === 'sales' ? null : 'sales')} />
             <KPICard label="งบ Ads คงเหลือ" value={`฿${(totalBudget - totalSpent).toLocaleString()}`} sub={`ใช้ไป ฿${totalSpent.toLocaleString()}`} accent="amber" icon="ads" active={activePanel === 'ads'} onClick={() => openPanel(activePanel === 'ads' ? null : 'ads')} />
-            <KPICard label="Leads รวม" value={totalLeads.toLocaleString()} sub={`${ads.length} campaigns`} accent="blue" icon="trending" active={activePanel === 'leads'} onClick={() => openPanel(activePanel === 'leads' ? null : 'leads')} />
+            <KPICard label="Leads รวม" value={totalLeads.toLocaleString()} sub={`${ads.length} campaigns${closedLeadsInfo.unlinkedCount > 0 ? ` · ${closedLeadsInfo.unlinkedCount} รอเชื่อม Sales` : ''}`} accent="blue" icon="trending" active={activePanel === 'leads'} onClick={() => openPanel(activePanel === 'leads' ? null : 'leads')} />
             <KPICard label="Content โพสต์แล้ว" value={`${contentDone} / ${contents.length}`} sub={`รอผลิตอีก ${contentWait} ชิ้น`} accent="violet" icon="edit" active={activePanel === 'contents'} onClick={() => openPanel(activePanel === 'contents' ? null : 'contents')} />
           </div>
 

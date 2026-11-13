@@ -492,7 +492,22 @@ export default function Sales() {
                         ? <span>{Number(s.sales_target_count).toLocaleString()} ชิ้น</span>
                         : <span className="text-slate-300">—</span>}
                     </td>
-                    <td className={`${tdRightCls} text-sm font-semibold text-slate-900`}>฿{actual.toLocaleString()}</td>
+                    <td className={`${tdRightCls} text-sm font-semibold text-slate-900`}>
+                      <div className="flex flex-col items-end gap-1">
+                        <span>฿{actual.toLocaleString()}</span>
+                        {/* Lead source indicator */}
+                        {(() => {
+                          const src = (s as any).lead_source
+                          const cnt = Number((s as any).closed_leads_count ?? 0)
+                          if (src === 'leads' || src === 'mixed') return (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${src === 'leads' ? 'bg-indigo-50 text-indigo-600' : 'bg-violet-50 text-violet-600'}`}>
+                              {cnt} lead{cnt !== 1 ? 's' : ''}
+                            </span>
+                          )
+                          return null
+                        })()}
+                      </div>
+                    </td>
                     <td className={tdRightCls}>
                       <div className="flex flex-col items-end">
                         <span className="text-sm text-slate-600">฿{received.toLocaleString()}</span>
@@ -503,7 +518,6 @@ export default function Sales() {
                         )}
                       </div>
                     </td>
-                    <td className={`${tdRightCls} text-sm text-red-500 font-medium`}>฿{rowGap.toLocaleString()}</td>
                     <td className={tdCls}>
                       <div className="flex items-center gap-2">
                         <div className="w-16 h-2 rounded-full overflow-hidden bg-slate-100">

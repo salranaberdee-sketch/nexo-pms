@@ -18,10 +18,10 @@ import type { Tables } from '@/src/types/database'
 import LeadsSettingsPanel from './LeadsSettingsPanel'
 
 const LEAD_STATUSES = ['ใหม่', 'ติดต่อแล้ว', 'ผ่านเกณฑ์', 'ปิดการขาย', 'ไม่สำเร็จ']
-const CHANNELS = ['form', 'LINE', 'inbox', 'phone', 'other']
 
 type Lead = Tables<'leads'>
 type Product = Tables<'products'>
+type Sale = Tables<'sales'>
 
 const channelLabel: Record<string, string> = {
   form: 'Form', LINE: 'LINE', inbox: 'Inbox', phone: 'โทร', other: 'อื่นๆ',
@@ -167,12 +167,20 @@ export default function Leads() {
   const [products, setProducts]             = useState<Product[]>([])
   const [ads, setAds]                       = useState<Tables<'ads'>[]>([])
   const [contents, setContents]             = useState<Tables<'contents'>[]>([])
+  const [sales, setSales]                   = useState<Sale[]>([])
   const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([])
   const [loading, setLoading]               = useState(true)
   const [loadError, setLoadError]           = useState('')
   const [search, setSearch]                 = useState('')
   const [filterStatus, setFilterStatus]     = useState('all')
   const [filterProduct, setFilterProduct]   = useState('all')
+
+  // Sales-link modal state
+  const [salesLinkModal, setSalesLinkModal] = useState<{ lead: Lead } | null>(null)
+  const [salesLinkSaving, setSalesLinkSaving] = useState(false)
+  const [salesLinkError, setSalesLinkError]   = useState('')
+  // selectedSaleId: existing sales record to link, or 'new' to create
+  const [selectedSaleId, setSelectedSaleId]   = useState<string>('')
 
   // Add / Edit modal state
   const [showAdd, setShowAdd]               = useState(false)
@@ -195,15 +203,16 @@ export default function Leads() {
 
   async function load() {
     setLoadError('')
-    const [l, p, a, c, pr] = await Promise.all([
+    const [l, p, a, c, pr, s] = await Promise.all([
       supabase
         .from('leads')
-        .select('id, product_id, ad_id, content_id, channel_in, utm_source, utm_medium, utm_campaign, utm_content, status, deal_amount, closed_at, owner_id, owner_name, consent_given, consent_at, notes, created_at')
+        .select('id, product_id, ad_id, content_id, channel_in, utm_source, utm_medium, utm_campaign, utm_content, status, deal_amount, closed_at, owner_id, owner_name, consent_given, consent_at, notes, created_at, sales_id')
         .order('created_at', { ascending: false }),
       supabase.from('products').select('product_id, name'),
       supabase.from('ads').select('id, campaign_name, product_id, month'),
       supabase.from('contents').select('id, title, product_id, seq'),
       supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
+      supabase.from('sales').select('id, product_id, period_start, period_end, sales_target_amount, actual_sales, status, closed_leads_count, closed_leads_amount, lead_source').order('period_start', { ascending: false }),
     ])
     if (l.error) { setLoadError(l.error.message); setLoading(false); return }
     setLeads(l.data || [])
@@ -211,6 +220,7 @@ export default function Leads() {
     setAds(a.data || [])
     setContents(c.data || [])
     setProfileOptions(pr.data || [])
+    setSales(s.data || [])
     setLoading(false)
   }
 
@@ -337,12 +347,167 @@ export default function Leads() {
       ...l, status,
       ...(status === 'ปิดการขาย' ? { closed_at: closedAt } : {}),
     } : l))
+
+    // If changing to ปิดการขาย and lead has deal_amount, offer to link to sales
+    if (status === 'ปิดการขาย') {
+      const lead = leads.find(l => l.id === id)
+      if (lead && Number(lead.deal_amount) > 0) {
+        openSalesLinkModal({ ...lead, status, ...(closedAt ? { closed_at: closedAt } : {}) } as Lead)
+      }
+    }
+  }
+
+  // ── Sales link modal ─────────────────────────────────────────
+  function openSalesLinkModal(lead: Lead) {
+    setSalesLinkError('')
+    // Pre-select the most relevant sales record (same product, active period)
+    const today = new Date().toISOString().split('T')[0]
+    const relevantSale = sales.find(s =>
+      s.product_id === lead.product_id &&
+      s.period_start <= today &&
+      s.period_end >= today,
+    )
+    setSelectedSaleId(relevantSale ? String(relevantSale.id) : (sales.find(s => s.product_id === lead.product_id) ? String(sales.find(s => s.product_id === lead.product_id)!.id) : 'skip'))
+    setSalesLinkModal({ lead })
+  }
+
+  async function saveSalesLink() {
+    if (!salesLinkModal || selectedSaleId === 'skip') {
+      setSalesLinkModal(null)
+      return
+    }
+    setSalesLinkSaving(true)
+    setSalesLinkError('')
+    const { lead } = salesLinkModal
+    const dealAmt = Number(lead.deal_amount) || 0
+
+    if (selectedSaleId === 'new') {
+      // This path is handled by redirecting to Sales page — we just link without creating
+      setSalesLinkModal(null)
+      setSalesLinkSaving(false)
+      showToast('ไปสร้างเป้ายอดขายที่หน้า Sales แล้วกลับมาเชื่อม Lead', 'info')
+      return
+    }
+
+    // Link lead to existing sales record + update sales aggregates
+    const saleId = Number(selectedSaleId)
+    const sale = sales.find(s => s.id === saleId)
+    if (!sale) { setSalesLinkError('ไม่พบเป้ายอดขาย'); setSalesLinkSaving(false); return }
+
+    // Check if this lead is already linked (avoid double-counting)
+    const alreadyLinked = lead.sales_id === saleId
+    if (alreadyLinked) {
+      setSalesLinkModal(null)
+      setSalesLinkSaving(false)
+      return
+    }
+
+    // If lead was previously linked to a different sales record, subtract from old one
+    if (lead.sales_id && lead.sales_id !== saleId) {
+      const oldSale = sales.find(s => s.id === lead.sales_id)
+      if (oldSale) {
+        const newOldCount = Math.max(0, (oldSale.closed_leads_count ?? 0) - 1)
+        const newOldAmount = Math.max(0, Number(oldSale.closed_leads_amount ?? 0) - dealAmt)
+        const newOldActual = Math.max(0, Number(oldSale.actual_sales ?? 0) - dealAmt)
+        await supabase.from('sales').update({
+          closed_leads_count:  newOldCount,
+          closed_leads_amount: newOldAmount,
+          actual_sales:        newOldActual,
+          lead_source:         newOldCount > 0 ? (Number(newOldActual) > newOldAmount ? 'mixed' : 'leads') : 'manual',
+        }).eq('id', oldSale.id)
+      }
+    }
+
+    // Update new sales record
+    const newCount  = (sale.closed_leads_count ?? 0) + 1
+    const newAmount = Number(sale.closed_leads_amount ?? 0) + dealAmt
+    const newActual = Number(sale.actual_sales ?? 0) + dealAmt
+    const { error: saleErr } = await supabase.from('sales').update({
+      closed_leads_count:  newCount,
+      closed_leads_amount: newAmount,
+      actual_sales:        newActual,
+      lead_source:         Number(sale.actual_sales ?? 0) > Number(sale.closed_leads_amount ?? 0) ? 'mixed' : 'leads',
+    }).eq('id', saleId)
+
+    if (saleErr) { setSalesLinkError(saleErr.message); setSalesLinkSaving(false); return }
+
+    // Update lead's sales_id FK
+    const { error: leadErr } = await supabase.from('leads').update({ sales_id: saleId }).eq('id', lead.id)
+    if (leadErr) {
+      // Rollback sales update
+      await supabase.from('sales').update({
+        closed_leads_count:  sale.closed_leads_count ?? 0,
+        closed_leads_amount: sale.closed_leads_amount ?? 0,
+        actual_sales:        sale.actual_sales ?? 0,
+      }).eq('id', saleId)
+      setSalesLinkError(leadErr.message)
+      setSalesLinkSaving(false)
+      return
+    }
+
+    // Update local state
+    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, sales_id: saleId } : l))
+    setSales(prev => prev.map(s => s.id === saleId ? {
+      ...s,
+      closed_leads_count:  newCount,
+      closed_leads_amount: newAmount,
+      actual_sales:        newActual,
+    } : s))
+
+    setSalesLinkModal(null)
+    setSalesLinkSaving(false)
+    showToast('เชื่อมยอดขายสำเร็จ — อัปเดต actual_sales แล้ว')
+  }
+
+  // ── Unlink lead from sales ────────────────────────────────────
+  async function unlinkSales(lead: Lead) {
+    if (!lead.sales_id) return
+    const sale = sales.find(s => s.id === lead.sales_id)
+    if (!sale) return
+
+    const dealAmt  = Number(lead.deal_amount) || 0
+    const newCount  = Math.max(0, (sale.closed_leads_count ?? 0) - 1)
+    const newAmount = Math.max(0, Number(sale.closed_leads_amount ?? 0) - dealAmt)
+    const newActual = Math.max(0, Number(sale.actual_sales ?? 0) - dealAmt)
+
+    const { error: saleErr } = await supabase.from('sales').update({
+      closed_leads_count:  newCount,
+      closed_leads_amount: newAmount,
+      actual_sales:        newActual,
+      lead_source:         newCount > 0 ? 'leads' : 'manual',
+    }).eq('id', sale.id)
+
+    if (saleErr) { showToast(saleErr.message, 'error'); return }
+
+    const { error: leadErr } = await supabase.from('leads').update({ sales_id: null }).eq('id', lead.id)
+    if (leadErr) {
+      // Rollback
+      await supabase.from('sales').update({
+        closed_leads_count: sale.closed_leads_count,
+        closed_leads_amount: sale.closed_leads_amount,
+        actual_sales: sale.actual_sales,
+      }).eq('id', sale.id)
+      showToast(leadErr.message, 'error')
+      return
+    }
+
+    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, sales_id: null } : l))
+    setSales(prev => prev.map(s => s.id === sale.id ? {
+      ...s, closed_leads_count: newCount, closed_leads_amount: newAmount, actual_sales: newActual,
+    } : s))
+    showToast('ยกเลิกการเชื่อมยอดขายแล้ว')
   }
 
   // ── Aggregates ────────────────────────────────────────────────
   const productMap  = useMemo(() => new Map(products.map(p => [p.product_id, p])), [products])
   const adMap       = useMemo(() => new Map(ads.map(a => [a.id, a])), [ads])
   const contentMap  = useMemo(() => new Map(contents.map(c => [c.id, c])), [contents])
+  const salesMap    = useMemo(() => new Map(sales.map(s => [s.id, s])), [sales])
+  // Sales options scoped to the product of the lead being linked
+  const salesForProduct = useMemo(() => {
+    if (!salesLinkModal) return []
+    return sales.filter(s => s.product_id === salesLinkModal.lead.product_id)
+  }, [sales, salesLinkModal])
 
   const totalLeads  = leads.length
   const closedLeads = leads.filter(l => l.status === 'ปิดการขาย').length
@@ -495,6 +660,7 @@ export default function Leads() {
                 <th className={thCls}>ผู้รับผิดชอบ</th>
                 <th className={thCls}>มูลค่า</th>
                 <th className={thCls}>ยินยอม</th>
+                <th className={thCls}>เชื่อม Sales</th>
                 <th className={thCls}>สถานะ</th>
                 <th className={thCls}>วันที่</th>
                 <th className={thCls}></th>
@@ -547,6 +713,41 @@ export default function Leads() {
                       {l.consent_given
                         ? <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-md font-medium">ยินยอม ✓</span>
                         : <span className="text-xs bg-red-50 text-red-400 px-2 py-0.5 rounded-md">ยังไม่ยินยอม</span>}
+                    </td>
+                    {/* ── Sales link cell ── */}
+                    <td className={tdCls}>
+                      {l.sales_id ? (() => {
+                        const linkedSale = salesMap.get(l.sales_id)
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md font-medium flex items-center gap-1">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                              เชื่อมแล้ว
+                            </span>
+                            {linkedSale && (
+                              <span className="text-[11px] text-slate-400 truncate max-w-[100px]">
+                                {new Date(linkedSale.period_start).toLocaleDateString('th-TH', { month: 'short', year: 'numeric' })}
+                              </span>
+                            )}
+                            {canUpdate && (
+                              <button onClick={() => unlinkSales(l)}
+                                className="text-[10px] text-slate-300 hover:text-red-400 transition-colors leading-none mt-0.5">
+                                ยกเลิกเชื่อม
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })() : (
+                        l.status === 'ปิดการขาย' && Number(l.deal_amount) > 0 && canUpdate ? (
+                          <button onClick={() => openSalesLinkModal(l)}
+                            className="text-xs bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1 whitespace-nowrap">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                            บันทึกยอดขาย
+                          </button>
+                        ) : (
+                          <span className="text-slate-200 text-sm">—</span>
+                        )
+                      )}
                     </td>
                     <td className={tdCls}>
                       <StatusSelect value={l.status} options={LEAD_STATUSES} styleMap={leadStatusStyle}
@@ -650,6 +851,120 @@ export default function Leads() {
           )}
         </div>
       </div>
+
+      {/* ── SALES LINK modal ───────────────────────────────────── */}
+      <Modal
+        open={!!salesLinkModal}
+        onClose={() => setSalesLinkModal(null)}
+        title="บันทึกยอดขาย — เชื่อม Lead เข้า Sales"
+        width="max-w-lg"
+      >
+        {salesLinkModal && (() => {
+          const { lead } = salesLinkModal
+          const product = productMap.get(lead.product_id)
+          const dealAmt = Number(lead.deal_amount) || 0
+          return (
+            <div className="space-y-5">
+              {/* Lead summary */}
+              <div className="bg-slate-50 rounded-xl p-4 space-y-1.5">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Lead ที่ปิดการขาย</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">{product?.name || lead.product_id}</span>
+                  <span className="text-lg font-bold text-emerald-600">฿{dealAmt.toLocaleString()}</span>
+                </div>
+                {lead.owner_name && (
+                  <p className="text-xs text-slate-400">ปิดโดย: {lead.owner_name}</p>
+                )}
+              </div>
+
+              {/* Choose sales record */}
+              <div>
+                <p className="text-sm font-medium text-slate-700 mb-3">
+                  เลือกเป้ายอดขายที่ต้องการให้ ฿{dealAmt.toLocaleString()} นี้เข้าไป
+                </p>
+                {salesForProduct.length === 0 ? (
+                  <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-sm text-amber-700">
+                    <p className="font-medium mb-1">ยังไม่มีเป้ายอดขายสำหรับ {lead.product_id}</p>
+                    <p className="text-xs text-amber-600">ไปสร้างที่หน้า Sales ก่อน แล้วค่อยกลับมาเชื่อม Lead</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {salesForProduct.map(s => {
+                      const pct = Number(s.sales_target_amount) > 0
+                        ? Math.round((Number(s.actual_sales ?? 0) / Number(s.sales_target_amount)) * 100)
+                        : 0
+                      const isSelected = selectedSaleId === String(s.id)
+                      return (
+                        <label key={s.id}
+                          className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${isSelected ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                          <input type="radio" name="sales_link" value={String(s.id)}
+                            checked={isSelected}
+                            onChange={() => setSelectedSaleId(String(s.id))}
+                            className="mt-0.5 text-indigo-600" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-medium text-slate-800">
+                                {new Date(s.period_start).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                {' – '}
+                                {new Date(s.period_end).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </span>
+                              <span className={`text-xs px-2 py-0.5 rounded-md font-medium shrink-0 ${
+                                s.status === 'กำลังขาย' ? 'bg-emerald-100 text-emerald-700' :
+                                s.status === 'ปิดเป้า'  ? 'bg-blue-100 text-blue-700' :
+                                'bg-slate-100 text-slate-500'
+                              }`}>{s.status}</span>
+                            </div>
+                            <div className="mt-2 flex items-center gap-3 text-xs text-slate-400">
+                              <span>ยอดจริง ฿{Number(s.actual_sales ?? 0).toLocaleString()}</span>
+                              <span>เป้า ฿{Number(s.sales_target_amount ?? 0).toLocaleString()}</span>
+                              <span className="text-slate-300">|</span>
+                              <span>{pct}%</span>
+                              {(s.closed_leads_count ?? 0) > 0 && (
+                                <span className="text-indigo-500">{s.closed_leads_count} leads แล้ว</span>
+                              )}
+                            </div>
+                            {/* Preview: how much actual_sales will increase */}
+                            {isSelected && (
+                              <div className="mt-2 text-xs font-medium text-emerald-600 bg-emerald-50 rounded-lg px-2.5 py-1.5">
+                                actual_sales จะเพิ่มเป็น ฿{(Number(s.actual_sales ?? 0) + dealAmt).toLocaleString()} (+฿{dealAmt.toLocaleString()})
+                              </div>
+                            )}
+                          </div>
+                        </label>
+                      )
+                    })}
+                    {/* Skip option */}
+                    <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedSaleId === 'skip' ? 'border-slate-400 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                      <input type="radio" name="sales_link" value="skip"
+                        checked={selectedSaleId === 'skip'}
+                        onChange={() => setSelectedSaleId('skip')}
+                        className="text-slate-500" />
+                      <span className="text-sm text-slate-500">ข้ามไปก่อน — ไม่เชื่อมตอนนี้</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {salesLinkError && (
+                <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5">{salesLinkError}</p>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={saveSalesLink}
+                  disabled={salesLinkSaving || (!selectedSaleId || selectedSaleId === '' || salesForProduct.length === 0)}
+                  className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-indigo-500 transition-colors">
+                  {salesLinkSaving ? 'กำลังบันทึก...' : selectedSaleId === 'skip' ? 'ข้ามไปก่อน' : 'เชื่อมและอัปเดตยอดขาย'}
+                </button>
+                <button onClick={() => setSalesLinkModal(null)}
+                  className="px-5 py-2.5 text-sm text-slate-500 rounded-xl hover:bg-slate-100 transition-colors">
+                  ยกเลิก
+                </button>
+              </div>
+            </div>
+          )
+        })()}
+      </Modal>
 
       {/* ── DELETE confirm ─────────────────────────────────────── */}
       <ConfirmModal
