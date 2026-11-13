@@ -469,7 +469,7 @@ export default function Sales() {
             </thead>
             <tbody className="divide-y divide-slate-100/60">
               {loading ? (
-                <TableSkeleton cols={14} />
+                <TableSkeleton cols={15} />
               ) : filteredAndSearched.length === 0 ? (
                 <EmptyState message="ยังไม่มีเป้ายอดขาย" />
               ) : filteredAndSearched.slice(0, visibleCount).map(s => {
@@ -666,6 +666,18 @@ export default function Sales() {
                     <span className={colPct >= 80 ? 'text-emerald-600' : colPct >= 50 ? 'text-amber-600' : 'text-red-500'}>เก็บได้ {colPct}%</span>
                   </div>
                 )}
+                {/* Orders linked */}
+                {(() => {
+                  const po = ordersByPeriod.get(s.id)
+                  if (!po) return null
+                  return (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-indigo-600 font-medium">{po.count} orders</span>
+                      <span className="text-slate-300">·</span>
+                      <span className="text-slate-400">ชำระแล้ว {po.paidCount}</span>
+                    </div>
+                  )
+                })()}
               </div>
             )
           })}

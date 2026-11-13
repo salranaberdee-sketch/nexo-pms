@@ -198,7 +198,7 @@ export default function Leads() {
     const [l, p, a, c, pr] = await Promise.all([
       supabase
         .from('leads')
-        .select('id, product_id, ad_id, content_id, channel_in, utm_source, utm_medium, utm_campaign, utm_content, status, deal_amount, closed_at, owner_id, owner_name, consent_given, consent_at, notes, created_at, sales_id')
+        .select('id, product_id, ad_id, content_id, channel_in, utm_source, utm_medium, utm_campaign, utm_content, status, deal_amount, closed_at, owner_id, owner_name, consent_given, consent_at, notes, created_at')
         .order('created_at', { ascending: false }),
       supabase.from('products').select('product_id, name'),
       supabase.from('ads').select('id, campaign_name, product_id, month'),
