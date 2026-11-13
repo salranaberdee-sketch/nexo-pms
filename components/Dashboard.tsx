@@ -11,7 +11,7 @@ import { todayStr } from '@/lib/utils'
 
 const SOON_DAYS = 3
 
-type PanelType = 'sales' | 'ads' | 'leads' | 'contents' | 'product' | 'roi' | null
+type PanelType = 'sales' | 'ads' | 'leads' | 'contents' | 'product' | 'roi' | 'orders' | null
 
 export default function Dashboard() {
   const [products, setProducts] = useState<any[]>([])
@@ -21,6 +21,7 @@ export default function Dashboard() {
   const [profiles, setProfiles] = useState<any[]>([])
   const [roiData, setRoiData] = useState<any[]>([])
   const [closedLeadsInfo, setClosedLeadsInfo] = useState<{ linkedCount: number; unlinkedCount: number; totalLeadRevenue: number; totalClosed: number }>({ linkedCount: 0, unlinkedCount: 0, totalLeadRevenue: 0, totalClosed: 0 })
+  const [ordersInfo, setOrdersInfo] = useState<{ todayRevenue: number; pendingRevenue: number; todayCount: number; pendingCount: number }>({ todayRevenue: 0, pendingRevenue: 0, todayCount: 0, pendingCount: 0 })
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [loadError, setLoadError] = useState('')
@@ -52,7 +53,7 @@ export default function Dashboard() {
   async function load(silent = false) {
     if (!silent) setRefreshing(true)
     setLoadError('')
-    const [p, s, c, a, pr, roi, ld] = await Promise.all([
+    const [p, s, c, a, pr, roi, ld, ord] = await Promise.all([
       supabase.from('products').select('id, product_id, name, brand, status, owner_id'),
       supabase.from('sales').select('product_id, sales_target_amount, actual_sales, actual_received, status, period_start, period_end, closed_leads_count, closed_leads_amount, lead_source'),
       supabase.from('contents').select('id, product_id, seq, title, status, assigned_to_id, assigned_to, producer_id, approver_id, poster_id, deadline'),
@@ -60,6 +61,7 @@ export default function Dashboard() {
       supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
       supabase.from('v_content_roi').select('content_id, product_id, seq, title, type, production_cost, ad_cost_share, total_cost, total_leads, closed_leads, deal_revenue, roi, roi_pct, conversion_rate').order('deal_revenue', { ascending: false }).limit(20),
       supabase.from('leads').select('id, status, deal_amount, sales_id').eq('status', 'ปิดการขาย'),
+      supabase.from('orders').select('id, total_amount, amount_paid, payment_status, order_date, sale_period_id').order('order_date', { ascending: false }).limit(100),
     ])
     const err = p.error || s.error || c.error || a.error || pr.error
     if (err) { setLoadError(err.message); setRefreshing(false); setLoading(false); return }
@@ -76,6 +78,14 @@ export default function Dashboard() {
     const unlinkedCount = closedLeads.length - linkedCount
     const totalLeadRevenue = closedLeads.filter((l: any) => l.sales_id).reduce((s: number, l: any) => s + Number(l.deal_amount || 0), 0)
     setClosedLeadsInfo({ linkedCount, unlinkedCount, totalLeadRevenue, totalClosed: closedLeads.length })
+    // orders
+    const orders = ord.data || []
+    const todayOrders = orders.filter((o: any) => o.order_date === TODAY)
+    const pendingOrders = orders.filter((o: any) => o.payment_status === 'pending' || o.payment_status === 'partial')
+    const todayRevenue = todayOrders.reduce((s: number, o: any) => s + Number(o.total_amount ?? 0), 0)
+    const pendingRevenue = pendingOrders.reduce((s: number, o: any) => s + (Number(o.total_amount ?? 0) - Number(o.amount_paid ?? 0)), 0)
+    setOrdersInfo({ todayRevenue, pendingRevenue, todayCount: todayOrders.length, pendingCount: pendingOrders.length })
+    ;(window as any).__dashboardOrdersInfo = { todayRevenue, pendingRevenue, todayCount: todayOrders.length, pendingCount: pendingOrders.length }
     setLastUpdated(new Date())
     setLoading(false)
     setRefreshing(false)
@@ -494,6 +504,34 @@ export default function Dashboard() {
         </div>
       )
     }
+    if (activePanel === 'orders') {
+      return (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-indigo-50 rounded-xl p-4">
+              <p className="text-xs text-slate-500 mb-1">รายได้วันนี้</p>
+              <p className="text-xl font-bold text-indigo-700">฿{ordersInfo.todayRevenue.toLocaleString()}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{ordersInfo.todayCount} orders</p>
+            </div>
+            <div className="bg-amber-50 rounded-xl p-4">
+              <p className="text-xs text-slate-500 mb-1">รอรับเงิน</p>
+              <p className="text-xl font-bold text-amber-700">฿{ordersInfo.pendingRevenue.toLocaleString()}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{ordersInfo.pendingCount} orders</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-100 p-4 text-center">
+            <p className="text-sm text-slate-500 mb-3">ดูรายการขายทั้งหมดได้ที่หน้า Orders</p>
+            <a href="/orders" className="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-xl transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+              </svg>
+              ไปหน้า Orders →
+            </a>
+          </div>
+        </div>
+      )
+    }
     if (activePanel === 'roi') {
       const hasData = roiData.some(r => Number(r.deal_revenue) > 0 || Number(r.total_leads) > 0)
       return (
@@ -600,6 +638,7 @@ export default function Dashboard() {
     ads:      'งบโฆษณา',
     leads:    'Leads & ROI',
     contents: 'Content Pipeline',
+    orders:   'Orders วันนี้',
     roi:      'Leaderboard ROI ต่อ Content',
     product:  panelProduct?.name || activePanelProduct || '',
   }
@@ -640,11 +679,11 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* KPI cards */}
+          {/* KPI cards — row 1: revenue & marketing */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
             <KPICard label="ยอดขายจริง" value={`฿${totalActual.toLocaleString()}`} sub={`เป้า ฿${totalTarget.toLocaleString()}`} pct={pct} accent="emerald" icon="baht" active={activePanel === 'sales'} onClick={() => openPanel(activePanel === 'sales' ? null : 'sales')} />
-            <KPICard label="งบ Ads คงเหลือ" value={`฿${(totalBudget - totalSpent).toLocaleString()}`} sub={`ใช้ไป ฿${totalSpent.toLocaleString()}`} accent="amber" icon="ads" active={activePanel === 'ads'} onClick={() => openPanel(activePanel === 'ads' ? null : 'ads')} />
-            <KPICard label="Leads รวม" value={totalLeads.toLocaleString()} sub={`${ads.length} campaigns${closedLeadsInfo.unlinkedCount > 0 ? ` · ${closedLeadsInfo.unlinkedCount} รอเชื่อม Sales` : ''}`} accent="blue" icon="trending" active={activePanel === 'leads'} onClick={() => openPanel(activePanel === 'leads' ? null : 'leads')} />
+            <KPICard label="Orders วันนี้" value={`฿${ordersInfo.todayRevenue.toLocaleString()}`} sub={`${ordersInfo.todayCount} orders · รอรับ ฿${ordersInfo.pendingRevenue.toLocaleString()}`} accent="indigo" icon="cart" active={activePanel === 'orders'} onClick={() => openPanel(activePanel === 'orders' ? null : 'orders')} />
+            <KPICard label="Leads รวม" value={totalLeads.toLocaleString()} sub={`${ads.length} campaigns${closedLeadsInfo.unlinkedCount > 0 ? ` · ${closedLeadsInfo.unlinkedCount} ยังไม่มี Order` : ''}`} accent="blue" icon="trending" active={activePanel === 'leads'} onClick={() => openPanel(activePanel === 'leads' ? null : 'leads')} />
             <KPICard label="Content โพสต์แล้ว" value={`${contentDone} / ${contents.length}`} sub={`รอผลิตอีก ${contentWait} ชิ้น`} accent="violet" icon="edit" active={activePanel === 'contents'} onClick={() => openPanel(activePanel === 'contents' ? null : 'contents')} />
           </div>
 
@@ -1092,7 +1131,7 @@ export default function Dashboard() {
 
 function KPICard({ label, value, sub, pct, accent, icon, active, onClick }: {
   label: string; value: string; sub: string; pct?: number
-  accent: 'emerald' | 'amber' | 'blue' | 'violet'; icon: 'baht' | 'ads' | 'trending' | 'edit'
+  accent: 'emerald' | 'amber' | 'blue' | 'violet' | 'indigo'; icon: 'baht' | 'ads' | 'trending' | 'edit' | 'cart'
   active: boolean; onClick: () => void
 }) {
   const accentMap = {
@@ -1100,6 +1139,7 @@ function KPICard({ label, value, sub, pct, accent, icon, active, onClick }: {
     amber:   { bar: '#f59e0b', bg: '#fffbeb', fg: '#d97706' },
     blue:    { bar: '#3b82f6', bg: '#eff6ff', fg: '#2563eb' },
     violet:  { bar: '#8b5cf6', bg: '#f5f3ff', fg: '#7c3aed' },
+    indigo:  { bar: '#6366f1', bg: '#eef2ff', fg: '#4f46e5' },
   }
   const a = accentMap[accent]
   const barColor = pct !== undefined ? (pct >= 80 ? '#10b981' : pct >= 40 ? '#f59e0b' : '#3b82f6') : a.bar
@@ -1116,6 +1156,7 @@ function KPICard({ label, value, sub, pct, accent, icon, active, onClick }: {
           {icon === 'ads' && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={a.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>}
           {icon === 'trending' && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={a.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>}
           {icon === 'edit' && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={a.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
+          {icon === 'cart' && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={a.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>}
         </div>
       </div>
       <p className="text-2xl font-semibold text-slate-900 leading-none">{value}</p>

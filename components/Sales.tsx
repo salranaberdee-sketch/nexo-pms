@@ -27,6 +27,7 @@ const TODAY_MS = new Date(TODAY).getTime()
 export default function Sales() {
   const [sales, setSales]     = useState<Sale[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [orders, setOrders]   = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [search, setSearch]   = useState('')
@@ -69,13 +70,15 @@ export default function Sales() {
 
   async function load() {
     setLoadError('')
-    const [s, p] = await Promise.all([
-      supabase.from('sales').select('id, product_id, period_start, period_end, sales_target_amount, sales_target_count, actual_sales, actual_received, status, created_at').order('product_id'),
+    const [s, p, ord] = await Promise.all([
+      supabase.from('sales').select('id, product_id, period_start, period_end, sales_target_amount, sales_target_count, actual_sales, actual_received, status, created_at, closed_leads_count, lead_source').order('product_id'),
       supabase.from('products').select('product_id, name, status, business_type, product_type, brand, owner'),
+      supabase.from('orders').select('id, sale_period_id, total_amount, payment_status'),
     ])
     if (s.error) { setLoadError(s.error.message); setLoading(false); return }
     setSales(s.data || [])
     setProducts(p.data || [])
+    setOrders(ord.data || [])
     setLoading(false)
   }
 
@@ -183,6 +186,21 @@ export default function Sales() {
     () => new Map(products.map(p => [p.product_id, p])),
     [products],
   )
+
+  // Orders aggregated per sales period
+  const ordersByPeriod = useMemo(() => {
+    const map = new Map<number, { count: number; total: number; paidCount: number }>()
+    orders.forEach((o: any) => {
+      if (!o.sale_period_id) return
+      const existing = map.get(o.sale_period_id) || { count: 0, total: 0, paidCount: 0 }
+      map.set(o.sale_period_id, {
+        count:     existing.count + 1,
+        total:     existing.total + Number(o.total_amount ?? 0),
+        paidCount: existing.paidCount + (o.payment_status === 'paid' ? 1 : 0),
+      })
+    })
+    return map
+  }, [orders])
 
   // Category filter — from DB (same order as CategoryManager)
   const [filterCategory, setFilterCategory] = useState('all')
@@ -444,6 +462,7 @@ export default function Sales() {
                 <th className={thRightCls}>ยังขาด</th>
                 <th className={thCls}>% สำเร็จ</th>
                 <th className={thRightCls}>ต้องขาย/วัน</th>
+                <th className={thCls}>Orders</th>
                 <th className={thCls}>สถานะ</th>
                 <th className={thCls}></th>
               </tr>
@@ -533,6 +552,20 @@ export default function Sales() {
                         : rowGap === 0
                           ? <span className="text-emerald-600 font-medium">ปิดเป้าแล้ว</span>
                           : <span className="text-slate-300">—</span>}
+                    </td>
+                    {/* Orders linked to this sales period */}
+                    <td className={tdCls}>
+                      {(() => {
+                        const po = ordersByPeriod.get(s.id)
+                        if (!po) return <span className="text-slate-200 text-sm">—</span>
+                        return (
+                          <a href={`/orders`}
+                            className="flex flex-col gap-0.5 hover:text-indigo-600 transition-colors">
+                            <span className="text-xs font-semibold text-indigo-600">{po.count} orders</span>
+                            <span className="text-[10px] text-slate-400">{po.paidCount} ชำระแล้ว</span>
+                          </a>
+                        )
+                      })()}
                     </td>
                     <td className={tdCls}>
                       <StatusSelect value={s.status ?? 'ยังไม่เปิดขาย'} options={SALES_STATUS_OPTIONS} styleMap={salesStatusStyle}
