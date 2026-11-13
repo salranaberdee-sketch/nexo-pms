@@ -31,6 +31,8 @@ export type AppSettingsValue = {
   brands:          string[]  // brands split by comma
   fiscalYearStart: string    // "01" – "12"
   salesPeriodDays: number
+  // service presets parsed from "name|price,name|price,..." format
+  servicePresets:  { name: string; price: number }[]
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -73,6 +75,10 @@ export function useAppSettings(): AppSettingsValue {
     brands:          parseCSV(settings.brands),
     fiscalYearStart: settings.fiscal_year_start ?? '01',
     salesPeriodDays: parseInt(settings.sales_period_days ?? '30', 10) || 30,
+    servicePresets:  parseCSV(settings.service_presets).map(s => {
+      const [name, price] = s.split('|')
+      return { name: (name || s).trim(), price: parseFloat(price ?? '0') || 0 }
+    }),
   }
 }
 

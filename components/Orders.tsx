@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useCan } from '@/lib/profile-context'
+import { useSettings } from '@/lib/app-settings'
 import ProfilePicker from './ProfilePicker'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState, todayStr } from './TableState'
@@ -18,6 +19,7 @@ import {
 import { IconPlus, IconPencil, IconTrash } from '@/lib/icons'
 import { orderPaymentStatusStyle, orderPaymentMethodLabel } from '@/lib/status-styles'
 import type { Tables } from '@/src/types/database'
+import OrdersSettingsPanel from './OrdersSettingsPanel'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const PAYMENT_METHODS  = ['transfer', 'cash', 'credit', 'qr', 'other'] as const
@@ -56,7 +58,7 @@ type OrderFormType = typeof EMPTY_FORM
 
 // ── OrderForm — hoisted outside component to avoid remount on parent re-render ──
 function OrderForm({
-  form, setForm, products, leadsOpts, salesOpts, profileOptions,
+  form, setForm, products, leadsOpts, salesOpts, profileOptions, servicePresets,
 }: {
   form: OrderFormType
   setForm: (f: OrderFormType) => void
@@ -64,10 +66,22 @@ function OrderForm({
   leadsOpts: any[]
   salesOpts: Sale[]
   profileOptions: ProfileOption[]
+  servicePresets: { name: string; price: number }[]
 }) {
   const filteredLeads = leadsOpts.filter(l => !form.product_id || l.product_id === form.product_id)
   const filteredSales = salesOpts.filter(s => !form.product_id || s.product_id === form.product_id)
   const totalPreview  = (Number(form.unit_price) * Number(form.quantity)) - Number(form.discount)
+
+  // When selecting a preset, prefill service_name + unit_price
+  function onPresetSelect(val: string) {
+    if (!val) { setForm({ ...form, service_name: '' }); return }
+    const preset = servicePresets.find(p => p.name === val)
+    setForm({
+      ...form,
+      service_name: val,
+      unit_price:   preset && preset.price > 0 ? String(preset.price) : form.unit_price,
+    })
+  }
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -91,12 +105,45 @@ function OrderForm({
       </Field>
 
       <Field label="บริการ / สินค้าที่ขาย" required>
-        <input
-          value={form.service_name}
-          onChange={e => setForm({ ...form, service_name: e.target.value })}
-          placeholder="เช่น ตรวจสุขภาพ, ขลิบไร้เลือด"
-          className={inputCls}
-        />
+        {servicePresets.length > 0 ? (
+          <>
+            <select
+              value={servicePresets.find(p => p.name === form.service_name) ? form.service_name : '__custom'}
+              onChange={e => {
+                if (e.target.value === '__custom') {
+                  setForm({ ...form, service_name: '' })
+                } else {
+                  onPresetSelect(e.target.value)
+                }
+              }}
+              className={selectCls}
+            >
+              <option value="">เลือกบริการ</option>
+              {servicePresets.map(p => (
+                <option key={p.name} value={p.name}>
+                  {p.name}{p.price > 0 ? ` — ฿${p.price.toLocaleString()}` : ' — ยังไม่กำหนดราคา'}
+                </option>
+              ))}
+              <option value="__custom">✏️ พิมพ์เอง</option>
+            </select>
+            {/* Show text input when 'พิมพ์เอง' or value not in presets */}
+            {(!servicePresets.find(p => p.name === form.service_name)) && (
+              <input
+                value={form.service_name}
+                onChange={e => setForm({ ...form, service_name: e.target.value })}
+                placeholder="ระบุบริการ/สินค้าที่ขาย"
+                className={inputCls + ' mt-2'}
+              />
+            )}
+          </>
+        ) : (
+          <input
+            value={form.service_name}
+            onChange={e => setForm({ ...form, service_name: e.target.value })}
+            placeholder="เช่น ตรวจสุขภาพ, ขลิบไร้เลือด"
+            className={inputCls}
+          />
+        )}
       </Field>
 
       <Field label="ราคาต่อหน่วย (฿)" required>
@@ -278,6 +325,7 @@ export default function Orders() {
   const canDelete = useCan('delete', 'orders')
   const supabase  = createClient()
   const TODAY     = todayStr()
+  const { servicePresets } = useSettings()
 
   // ── Read URL params for prefill (from Leads "สร้าง Order" button) ──────────
   const searchParams = useSearchParams()
@@ -522,10 +570,7 @@ export default function Orders() {
 
       {/* ── Tab: ตั้งค่า ── */}
       {activeTab === 'settings' && (
-        <div className="bg-white rounded-2xl border border-slate-100 p-6 max-w-lg">
-          <p className="text-sm font-semibold text-slate-700 mb-1">ตั้งค่า Orders</p>
-          <p className="text-sm text-slate-400">Coming soon — เช่น ประเภทบริการ, เงื่อนไขชำระ</p>
-        </div>
+        <OrdersSettingsPanel />
       )}
 
       {/* ── Tab: รายการ ── */}
@@ -819,7 +864,7 @@ export default function Orders() {
           <OrderForm
             form={addForm} setForm={setAddForm}
             products={products} leadsOpts={closedLeads} salesOpts={sales}
-            profileOptions={profileOptions}
+            profileOptions={profileOptions} servicePresets={servicePresets}
           />
           {addError && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{addError}</p>}
           <div className="flex gap-2 mt-6">
@@ -835,7 +880,7 @@ export default function Orders() {
           <OrderForm
             form={editForm} setForm={setEditForm}
             products={products} leadsOpts={closedLeads} salesOpts={sales}
-            profileOptions={profileOptions}
+            profileOptions={profileOptions} servicePresets={servicePresets}
           />
           {editError && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{editError}</p>}
           <div className="flex gap-2 mt-6">
