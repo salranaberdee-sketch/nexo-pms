@@ -10,7 +10,7 @@ import { useSettings } from '@/lib/app-settings'
 import {
   IconDashboard, IconBox, IconFileText, IconBarChart, IconBarChart2,
   IconTrendingUp, IconUserPlus, IconUsers, IconSettings, IconCheckSquare,
-  IconLogOut, IconChevronLeft, IconChevronRight, IconUser, IconDatabase, IconShoppingCart,
+  IconLogOut, IconChevronLeft, IconChevronRight, IconUser, IconDatabase, IconShoppingCart, IconActivity,
 } from '@/lib/icons'
 import { roleStyle } from '@/lib/status-styles'
 
@@ -101,8 +101,9 @@ export default function Sidebar({
     {
       label: 'ยอดขาย',
       items: [
-        { path: '/orders', label: 'Orders', Icon: IconShoppingCart },
-        { path: '/sales',  label: 'Sales',  Icon: IconTrendingUp },
+        { path: '/customers', label: 'ลูกค้า',  Icon: IconActivity },
+        { path: '/orders',    label: 'Orders',   Icon: IconShoppingCart },
+        { path: '/sales',     label: 'Sales',    Icon: IconTrendingUp },
       ],
     },
     {

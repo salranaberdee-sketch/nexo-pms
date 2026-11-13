@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase'
 import { useCan } from '@/lib/profile-context'
 import { useSettings } from '@/lib/app-settings'
 import ProfilePicker from './ProfilePicker'
+import CustomerPicker, { type CustomerOption } from './CustomerPicker'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState, todayStr } from './TableState'
 import StatusSelect from './StatusSelect'
@@ -59,6 +60,7 @@ type OrderFormType = typeof EMPTY_FORM
 // ── OrderForm — hoisted outside component to avoid remount on parent re-render ──
 function OrderForm({
   form, setForm, products, leadsOpts, salesOpts, profileOptions, servicePresets,
+  customer, setCustomer,
 }: {
   form: OrderFormType
   setForm: (f: OrderFormType) => void
@@ -67,6 +69,8 @@ function OrderForm({
   salesOpts: Sale[]
   profileOptions: ProfileOption[]
   servicePresets: { name: string; price: number }[]
+  customer: CustomerOption | null
+  setCustomer: (c: CustomerOption | null) => void
 }) {
   const filteredLeads = leadsOpts.filter(l => !form.product_id || l.product_id === form.product_id)
   const filteredSales = salesOpts.filter(s => !form.product_id || s.product_id === form.product_id)
@@ -85,6 +89,30 @@ function OrderForm({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+      {/* ── ลูกค้า ── */}
+      <div className="col-span-2 pt-1 pb-1 border-b border-slate-100">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">ลูกค้า / ผู้ป่วย</p>
+      </div>
+      <div className="col-span-2">
+        <Field label="ค้นหาผู้ป่วย" hint="ค้นด้วยชื่อ, HN, หรือเบอร์โทร">
+          <CustomerPicker value={customer} onChange={setCustomer} />
+          {!customer && (
+            <p className="text-[11px] text-slate-400 mt-1">
+              ไม่พบ? <a href="/customers" target="_blank" className="text-indigo-500 underline underline-offset-2">เพิ่มผู้ป่วยใหม่</a>
+            </p>
+          )}
+        </Field>
+      </div>
+      {customer?.allergies && (
+        <div className="col-span-2 flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-3.5 py-2.5">
+          <span className="text-red-500 text-base shrink-0">⚠</span>
+          <p className="text-xs text-red-700 font-medium">แพ้: {customer.allergies}</p>
+          {customer.chronic_diseases && (
+            <p className="text-xs text-amber-600 ml-2">· {customer.chronic_diseases}</p>
+          )}
+        </div>
+      )}
 
       {/* ── สินค้า / บริการ ── */}
       <div className="col-span-2 pt-1 pb-1 border-b border-slate-100">
@@ -291,6 +319,7 @@ export default function Orders() {
   const [closedLeads, setClosedLeads]   = useState<any[]>([])
   const [sales, setSales]               = useState<Sale[]>([])
   const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([])
+  const [customerList, setCustomerList] = useState<any[]>([])
   const [loading, setLoading]           = useState(true)
   const [loadError, setLoadError]       = useState('')
 
@@ -304,12 +333,14 @@ export default function Orders() {
   // Add modal
   const [showAdd, setShowAdd]   = useState(false)
   const [addForm, setAddForm]   = useState<OrderFormType>({ ...EMPTY_FORM })
+  const [addCustomer, setAddCustomer] = useState<CustomerOption | null>(null)
   const [saving, setSaving]     = useState(false)
   const [addError, setAddError] = useState('')
 
   // Edit modal
   const [editingRow, setEditingRow]   = useState<Order | null>(null)
   const [editForm, setEditForm]       = useState<OrderFormType>({ ...EMPTY_FORM })
+  const [editCustomer, setEditCustomer] = useState<CustomerOption | null>(null)
   const [savingEdit, setSavingEdit]   = useState(false)
   const [editError, setEditError]     = useState('')
 
@@ -365,9 +396,9 @@ export default function Orders() {
   // ── Load ──────────────────────────────────────────────────────────────────
   async function load() {
     setLoadError('')
-    const [o, p, l, s, pr] = await Promise.all([
+    const [o, p, l, s, pr, cust] = await Promise.all([
       supabase.from('orders')
-        .select('id, product_id, lead_id, sale_period_id, service_name, unit_price, quantity, discount, total_amount, payment_method, payment_status, amount_paid, paid_at, staff_id, staff_name, order_date, notes, receipt_number, created_at, updated_at')
+        .select('id, product_id, lead_id, sale_period_id, customer_id, service_name, unit_price, quantity, discount, total_amount, payment_method, payment_status, amount_paid, paid_at, staff_id, staff_name, order_date, notes, receipt_number, created_at, updated_at')
         .order('order_date', { ascending: false })
         .order('id', { ascending: false }),
       supabase.from('products').select('product_id, name, business_type'),
@@ -379,6 +410,7 @@ export default function Orders() {
         .select('id, product_id, period_start, period_end, status')
         .order('period_start', { ascending: false }),
       supabase.from('profiles').select('id, name, role').eq('approval_status', 'approved').order('name'),
+      supabase.from('customers').select('id, hn, first_name, last_name, phone, allergies').order('first_name'),
     ])
     if (o.error) { setLoadError(o.error.message); setLoading(false); return }
     setOrders(o.data || [])
@@ -386,6 +418,7 @@ export default function Orders() {
     setClosedLeads(l.data || [])
     setSales(s.data || [])
     setProfileOptions(pr.data || [])
+    setCustomerList(cust.data || [])
     setLoading(false)
   }
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -401,6 +434,7 @@ export default function Orders() {
       product_id:     addForm.product_id,
       lead_id:        addForm.lead_id        ? Number(addForm.lead_id)        : null,
       sale_period_id: addForm.sale_period_id ? Number(addForm.sale_period_id) : null,
+      customer_id:    addCustomer ? addCustomer.id : null,
       service_name:   addForm.service_name.trim(),
       unit_price:     Number(addForm.unit_price),
       quantity:       Number(addForm.quantity) || 1,
@@ -418,6 +452,7 @@ export default function Orders() {
     if (error) { setAddError(error.message); setSaving(false); return }
     setShowAdd(false)
     setAddForm({ ...EMPTY_FORM, order_date: TODAY })
+    setAddCustomer(null)
     await load()
     setSaving(false)
     showToast('บันทึก Order แล้ว')
@@ -454,6 +489,7 @@ export default function Orders() {
       product_id:     editForm.product_id,
       lead_id:        editForm.lead_id        ? Number(editForm.lead_id)        : null,
       sale_period_id: editForm.sale_period_id ? Number(editForm.sale_period_id) : null,
+      customer_id:    editCustomer ? editCustomer.id : null,
       service_name:   editForm.service_name.trim(),
       unit_price:     Number(editForm.unit_price),
       quantity:       Number(editForm.quantity) || 1,
@@ -471,6 +507,7 @@ export default function Orders() {
     setSavingEdit(false)
     if (error) { setEditError(error.message); return }
     setEditingRow(null)
+    setEditCustomer(null)
     await load()
     showToast('บันทึกการแก้ไขแล้ว')
   }
@@ -495,6 +532,7 @@ export default function Orders() {
 
   // ── Derived / aggregates ──────────────────────────────────────────────────
   const productMap = useMemo(() => new Map(products.map(p => [p.product_id, p])), [products])
+  const customerMap = useMemo(() => new Map(customerList.map(c => [c.id, c])), [customerList])
 
   // Summary KPIs
   const thisMonth = TODAY.slice(0, 7) // "YYYY-MM"
@@ -657,6 +695,7 @@ export default function Orders() {
               <thead>
                 <tr className="bg-slate-50/60 border-b border-slate-100">
                   <th className={thCls}>วันที่</th>
+                  <th className={thCls}>ผู้ป่วย</th>
                   <th className={thCls}>สินค้า</th>
                   <th className={thCls}>บริการ / สินค้าที่ขาย</th>
                   <th className={thRightCls}>ราคา × จำนวน</th>
@@ -692,6 +731,22 @@ export default function Orders() {
                         {o.receipt_number && (
                           <p className="text-[10px] text-slate-400 mt-0.5 font-mono">{o.receipt_number}</p>
                         )}
+                      </td>
+                      {/* ผู้ป่วย */}
+                      <td className={tdCls}>
+                        {(() => {
+                          const cid = (o as any).customer_id
+                          const c = cid ? customerMap.get(cid) : null
+                          if (!c) return <span className="text-slate-200 text-xs">—</span>
+                          return (
+                            <div className="min-w-[100px]">
+                              {c.hn && <p className="text-[10px] font-mono text-indigo-500 font-semibold leading-none mb-0.5">HN {c.hn}</p>}
+                              <p className="text-sm font-medium text-slate-800 leading-snug">{c.first_name} {c.last_name}</p>
+                              {c.phone && <p className="text-xs text-slate-400">{c.phone}</p>}
+                              {c.allergies && <p className="text-[10px] text-red-500 font-medium">⚠ {c.allergies}</p>}
+                            </div>
+                          )
+                        })()}
                       </td>
                       {/* สินค้า */}
                       <td className={tdCls}>
@@ -865,6 +920,7 @@ export default function Orders() {
             form={addForm} setForm={setAddForm}
             products={products} leadsOpts={closedLeads} salesOpts={sales}
             profileOptions={profileOptions} servicePresets={servicePresets}
+            customer={addCustomer} setCustomer={setAddCustomer}
           />
           {addError && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{addError}</p>}
           <div className="flex gap-2 mt-6">
@@ -881,6 +937,7 @@ export default function Orders() {
             form={editForm} setForm={setEditForm}
             products={products} leadsOpts={closedLeads} salesOpts={sales}
             profileOptions={profileOptions} servicePresets={servicePresets}
+            customer={editCustomer} setCustomer={setEditCustomer}
           />
           {editError && <p className="text-sm bg-red-50 text-red-600 border border-red-100 rounded-xl px-3.5 py-2.5 mt-4">{editError}</p>}
           <div className="flex gap-2 mt-6">

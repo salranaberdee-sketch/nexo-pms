@@ -534,6 +534,89 @@ export type Database = {
           },
         ]
       }
+      customers: {
+        Row: {
+          address: string | null
+          allergies: string | null
+          blood_type: string | null
+          chronic_diseases: string | null
+          consent_at: string | null
+          consent_given: boolean
+          created_at: string
+          created_by: string | null
+          dob: string | null
+          email: string | null
+          first_name: string
+          gender: string | null
+          hn: string | null
+          id: number
+          id_card: string | null
+          last_name: string
+          line_id: string | null
+          nickname: string | null
+          notes: string | null
+          phone: string | null
+          tags: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          allergies?: string | null
+          blood_type?: string | null
+          chronic_diseases?: string | null
+          consent_at?: string | null
+          consent_given?: boolean
+          created_at?: string
+          created_by?: string | null
+          dob?: string | null
+          email?: string | null
+          first_name: string
+          gender?: string | null
+          hn?: string | null
+          id?: number
+          id_card?: string | null
+          last_name: string
+          line_id?: string | null
+          nickname?: string | null
+          notes?: string | null
+          phone?: string | null
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          allergies?: string | null
+          blood_type?: string | null
+          chronic_diseases?: string | null
+          consent_at?: string | null
+          consent_given?: boolean
+          created_at?: string
+          created_by?: string | null
+          dob?: string | null
+          email?: string | null
+          first_name?: string
+          gender?: string | null
+          hn?: string | null
+          id?: number
+          id_card?: string | null
+          last_name?: string
+          line_id?: string | null
+          nickname?: string | null
+          notes?: string | null
+          phone?: string | null
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           ad_id: number | null
@@ -650,6 +733,7 @@ export type Database = {
         Row: {
           amount_paid: number
           created_at: string
+          customer_id: number | null
           discount: number
           id: number
           lead_id: number | null
@@ -672,6 +756,7 @@ export type Database = {
         Insert: {
           amount_paid?: number
           created_at?: string
+          customer_id?: number | null
           discount?: number
           id?: number
           lead_id?: number | null
@@ -694,6 +779,7 @@ export type Database = {
         Update: {
           amount_paid?: number
           created_at?: string
+          customer_id?: number | null
           discount?: number
           id?: number
           lead_id?: number | null
@@ -714,6 +800,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "orders_lead_id_fkey"
             columns: ["lead_id"]

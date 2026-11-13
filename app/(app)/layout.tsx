@@ -16,19 +16,20 @@ import {
 
 // ─── Page label map for mobile header ───────────────────────────────────────
 const PAGE_LABELS: Record<string, string> = {
-  '/dashboard': 'Dashboard',
-  '/products':  'Products',
-  '/contents':  'Content',
-  '/my-tasks':  'งานของฉัน',
-  '/ads':       'Ads',
-  '/leads':     'Leads',
-  '/orders':    'Orders',
-  '/sales':     'Sales',
-  '/report':    'Report',
-  '/team':      'ทีม',
-  '/settings':  'ตั้งค่า',
-  '/backup':    'สำรองข้อมูล',
-  '/profile':   'โปรไฟล์',
+  '/dashboard':  'Dashboard',
+  '/products':   'Products',
+  '/contents':   'Content',
+  '/my-tasks':   'งานของฉัน',
+  '/ads':        'Ads',
+  '/leads':      'Leads',
+  '/customers':  'ลูกค้า / ผู้ป่วย',
+  '/orders':     'Orders',
+  '/sales':      'Sales',
+  '/report':     'Report',
+  '/team':       'ทีม',
+  '/settings':   'ตั้งค่า',
+  '/backup':     'สำรองข้อมูล',
+  '/profile':    'โปรไฟล์',
 }
 
 // ─── Bottom nav tabs (5 tabs แสดงบน bottom bar) ─────────────────────────────

@@ -23,6 +23,7 @@ export function useProfile(): Profile {
 // Used for client-side UI gating (RLS remains the source of truth at the DB level).
 const PERMISSION_MATRIX: Record<string, Record<PermissionAction, string[]>> = {
   orders:                 { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
+  customers:              { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
   products:               { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
   contents:               { insert: ['admin', 'manager', 'editor'],     update: ['admin', 'manager', 'editor'],     delete: ['admin', 'manager'] },
   ads:                    { insert: ['admin', 'manager'],                update: ['admin', 'manager'],                delete: ['admin'] },
