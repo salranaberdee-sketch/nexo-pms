@@ -108,11 +108,12 @@ function PriceCell({
 
 // ── name cell ─────────────────────────────────────────────────────────────────
 function NameCell({
-  name, canEdit, onSave,
+  name, canEdit, onSave, highlight = '',
 }: {
   name: string
   canEdit: boolean
   onSave: (v: string) => void
+  highlight?: string
 }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal]         = useState(name)
@@ -126,7 +127,7 @@ function NameCell({
     else setVal(name)
   }
 
-  if (!canEdit) return <span className="text-sm font-medium text-slate-800">{name}</span>
+  if (!canEdit) return <span className="text-sm font-medium text-slate-800"><Highlight text={name} query={highlight} /></span>
 
   if (editing) {
     return (
@@ -150,12 +151,24 @@ function NameCell({
       title="คลิกเพื่อแก้ชื่อ"
       className="text-sm font-medium text-slate-800 hover:text-indigo-700 text-left transition-colors rounded px-1 -mx-1 hover:bg-indigo-50 py-0.5"
     >
-      {name}
+      <Highlight text={name} query={highlight} />
     </button>
   )
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Highlight matching text ───────────────────────────────────────────────────
+function Highlight({ text, query }: { text: string; query: string }) {
+  if (!query) return <>{text}</>
+  const idx = text.toLowerCase().indexOf(query.toLowerCase())
+  if (idx === -1) return <>{text}</>
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-amber-200 text-amber-900 rounded px-0.5 not-italic">{text.slice(idx, idx + query.length)}</mark>
+      {text.slice(idx + query.length)}
+    </>
+  )
+}
 export default function ServicePresetsManager({ canManage }: { canManage: boolean }) {
   const [presets, setPresets]     = useState<ServicePreset[]>([])
   const [loading, setLoading]     = useState(true)
@@ -164,7 +177,9 @@ export default function ServicePresetsManager({ canManage }: { canManage: boolea
   const [adding, setAdding]       = useState(false)
   const [dragging, setDragging]   = useState<number | null>(null)
   const [dragOver, setDragOver]   = useState<number | null>(null)
+  const [search, setSearch]       = useState('')
   const addNameRef                = useRef<HTMLInputElement>(null)
+  const searchRef                 = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
   async function load() {
@@ -225,6 +240,12 @@ export default function ServicePresetsManager({ canManage }: { canManage: boolea
   const withPrice    = presets.filter(p => p.price > 0).length
   const withoutPrice = presets.length - withPrice
 
+  // Search filter — applied to display only, drag-reorder still uses full presets index
+  const q = search.trim().toLowerCase()
+  const filtered = q
+    ? presets.map((p, i) => ({ ...p, _idx: i })).filter(p => p.name.toLowerCase().includes(q))
+    : presets.map((p, i) => ({ ...p, _idx: i }))
+
   if (loading) {
     return (
       <div className="py-8 flex items-center justify-center gap-2 text-slate-400">
@@ -253,11 +274,43 @@ export default function ServicePresetsManager({ canManage }: { canManage: boolea
         </div>
       )}
 
+      {/* ── Search box ── */}
+      {presets.length > 3 && (
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none"
+            width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            ref={searchRef}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={`ค้นหาใน ${presets.length} รายการ...`}
+            className="w-full border border-slate-200 rounded-xl pl-8 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white placeholder:text-slate-300"
+          />
+          {search && (
+            <button onClick={() => setSearch('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* ── Table header ── */}
       {presets.length > 0 && (
         <div className="grid grid-cols-[24px_1fr_120px_32px] gap-2 px-3 pb-1">
           <span />
-          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">ชื่อบริการ</span>
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
+            ชื่อบริการ
+            {search && filtered.length !== presets.length && (
+              <span className="ml-2 normal-case font-normal text-indigo-500">
+                พบ {filtered.length} จาก {presets.length}
+              </span>
+            )}
+          </span>
           <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide text-right">ราคา</span>
           <span />
         </div>
@@ -271,35 +324,45 @@ export default function ServicePresetsManager({ canManage }: { canManage: boolea
             <p className="text-xs text-slate-300">กดปุ่ม "เพิ่มบริการ" ด้านล่างเพื่อเริ่ม</p>
           </div>
         )}
-        {presets.map((p, i) => (
+        {search && filtered.length === 0 && (
+          <div className="py-6 text-center space-y-1">
+            <p className="text-sm text-slate-400">ไม่พบ "{search}"</p>
+            <button onClick={() => setSearch('')} className="text-xs text-indigo-500 hover:underline">ล้างการค้นหา</button>
+          </div>
+        )}
+        {filtered.map(({ _idx: i, ...p }) => (
           <div
             key={`${p.name}-${i}`}
-            draggable={canManage}
-            onDragStart={() => onDragStart(i)}
-            onDragOver={e => onDragOver(e, i)}
-            onDrop={() => onDrop(i)}
+            draggable={canManage && !search}
+            onDragStart={() => !search && onDragStart(i)}
+            onDragOver={e => !search && onDragOver(e, i)}
+            onDrop={() => !search && onDrop(i)}
             onDragEnd={() => { setDragging(null); setDragOver(null) }}
             className={`grid grid-cols-[24px_1fr_120px_32px] gap-2 items-center px-3 py-2.5 rounded-xl border transition-all
               ${dragging === i ? 'opacity-40' : ''}
               ${dragOver === i ? 'border-indigo-300 bg-indigo-50 shadow-sm' : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-sm'}
-              ${canManage ? 'cursor-default' : ''}`}
+              ${canManage && !search ? 'cursor-default' : ''}`}
           >
-            {/* Drag handle */}
-            <div className={`flex items-center justify-center ${canManage ? 'cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500' : 'text-transparent'}`}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="4" y1="8" x2="20" y2="8"/>
-                <line x1="4" y1="16" x2="20" y2="16"/>
-              </svg>
+            {/* Drag handle — hidden when searching */}
+            <div className={`flex items-center justify-center ${canManage && !search ? 'cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500' : 'text-transparent'}`}>
+              {!search && (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="4" y1="8" x2="20" y2="8"/>
+                  <line x1="4" y1="16" x2="20" y2="16"/>
+                </svg>
+              )}
+              {search && <span className="text-[10px] text-slate-300 tabular-nums">{i + 1}</span>}
             </div>
 
-            {/* Name */}
+            {/* Name — with Highlight when searching */}
             <NameCell
               name={p.name}
               canEdit={canManage}
               onSave={v => updateField(i, 'name', v)}
+              highlight={search}
             />
 
-            {/* Price — right aligned */}
+            {/* Price */}
             <div className="flex justify-end">
               <PriceCell
                 price={p.price}
@@ -384,7 +447,7 @@ export default function ServicePresetsManager({ canManage }: { canManage: boolea
       </div>
 
       {/* ── Footer actions ── */}
-      {canManage && !adding && (
+      {canManage && !adding && !search && (
         <button
           onClick={() => { setAdding(true); setNewName(''); setNewPrice('') }}
           className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-slate-300 text-sm text-slate-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
