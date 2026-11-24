@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useCan, useProfile } from '@/lib/profile-context'
 import ProfilePicker from './ProfilePicker'
+import MultiPersonPicker from './MultiPersonPicker'
 import SearchInput from './SearchInput'
 import { TableSkeleton, EmptyState, todayStr } from './TableState'
 import StatusSelect from './StatusSelect'
@@ -41,6 +42,8 @@ const EMPTY_ADD_FORM = {
   product_id: '', seq: '', type: '', title: '',
   objective: '', channel: '', hook: '', format_size: '',
   assigned_to: '', assigned_to_id: '',
+  extra_assignee_ids: [] as string[],
+  extra_assignees:    [] as string[],
   producer: '', producer_id: '',
   approver: '', approver_id: '',
   deadline: '', status: 'รอผลิต',
@@ -55,6 +58,8 @@ const EMPTY_EDIT_FORM = {
   objective: '', channel: '', hook: '', format_size: '',
   deadline: '',
   assigned_to: '', assigned_to_id: '',
+  extra_assignee_ids: [] as string[],
+  extra_assignees:    [] as string[],
   producer: '', producer_id: '',
   approver: '', approver_id: '',
   status: 'รอผลิต',
@@ -129,7 +134,7 @@ export default function Contents() {
     const [c, p, pr] = await Promise.all([
       supabase
         .from('contents')
-        .select('id, product_id, seq, type, title, objective, hook, format_size, assigned_to, assigned_to_id, producer, producer_id, approver, approver_id, deadline, status, production_cost, acknowledged_at, assigned_date, created_at, file_link, post_link, channel, actual_submit_date, approved_at, poster, poster_id, scheduled_post_date, actual_post_date, issues')
+        .select('id, product_id, seq, type, title, objective, hook, format_size, assigned_to, assigned_to_id, extra_assignee_ids, extra_assignees, producer, producer_id, approver, approver_id, deadline, status, production_cost, acknowledged_at, assigned_date, created_at, file_link, post_link, channel, actual_submit_date, approved_at, poster, poster_id, scheduled_post_date, actual_post_date, issues')
         .order('product_id').order('seq'),
       supabase.from('products').select('product_id, name, brand'),
       supabase.from('profiles').select('id, name, role, brand_access').eq('approval_status', 'approved').order('name'),
@@ -245,6 +250,8 @@ export default function Contents() {
       assigned_to:     addForm.assigned_to || null,
       assigned_to_id:  addForm.assigned_to_id || null,
       assigned_date:   addForm.assigned_to_id ? new Date().toISOString().split('T')[0] : null,
+      extra_assignee_ids: addForm.extra_assignee_ids,
+      extra_assignees:    addForm.extra_assignees,
       producer:        addForm.producer || null,
       producer_id:     addForm.producer_id || null,
       approver:        addForm.approver || null,
@@ -286,6 +293,8 @@ export default function Contents() {
       deadline:       c.deadline || '',
       assigned_to:    c.assigned_to || '',
       assigned_to_id: c.assigned_to_id || '',
+      extra_assignee_ids: (c as any).extra_assignee_ids || [],
+      extra_assignees:    (c as any).extra_assignees    || [],
       producer:       c.producer || '',
       producer_id:    c.producer_id || '',
       approver:       c.approver || '',
@@ -330,6 +339,8 @@ export default function Contents() {
       assigned_to:    editForm.assigned_to || null,
       assigned_to_id: editForm.assigned_to_id || null,
       assigned_date:  assigneeChanged && editForm.assigned_to_id ? new Date().toISOString().split('T')[0] : editingRow.assigned_date,
+      extra_assignee_ids: editForm.extra_assignee_ids,
+      extra_assignees:    editForm.extra_assignees,
       producer:       editForm.producer || null,
       producer_id:    editForm.producer_id || null,
       approver:       editForm.approver || null,
@@ -645,9 +656,21 @@ export default function Contents() {
                           : <span className="text-slate-300">—</span>}
                       </td>
                       <td className={`${tdCls} whitespace-nowrap`}>
-                        <InlinePersonPicker value={c.assigned_to_id || ''} display={c.assigned_to || ''}
-                          profiles={profileOptions} disabled={!canUpdate}
-                          onChange={(id, name) => updateAssignee(c.id, id, name)} />
+                        <div className="flex flex-col gap-1">
+                          <InlinePersonPicker value={c.assigned_to_id || ''} display={c.assigned_to || ''}
+                            profiles={profileOptions} disabled={!canUpdate}
+                            onChange={(id, name) => updateAssignee(c.id, id, name)} />
+                          {/* Extra assignees — read-only chips */}
+                          {((c as any).extra_assignees || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {((c as any).extra_assignees as string[]).map((name: string, i: number) => (
+                                <span key={i} className="text-[10px] bg-indigo-50 text-indigo-600 border border-indigo-100 px-1.5 py-0.5 rounded-md font-medium">
+                                  +{name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className={`${tdCls} text-xs text-slate-500`}>
                         {c.approver
@@ -883,7 +906,7 @@ export default function Contents() {
           </Field>
 
           {/* Assignment section */}
-          <Field label="ผู้รับผิดชอบ (assigned to)">
+          <Field label="ผู้รับผิดชอบหลัก">
             <ProfilePicker value={addForm.assigned_to_id}
               profiles={getProfilesForProduct(addForm.product_id)}
               onChange={(id, name) => setAddForm({ ...addForm, assigned_to_id: id, assigned_to: name })}
@@ -893,6 +916,18 @@ export default function Contents() {
             <input type="date" value={addForm.deadline}
               onChange={e => setAddForm({ ...addForm, deadline: e.target.value })} className={inputCls} />
           </Field>
+          <div className="col-span-2">
+            <Field label="ผู้รับผิดชอบเพิ่มเติม" hint="เพิ่มได้หลายคน — ทุกคนจะเห็นงานนี้ใน 'งานของฉัน'">
+              <MultiPersonPicker
+                selectedIds={addForm.extra_assignee_ids}
+                selectedNames={addForm.extra_assignees}
+                profiles={getProfilesForProduct(addForm.product_id)}
+                excludeIds={addForm.assigned_to_id ? [addForm.assigned_to_id] : []}
+                onChange={(ids, names) => setAddForm({ ...addForm, extra_assignee_ids: ids, extra_assignees: names })}
+                placeholder="เพิ่มผู้รับผิดชอบ..."
+              />
+            </Field>
+          </div>
           <Field label="ผู้ผลิต (producer)">
             <ProfilePicker value={addForm.producer_id}
               profiles={getProfilesForProduct(addForm.product_id)}
@@ -990,7 +1025,7 @@ export default function Contents() {
           </Field>
 
           {/* Assignment section */}
-          <Field label="ผู้รับผิดชอบ">
+          <Field label="ผู้รับผิดชอบหลัก">
             <ProfilePicker value={editForm.assigned_to_id}
               profiles={getProfilesForProduct(editForm.product_id)}
               onChange={(id, name) => setEditForm(f => ({ ...f, assigned_to_id: id, assigned_to: name }))}
@@ -1002,6 +1037,21 @@ export default function Contents() {
               onChange={(id, name) => setEditForm(f => ({ ...f, producer_id: id, producer: name }))}
               placeholder="เลือกผู้ผลิต" />
           </Field>
+          <div className="col-span-2">
+            <Field label="ผู้รับผิดชอบเพิ่มเติม" hint="เพิ่มได้หลายคน — ทุกคนจะเห็นงานนี้ใน 'งานของฉัน'">
+              <MultiPersonPicker
+                selectedIds={editForm.extra_assignee_ids}
+                selectedNames={editForm.extra_assignees}
+                profiles={getProfilesForProduct(editForm.product_id)}
+                excludeIds={[
+                  ...(editForm.assigned_to_id ? [editForm.assigned_to_id] : []),
+                  ...(editForm.producer_id    ? [editForm.producer_id]    : []),
+                ]}
+                onChange={(ids, names) => setEditForm(f => ({ ...f, extra_assignee_ids: ids, extra_assignees: names }))}
+                placeholder="เพิ่มผู้รับผิดชอบ..."
+              />
+            </Field>
+          </div>
           <Field label="ผู้อนุมัติ (approver)" hint="admin / manager เท่านั้น">
             <ProfilePicker value={editForm.approver_id}
               profiles={approverOptions}

@@ -149,16 +149,17 @@ export default function MyTasks() {
                  status, deadline, scheduled_post_date, actual_post_date, actual_submit_date,
                  acknowledged_at, assigned_date,
                  producer, producer_id, approver, approver_id,
-                 assigned_to, assigned_to_id, poster, poster_id`
+                 assigned_to, assigned_to_id, poster, poster_id,
+                 extra_assignee_ids, extra_assignees`
 
     try {
       // ── Phase 1: contents (mine + team) + products in parallel ────────────
       const [cRes, pRes, prRes] = await Promise.all([
-        // Q1: My tasks — contents where I hold any role
+        // Q1: My tasks — contents where I hold any role (primary or extra assignee)
         supabase
           .from('contents')
           .select(CONTENT_SELECT)
-          .or(`producer_id.eq.${me.id},approver_id.eq.${me.id},assigned_to_id.eq.${me.id},poster_id.eq.${me.id}`),
+          .or(`producer_id.eq.${me.id},approver_id.eq.${me.id},assigned_to_id.eq.${me.id},poster_id.eq.${me.id},extra_assignee_ids.cs.{${me.id}}`),
         // Q2: All active contents (team view — manager/admin only)
         canManage
           ? supabase
@@ -248,8 +249,14 @@ export default function MyTasks() {
           if (c.producer_id    === me.id) roles.push('producer')
           if (c.approver_id    === me.id) roles.push('approver')
           if (c.assigned_to_id === me.id && c.producer_id !== me.id) roles.push('assigned_to')
-          // poster role: only if not already producer (producer handles กำหนดโพสต์→โพสต์แล้ว too)
+          // poster role: only if not already producer
           if (c.poster_id === me.id && c.producer_id !== me.id) roles.push('poster')
+          // extra assignees
+          if (
+            (c as any).extra_assignee_ids?.includes(me.id) &&
+            c.producer_id !== me.id &&
+            c.assigned_to_id !== me.id
+          ) roles.push('assigned_to')
 
           // For non-my-tasks items (team view) just push once as 'producer' placeholder
           if (roles.length === 0) roles.push('producer')

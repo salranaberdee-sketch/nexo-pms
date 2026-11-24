@@ -393,6 +393,8 @@ export type Database = {
           created_at: string | null
           cta: string | null
           deadline: string | null
+          extra_assignee_ids: string[]
+          extra_assignees: string[]
           file_link: string | null
           file_reference: string | null
           format_size: string | null
@@ -430,6 +432,8 @@ export type Database = {
           created_at?: string | null
           cta?: string | null
           deadline?: string | null
+          extra_assignee_ids?: string[]
+          extra_assignees?: string[]
           file_link?: string | null
           file_reference?: string | null
           format_size?: string | null
@@ -467,6 +471,8 @@ export type Database = {
           created_at?: string | null
           cta?: string | null
           deadline?: string | null
+          extra_assignee_ids?: string[]
+          extra_assignees?: string[]
           file_link?: string | null
           file_reference?: string | null
           format_size?: string | null
